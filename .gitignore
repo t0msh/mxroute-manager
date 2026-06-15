@@ -27,3 +27,4 @@ env/
 .vscode/
 .idea/
 pyrefly.toml
+pyrightconfig.json

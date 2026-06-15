@@ -21,3 +21,4 @@ env/
 .DS_Store
 .vscode/
 .idea/
+pyrefly.toml

@@ -9,3 +9,10 @@ services:
       - "5000:5000"
     env_file:
       - .env
+    environment:
+      - DATABASE_FILE=/data/mxtoolbox.db
+    volumes:
+      - mxtoolbox_data:/data
+
+volumes:
+  mxtoolbox_data:

@@ -1287,9 +1287,16 @@ async function loadDelegationsPage() {
                 const revokeBtn = document.createElement("button");
                 revokeBtn.className = "btn btn-danger btn-sm";
                 revokeBtn.innerHTML = "Revoke";
-                revokeBtn.addEventListener("click", () => {
-                    handleDeleteDelegation(item.email);
-                });
+                if (currentUser && currentUser.email.toLowerCase() === item.email.toLowerCase()) {
+                    revokeBtn.disabled = true;
+                    revokeBtn.title = "You cannot revoke your own access.";
+                    revokeBtn.style.opacity = "0.5";
+                    revokeBtn.style.cursor = "not-allowed";
+                } else {
+                    revokeBtn.addEventListener("click", () => {
+                        handleDeleteDelegation(item.email);
+                    });
+                }
                 wrapper.appendChild(revokeBtn);
                 
                 actionTd.appendChild(wrapper);
@@ -1308,6 +1315,8 @@ async function loadDelegationsPage() {
 
 function handleEditDelegation(email, domains) {
     document.getElementById("delegation-email").value = email;
+    const passInput = document.getElementById("delegation-password");
+    if (passInput) passInput.value = "";
     const checkboxes = document.querySelectorAll('input[name="delegated-domain-cb"]');
     checkboxes.forEach(cb => {
         cb.checked = domains.includes(cb.value);
@@ -1336,15 +1345,21 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
     e.preventDefault();
     const emailInput = document.getElementById("delegation-email");
     const email = emailInput.value.trim().toLowerCase();
+    const passInput = document.getElementById("delegation-password");
+    const password = passInput ? passInput.value : "";
     const checkboxes = document.querySelectorAll('input[name="delegated-domain-cb"]:checked');
     const domains = Array.from(checkboxes).map(cb => cb.value);
     
     if (!email) return;
     
     try {
-        await apiRequest("/api/admin/delegations", "POST", { email, domains });
+        const payload = { email, domains };
+        if (password) payload.password = password;
+        
+        await apiRequest("/api/admin/delegations", "POST", payload);
         showAlert("success", `Permissions updated for ${email}.`);
         emailInput.value = "";
+        if (passInput) passInput.value = "";
         document.querySelectorAll('input[name="delegated-domain-cb"]').forEach(cb => cb.checked = false);
         await loadDelegationsPage();
     } catch (err) {
@@ -1361,7 +1376,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             currentUser = meResult.user;
             const oidcEnabled = meResult.oidc_enabled;
             
-            if (oidcEnabled && currentUser) {
+            if (currentUser) {
                 // Update User Profile UI details
                 document.getElementById("user-email").textContent = currentUser.email;
                 const roleBadge = document.getElementById("user-role-badge");

@@ -48,39 +48,131 @@ OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
 OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
 OIDC_DISCOVERY_URL = os.getenv("OIDC_DISCOVERY_URL")
 OIDC_REDIRECT_URI = os.getenv("OIDC_REDIRECT_URI")
+OIDC_SCOPES = os.getenv("OIDC_SCOPES", "openid email profile groups").strip()
 
 # Administrators List
 admin_users_raw = os.getenv("OIDC_ADMIN_USERS", "")
 OIDC_ADMIN_USERS = set(email.strip().lower() for email in admin_users_raw.split(",") if email.strip())
+OIDC_ADMIN_GROUP = os.getenv("OIDC_ADMIN_GROUP", "administrators").strip()
 
 # Local Admin Credentials
 ADMIN_USER = os.getenv("ADMIN_USER", "admin").strip().lower()
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
-# Thread-safe persistent storage helper functions
-MAPPING_FILE = os.path.join(os.path.dirname(__file__), "domain_mapping.json")
-mapping_lock = threading.Lock()
+# SQLite Persistent Storage
+import sqlite3
 
-def load_domain_mapping():
+DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(__file__), "mxtoolbox.db"))
+MAPPING_FILE = os.path.join(os.path.dirname(__file__), "domain_mapping.json")
+
+def init_db():
     try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL;")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT UNIQUE NOT NULL,
+                password_hash TEXT,
+                is_admin BOOLEAN NOT NULL DEFAULT 0
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS delegations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                domain TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, domain)
+            );
+        """)
+        conn.commit()
+
+        # Perform migration from JSON if it exists
         if os.path.exists(MAPPING_FILE):
-            with mapping_lock:
+            try:
                 with open(MAPPING_FILE, 'r') as f:
                     mapping = json.load(f)
-                    return {k.lower(): [d.lower() for d in v] for k, v in mapping.items()}
-    except Exception as e:
-        app.logger.error(f"Error loading domain mapping: {e}")
-    return {}
+                
+                for email, domains in mapping.items():
+                    email = email.lower().strip()
+                    if not email:
+                        continue
+                    is_admin = "*" in domains or email in OIDC_ADMIN_USERS or email == ADMIN_USER or email == "admin@local"
+                    
+                    cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+                    user_row = cursor.fetchone()
+                    if not user_row:
+                        cursor.execute(
+                            "INSERT INTO users (email, is_admin) VALUES (?, ?)",
+                            (email, 1 if is_admin else 0)
+                        )
+                        user_id = cursor.lastrowid
+                    else:
+                        user_id = user_row[0]
+                    
+                    for domain in domains:
+                        domain = domain.lower().strip()
+                        if domain == "*":
+                            continue
+                        cursor.execute(
+                            "INSERT OR IGNORE INTO delegations (user_id, domain) VALUES (?, ?)",
+                            (user_id, domain)
+                        )
+                conn.commit()
+                
+                # Rename mapping file to prevent future migrations
+                bak_file = MAPPING_FILE + ".bak"
+                os.rename(MAPPING_FILE, bak_file)
+                app.logger.info(f"Successfully migrated {MAPPING_FILE} to SQLite and renamed to {bak_file}")
+            except Exception as e:
+                app.logger.error(f"Failed to migrate legacy mapping file: {e}")
 
-def save_domain_mapping(mapping):
-    try:
-        with mapping_lock:
-            with open(MAPPING_FILE, 'w') as f:
-                json.dump(mapping, f, indent=2)
-        return True
+        # Seed initial admin user if empty and ADMIN_PASSWORD is set
+        cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
+        admin_count = cursor.fetchone()[0]
+        if admin_count == 0 and ADMIN_PASSWORD:
+            from werkzeug.security import generate_password_hash
+            admin_email = ADMIN_USER.lower().strip()
+            hashed_password = generate_password_hash(ADMIN_PASSWORD)
+            cursor.execute(
+                "INSERT OR IGNORE INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
+                (admin_email, hashed_password)
+            )
+            conn.commit()
+            app.logger.info(f"Seeded initial admin user '{admin_email}' into SQLite database.")
+        conn.close()
     except Exception as e:
-        app.logger.error(f"Error saving domain mapping: {e}")
-        return False
+        app.logger.error(f"Failed to initialize database: {e}")
+
+# Run database initialization
+init_db()
+
+def load_domain_mapping():
+    mapping = {}
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.email, u.is_admin, d.domain 
+            FROM users u 
+            LEFT JOIN delegations d ON u.id = d.user_id
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        for email, is_admin, domain in rows:
+            email = email.lower()
+            if email not in mapping:
+                mapping[email] = []
+            if is_admin and "*" not in mapping[email]:
+                mapping[email].append("*")
+            if domain and domain.lower() not in mapping[email]:
+                mapping[email].append(domain.lower())
+    except Exception as e:
+        app.logger.error(f"Error loading domain mapping from SQLite: {e}")
+    return mapping
 
 # Lazy OIDC provider configuration fetch — thread-safe with TTL
 _oidc_config = None
@@ -113,12 +205,6 @@ def get_oidc_config():
 
 # Active user and permission contexts
 def get_current_user():
-    if not OIDC_ENABLED:
-        return {
-            "email": "admin@local",
-            "is_admin": True,
-            "delegated_domains": []
-        }
     return session.get("user")
 
 def is_user_admin(user):
@@ -131,10 +217,7 @@ def is_user_admin(user):
     mapping = load_domain_mapping()
     if "*" in mapping.get(email, []):
         return True
-    # Only trust session is_admin if OIDC is disabled (local development mode)
-    if not OIDC_ENABLED:
-        return user.get("is_admin", False)
-    return False
+    return user.get("is_admin", False)
 
 def has_domain_access(user, domain):
     if not user:
@@ -169,12 +252,9 @@ def require_domain_access(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Route interceptor to enforce login when OIDC is active
+# Route interceptor to enforce login globally
 @app.before_request
 def check_authentication():
-    if not OIDC_ENABLED:
-        return
-    
     # Exclude asset paths, authentication logic endpoints
     if request.path.startswith('/static/') or request.path in ['/login', '/login/redirect', '/oidc/callback', '/logout']:
         return
@@ -192,8 +272,8 @@ def generate_csrf_token():
         session["csrf_token"] = secrets.token_urlsafe(32)
 
 @app.context_processor
-def inject_csrf_token():
-    return dict(csrf_token=session.get("csrf_token"))
+def inject_global_vars():
+    return dict(csrf_token=session.get("csrf_token"), oidc_enabled=OIDC_ENABLED)
 
 @app.after_request
 def set_csrf_cookie(response):
@@ -303,7 +383,7 @@ def cf_request(method, path, payload=None):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login_page():
-    if not OIDC_ENABLED:
+    if session.get("user"):
         return redirect(url_for('home'))
     
     error = None
@@ -311,6 +391,28 @@ def login_page():
         username = request.form.get('username', '').strip().lower()
         password = request.form.get('password', '')
         
+        # Check SQLite database first
+        user_row = None
+        try:
+            conn = sqlite3.connect(DATABASE_FILE)
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, email, password_hash, is_admin FROM users WHERE email = ?", (username,))
+            user_row = cursor.fetchone()
+            conn.close()
+        except Exception as e:
+            app.logger.error(f"Error checking user in SQLite: {e}")
+            
+        if user_row and user_row[2]: # password_hash exists
+            from werkzeug.security import check_password_hash
+            if check_password_hash(user_row[2], password):
+                session["user"] = {
+                    "email": user_row[1],
+                    "is_admin": bool(user_row[3]),
+                    "delegated_domains": load_domain_mapping().get(user_row[1], [])
+                }
+                return redirect(url_for('home'))
+        
+        # Fallback to local admin config check
         if ADMIN_PASSWORD and username == ADMIN_USER and secrets.compare_digest(password, ADMIN_PASSWORD):
             session["user"] = {
                 "email": username,
@@ -318,8 +420,8 @@ def login_page():
                 "delegated_domains": []
             }
             return redirect(url_for('home'))
-        else:
-            error = "Invalid credentials. Please try again."
+            
+        error = "Invalid credentials. Please try again."
             
     return render_template('login.html', error=error)
 
@@ -343,7 +445,7 @@ def login_redirect():
     params = {
         "client_id": OIDC_CLIENT_ID,
         "response_type": "code",
-        "scope": "openid email profile",
+        "scope": OIDC_SCOPES,
         "redirect_uri": OIDC_REDIRECT_URI,
         "state": state
     }
@@ -401,16 +503,51 @@ def oidc_callback():
         if not email:
             return "Error: User identification claim not found in userinfo", 500
             
-        email = email.lower()
-        is_admin = email in OIDC_ADMIN_USERS
+        email = email.lower().strip()
         
+        # Check if user is an admin by email OR by OIDC group membership
+        user_groups = userinfo_data.get("groups", [])
+        if not isinstance(user_groups, list):
+            user_groups = []
+        is_admin = (email in OIDC_ADMIN_USERS) or (OIDC_ADMIN_GROUP in user_groups)
+        
+        user_row = None
+        try:
+            conn = sqlite3.connect(DATABASE_FILE)
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,))
+            user_row = cursor.fetchone()
+            
+            if is_admin:
+                if not user_row:
+                    cursor.execute(
+                        "INSERT INTO users (email, is_admin) VALUES (?, 1)",
+                        (email,)
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET is_admin = 1 WHERE email = ?",
+                        (email,)
+                    )
+                conn.commit()
+            else:
+                # If they are not an administrator, check if they exist in the database (delegated user)
+                if not user_row:
+                    conn.close()
+                    return render_template('login.html', error="You do not have access to this tool. Please contact an administrator.")
+                    
+            conn.close()
+        except Exception as db_err:
+            app.logger.error(f"Failed to query/insert OIDC user in database: {db_err}")
+            
         # Load user's delegated domains from mapping store
         mapping = load_domain_mapping()
         delegated_domains = mapping.get(email, [])
         
         session["user"] = {
             "email": email,
-            "is_admin": is_admin,
+            "is_admin": is_admin or (user_row and bool(user_row[1])),
             "delegated_domains": delegated_domains
         }
         
@@ -427,14 +564,28 @@ def logout():
 @app.route('/api/me')
 def get_me():
     user = get_current_user()
-    # Refresh current session dynamic mapping values for accuracy
-    if OIDC_ENABLED and user:
+    if user:
         email = user.get("email")
         if isinstance(email, str):
             mapping = load_domain_mapping()
             delegated_domains = mapping.get(email, [])
-            is_admin = email in OIDC_ADMIN_USERS or email == ADMIN_USER or "*" in delegated_domains
-            # Build a fresh dict rather than mutating in-place to avoid side-effects on existing references
+            
+            # Fetch is_admin from SQLite to be accurate
+            is_admin = False
+            try:
+                conn = sqlite3.connect(DATABASE_FILE)
+                cursor = conn.cursor()
+                cursor.execute("SELECT is_admin FROM users WHERE email = ?", (email.lower(),))
+                row = cursor.fetchone()
+                if row:
+                    is_admin = bool(row[0])
+                conn.close()
+            except Exception:
+                pass
+                
+            if email in OIDC_ADMIN_USERS or email == ADMIN_USER or email == "admin@local" or "*" in delegated_domains:
+                is_admin = True
+                
             user = {**user, "delegated_domains": delegated_domains, "is_admin": is_admin}
             session["user"] = user
             
@@ -445,7 +596,7 @@ def get_me():
             "email": user.get("email"),
             "is_admin": user.get("is_admin", False),
             "delegated_domains": user.get("delegated_domains", [])
-        } if OIDC_ENABLED and user else None
+        } if user else None
     })
 
 # --- DELEGATIONS ACCESS CONTROL API (ADMIN ONLY) ---
@@ -471,6 +622,7 @@ def update_delegation():
     data = request.json or {}
     email = data.get("email")
     domains = data.get("domains")
+    password = data.get("password")
     
     if not email:
         return jsonify({"success": False, "error": {"message": "Email is required"}}), 400
@@ -479,17 +631,56 @@ def update_delegation():
         
     email = email.strip().lower()
     normalized_domains = [d.strip().lower() for d in domains if d.strip()]
+    is_admin = "*" in normalized_domains
     
-    mapping = load_domain_mapping()
-    if not normalized_domains:
-        if email in mapping:
-            del mapping[email]
-    else:
-        mapping[email] = normalized_domains
-    
-    if save_domain_mapping(mapping):
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        # Check if user exists
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        
+        from werkzeug.security import generate_password_hash
+        hashed_password = generate_password_hash(password) if password else None
+        
+        if not row:
+            # Create user
+            cursor.execute(
+                "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, ?)",
+                (email, hashed_password, 1 if is_admin else 0)
+            )
+            user_id = cursor.lastrowid
+        else:
+            user_id = row[0]
+            # Update user
+            if password:
+                cursor.execute(
+                    "UPDATE users SET password_hash = ?, is_admin = ? WHERE id = ?",
+                    (hashed_password, 1 if is_admin else 0, user_id)
+                )
+            else:
+                cursor.execute(
+                    "UPDATE users SET is_admin = ? WHERE id = ?",
+                    (1 if is_admin else 0, user_id)
+                )
+                
+        # Update delegations
+        cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
+        for d in normalized_domains:
+            if d == "*":
+                continue
+            cursor.execute(
+                "INSERT INTO delegations (user_id, domain) VALUES (?, ?)",
+                (user_id, d)
+            )
+            
+        conn.commit()
+        conn.close()
         return jsonify({"success": True})
-    return jsonify({"success": False, "error": {"message": "Failed to save delegation configuration"}}), 500
+    except Exception as e:
+        app.logger.error(f"Error updating user delegations in SQLite: {e}")
+        return jsonify({"success": False, "error": {"message": f"Failed to save configuration: {e}"}}), 500
 
 @app.route('/api/admin/delegations', methods=['DELETE'])
 @app.route('/api/admin/delegations/<path:email>', methods=['DELETE'])
@@ -505,13 +696,30 @@ def delete_delegation(email=None):
         return jsonify({"success": False, "error": {"message": "Email parameter is required"}}), 400
         
     email = email.strip().lower()
-    mapping = load_domain_mapping()
-    if email in mapping:
-        del mapping[email]
-        if save_domain_mapping(mapping):
+    
+    current_user = get_current_user()
+    if current_user and current_user.get("email", "").lower() == email:
+        return jsonify({"success": False, "error": {"message": "Conflict: You cannot revoke/delete your own account."}}), 409
+        
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        
+        # Delete user delegations & user record
+        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        row = cursor.fetchone()
+        if row:
+            user_id = row[0]
+            cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
+            conn.commit()
+            conn.close()
             return jsonify({"success": True})
-        return jsonify({"success": False, "error": {"message": "Failed to save delegation configuration"}}), 500
-    return jsonify({"success": False, "error": {"message": "User delegation mapping not found"}}), 404
+        conn.close()
+        return jsonify({"success": False, "error": {"message": "User not found"}}), 404
+    except Exception as e:
+        app.logger.error(f"Error deleting user delegations from SQLite: {e}")
+        return jsonify({"success": False, "error": {"message": f"Failed to delete configuration: {e}"}}), 500
 
 @app.route('/')
 def home():

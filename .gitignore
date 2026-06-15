@@ -4,6 +4,11 @@ deploy.sh
 
 # Local database and domain permissions configuration
 domain_mapping.json
+domain_mapping.json.bak
+mxtoolbox.db
+*.db
+*.db-journal
+*.db-wal
 
 # Python caches and compiled files
 __pycache__/

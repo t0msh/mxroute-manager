@@ -188,10 +188,15 @@
             border-color: rgba(92, 221, 141, 0.3);
             color: var(--accent);
         }
+
+        .admin-inner.no-border {
+            border-top: none;
+            padding-top: 0;
+        }
     </style>
 </head>
 
-<body data-has-error="{{ 'true' if error else 'false' }}">
+<body data-has-error="{{ 'true' if error else 'false' }}" data-oidc-enabled="{{ 'true' if oidc_enabled else 'false' }}">
     <div class="login-container">
         <div class="login-card">
             <div class="login-brand">
@@ -211,9 +216,14 @@
             {% endif %}
 
             <p class="login-desc">
+                {% if oidc_enabled %}
                 Welcome to the administration panel. Sign in with your OIDC provider to continue.
+                {% else %}
+                Welcome to the administration panel. Sign in with your credentials to continue.
+                {% endif %}
             </p>
 
+            {% if oidc_enabled %}
             <!-- Primary: OIDC login -->
             <a href="/login/redirect" class="btn-login">
                 <span>🔑</span> Sign In with OIDC
@@ -227,18 +237,19 @@
                     <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
                         stroke-linejoin="round" />
                 </svg>
-                Admin login
+                Local Login
             </button>
+            {% endif %}
 
-            <div class="admin-section" id="adminSection" aria-hidden="true">
-                <div class="admin-inner">
-                    <p class="admin-label">Local Admin</p>
+            <div class="admin-section {% if not oidc_enabled %}open{% endif %}" id="adminSection" aria-hidden="{% if oidc_enabled %}true{% else %}false{% endif %}">
+                <div class="admin-inner {% if not oidc_enabled %}no-border{% endif %}">
+                    <p class="admin-label">{% if oidc_enabled %}Local Admin{% else %}Credential Sign In{% endif %}</p>
                     <form action="/login" method="POST" style="display: flex; flex-direction: column; gap: 1.25rem;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <div class="form-group">
                             <label for="username"
-                                style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Username</label>
-                            <input type="text" id="username" name="username" placeholder="admin" required
+                                style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Username / Email</label>
+                            <input type="text" id="username" name="username" placeholder="admin@example.com" required
                                 autocomplete="username">
                         </div>
                         <div class="form-group">
@@ -248,7 +259,7 @@
                                 autocomplete="current-password">
                         </div>
                         <button type="submit" class="btn-admin">
-                            <span>👤</span> Sign In Locally
+                            <span>👤</span> Sign In
                         </button>
                     </form>
                 </div>
@@ -260,16 +271,17 @@
         function toggleAdmin() {
             const section = document.getElementById('adminSection');
             const toggle = document.getElementById('adminToggle');
+            if (!toggle) return;
             const isOpen = section.classList.toggle('open');
             toggle.classList.toggle('open', isOpen);
             toggle.setAttribute('aria-expanded', isOpen);
             section.setAttribute('aria-hidden', !isOpen);
         }
 
-        // If the page loaded with an error, auto-expand the admin form
-        // (the user may have just submitted the local login form)
+        // If the page loaded with an error or OIDC is disabled, auto-expand the admin form
         const hasLoginError = document.body.dataset.hasError === 'true';
-        if (hasLoginError) toggleAdmin();
+        const oidcEnabled = document.body.dataset.oidcEnabled === 'true';
+        if (hasLoginError || !oidcEnabled) toggleAdmin();
     </script>
 </body>
 

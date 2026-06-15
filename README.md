@@ -1,7 +1,7 @@
 # MXToolbox (MXroute Email Manager)
 
 MXToolbox is a self-hosted Flask-based web application designed to simplify email hosting management on the MXroute platform. It integrates directly with **MXroute** for mail service management and **Cloudflare** for automated DNS provisioning (MX, SPF, DKIM, and verification records).
-Authentication is supported via OpenID Connect (OIDC) with fine-grained access control, allowing administrators to delegate specific domain management to individual OIDC users.
+Authentication is supported via both OpenID Connect (OIDC) and traditional local credentials (username/password), with fine-grained access control to delegate specific domain management to individual users.
 
 ## Why?
 
@@ -19,8 +19,8 @@ This started as a way to easily onboard new users to MXroute email domains I own
 - **Email Account Management**: Create, update quotas/passwords, and delete email addresses.
 - **Email Forwarders**: Create and delete email aliases/forwarders.
 - **Spam Control**: Manage spam protection settings for each domain.
-- **Delegated Access Control**: Administrators can assign specific domains to OIDC-authenticated users, allowing them to manage only their designated email domains.
-- **Robust Authentication**: Integration with OpenID Connect (SSO) with a secure, local admin fallback.
+- **Delegated Access Control**: Administrators can assign specific domains to individual users, allowing them to manage only their designated email domains.
+- **Robust Authentication**: Integration with OpenID Connect (SSO), as well as a traditional credentials database (username/password) with fallback capabilities.
 
 ---
 
@@ -42,11 +42,13 @@ And configure the variables inside `.env`:
 - `CF_ACCOUNT_ID`: Your Cloudflare Account ID.
 
 ### 3. Authentication & Security
-- `OIDC_ENABLED`: Set to `true` to restrict access using OpenID Connect + Local Admin, or `false` to run in local developer mode (which bypasses login as a mock admin).
+- `OIDC_ENABLED`: Set to `true` to authenticate via OpenID Connect + Local Admin, or `false` to restrict access purely using local database-driven username/password credentials.
 - `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET`: Credentials from your OIDC Identity Provider.
 - `OIDC_DISCOVERY_URL`: The discovery document URL (e.g., `https://auth.example.com/.well-known/openid-configuration`).
 - `OIDC_REDIRECT_URI`: The callback endpoint (e.g., `https://your-domain.com/oidc/callback`).
+- `OIDC_SCOPES`: The authorization scopes requested from the provider (defaults to `openid email profile groups`).
 - `OIDC_ADMIN_USERS`: Comma-separated list of emails that should have super-administrator privileges.
+- `OIDC_ADMIN_GROUP`: OIDC group name that automatically grants admin privileges (defaults to `administrators`).
 - `SECRET_KEY`: A long, random string used by Flask to sign session cookies securely.
 
 ### 4. Local Fallback Admin
@@ -94,18 +96,18 @@ And configure the variables inside `.env`:
 The application includes a `Dockerfile` and `docker-compose.yml` for easy containerized deployment.
 
 > [!IMPORTANT]
-> The application stores domain delegation assignments in a file named `domain_mapping.json` inside the root directory. To prevent losing delegation data when the Docker container is updated or restarted, you must mount this file (or its parent directory) as a persistent volume.
+> To prevent losing data when the Docker container is updated or restarted, you must persist the SQLite database (`mxtoolbox.db`) using a volume.
 
 ### Using Docker Compose (Recommended)
-Docker Compose automatically reads configuration options from the `.env` file in the same directory.
+Docker Compose automatically reads configuration options from the `.env` file and persists the database in a named volume (`mxtoolbox_data`).
 
 1. Configure your `.env` file.
-2. Initialize and run the containers in detached (background) mode:
+2. Build and start the containers in detached (background) mode:
    ```bash
-   docker-compose up --build -d
+   docker compose up --build -d
    ```
 
-To persist the `domain_mapping.json` configuration, update your `docker-compose.yml` to include a volume mount:
+The default `docker-compose.yml` configuration:
 ```yaml
 version: '3.8'
 
@@ -118,8 +120,13 @@ services:
       - "5000:5000"
     env_file:
       - .env
+    environment:
+      - DATABASE_FILE=/data/mxtoolbox.db
     volumes:
-      - ./domain_mapping.json:/app/domain_mapping.json
+      - mxtoolbox_data:/data
+
+volumes:
+  mxtoolbox_data:
 ```
 
 ### Using Raw Docker Commands
@@ -127,14 +134,14 @@ services:
    ```bash
    docker build -t mxtoolbox .
    ```
-2. Run the container, mounting the local `.env` and `domain_mapping.json`:
+2. Run the container, configuring the database location and mounting a persistent volume:
    ```bash
-   touch domain_mapping.json
    docker run -d \
      --name mxtoolbox \
      -p 5000:5000 \
      --env-file .env \
-     -v $(pwd)/domain_mapping.json:/app/domain_mapping.json \
+     -e DATABASE_FILE=/data/mxtoolbox.db \
+     -v mxtoolbox_data:/data \
      --restart always \
      mxtoolbox
    ```

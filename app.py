@@ -21,11 +21,58 @@ if not _secret_key:
     _secret_key = os.urandom(24).hex()
 app.secret_key = _secret_key
 
-# OpenID Connect Configuration
-OIDC_ENABLED = os.getenv("OIDC_ENABLED", "true").lower() == "true" # Secure by default
+# SQLite Persistent Storage configuration (early definition for dynamic configs)
+import sqlite3
+DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(__file__), "mxtoolbox.db"))
+MAPPING_FILE = os.path.join(os.path.dirname(__file__), "domain_mapping.json")
+
+def get_config_value(key, default=None):
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        conn.close()
+        if row is not None:
+            return row[0]
+    except Exception:
+        pass
+    return os.getenv(key, default)
+
+# Dynamic Configuration Getters
+def is_oidc_enabled():
+    return get_config_value("OIDC_ENABLED", "true").lower() == "true"
+
+def get_oidc_client_id():
+    return get_config_value("OIDC_CLIENT_ID")
+
+def get_oidc_client_secret():
+    return get_config_value("OIDC_CLIENT_SECRET")
+
+def get_oidc_discovery_url():
+    return get_config_value("OIDC_DISCOVERY_URL")
+
+def get_oidc_redirect_uri():
+    return get_config_value("OIDC_REDIRECT_URI")
+
+def get_oidc_scopes():
+    return get_config_value("OIDC_SCOPES", "openid email profile groups").strip()
+
+def get_oidc_admin_users():
+    admin_users_raw = get_config_value("OIDC_ADMIN_USERS", "")
+    return set(email.strip().lower() for email in admin_users_raw.split(",") if email.strip())
+
+def get_oidc_admin_group():
+    return get_config_value("OIDC_ADMIN_GROUP", "administrators").strip()
+
+def get_admin_user():
+    return get_config_value("ADMIN_USER", "admin").strip().lower()
+
+def get_admin_password():
+    return get_config_value("ADMIN_PASSWORD")
 
 app.config.update(
-    SESSION_COOKIE_SECURE=OIDC_ENABLED, # Enforce secure session cookies when OIDC is active
+    SESSION_COOKIE_SECURE=os.getenv("OIDC_ENABLED", "true").lower() == "true", # Enforce secure session cookies initially
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
 )
@@ -44,26 +91,6 @@ def validate_username(username):
         return False
     pattern = r"^[a-zA-Z0-9._-]+$"
     return bool(re.match(pattern, username))
-OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
-OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
-OIDC_DISCOVERY_URL = os.getenv("OIDC_DISCOVERY_URL")
-OIDC_REDIRECT_URI = os.getenv("OIDC_REDIRECT_URI")
-OIDC_SCOPES = os.getenv("OIDC_SCOPES", "openid email profile groups").strip()
-
-# Administrators List
-admin_users_raw = os.getenv("OIDC_ADMIN_USERS", "")
-OIDC_ADMIN_USERS = set(email.strip().lower() for email in admin_users_raw.split(",") if email.strip())
-OIDC_ADMIN_GROUP = os.getenv("OIDC_ADMIN_GROUP", "administrators").strip()
-
-# Local Admin Credentials
-ADMIN_USER = os.getenv("ADMIN_USER", "admin").strip().lower()
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
-
-# SQLite Persistent Storage
-import sqlite3
-
-DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(__file__), "mxtoolbox.db"))
-MAPPING_FILE = os.path.join(os.path.dirname(__file__), "domain_mapping.json")
 
 def init_db():
     try:
@@ -87,6 +114,12 @@ def init_db():
                 UNIQUE(user_id, domain)
             );
         """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+        """)
         conn.commit()
 
         # Perform migration from JSON if it exists
@@ -99,7 +132,7 @@ def init_db():
                     email = email.lower().strip()
                     if not email:
                         continue
-                    is_admin = "*" in domains or email in OIDC_ADMIN_USERS or email == ADMIN_USER or email == "admin@local"
+                    is_admin = "*" in domains or email in get_oidc_admin_users() or email == get_admin_user() or email == "admin@local"
                     
                     cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
                     user_row = cursor.fetchone()
@@ -128,14 +161,14 @@ def init_db():
                 app.logger.info(f"Successfully migrated {MAPPING_FILE} to SQLite and renamed to {bak_file}")
             except Exception as e:
                 app.logger.error(f"Failed to migrate legacy mapping file: {e}")
-
+ 
         # Seed initial admin user if empty and ADMIN_PASSWORD is set
         cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
         admin_count = cursor.fetchone()[0]
-        if admin_count == 0 and ADMIN_PASSWORD:
+        if admin_count == 0 and get_admin_password():
             from werkzeug.security import generate_password_hash
-            admin_email = ADMIN_USER.lower().strip()
-            hashed_password = generate_password_hash(ADMIN_PASSWORD)
+            admin_email = get_admin_user().lower().strip()
+            hashed_password = generate_password_hash(get_admin_password())
             cursor.execute(
                 "INSERT OR IGNORE INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
                 (admin_email, hashed_password)
@@ -186,7 +219,8 @@ def get_oidc_config():
     # Fast path: cached config is still fresh — no lock needed for a pure read
     if _oidc_config is not None and (now - _oidc_config_fetched_at) < _OIDC_CONFIG_TTL:
         return _oidc_config
-    if not OIDC_DISCOVERY_URL:
+    discovery_url = get_oidc_discovery_url()
+    if not discovery_url:
         raise ValueError("OIDC_DISCOVERY_URL is not configured")
     with _oidc_config_lock:
         # Double-check inside the lock in case another thread already refreshed
@@ -194,7 +228,7 @@ def get_oidc_config():
         if _oidc_config is not None and (now - _oidc_config_fetched_at) < _OIDC_CONFIG_TTL:
             return _oidc_config
         try:
-            res = requests.get(OIDC_DISCOVERY_URL, timeout=10)
+            res = requests.get(discovery_url, timeout=10)
             res.raise_for_status()
             _oidc_config = res.json()
             _oidc_config_fetched_at = time.monotonic()
@@ -212,7 +246,7 @@ def is_user_admin(user):
         return False
     email_val = user.get("email")
     email = email_val.lower() if isinstance(email_val, str) else ""
-    if email in OIDC_ADMIN_USERS or email == ADMIN_USER or email == "admin@local":
+    if email in get_oidc_admin_users() or email == get_admin_user() or email == "admin@local":
         return True
     mapping = load_domain_mapping()
     if "*" in mapping.get(email, []):
@@ -273,12 +307,12 @@ def generate_csrf_token():
 
 @app.context_processor
 def inject_global_vars():
-    return dict(csrf_token=session.get("csrf_token"), oidc_enabled=OIDC_ENABLED)
+    return dict(csrf_token=session.get("csrf_token"), oidc_enabled=is_oidc_enabled())
 
 @app.after_request
 def set_csrf_cookie(response):
     if "csrf_token" in session:
-        response.set_cookie("csrf_token", session["csrf_token"], samesite="Lax", secure=OIDC_ENABLED)
+        response.set_cookie("csrf_token", session["csrf_token"], samesite="Lax", secure=is_oidc_enabled())
     return response
 
 @app.before_request
@@ -296,34 +330,28 @@ def csrf_protect():
             return jsonify({"success": False, "error": {"message": "Bad Request: CSRF token missing or invalid"}}), 400
 
 
-MX_SERVER = os.getenv("MX_SERVER")
-MX_USER = os.getenv("MX_USER")
-MX_API_KEY = os.getenv("MX_API_KEY")
-
-
-HEADERS = {
-    "X-Server": MX_SERVER,
-    "X-Username": MX_USER,
-    "X-API-Key": MX_API_KEY,
-    "Content-Type": "application/json"
-}
 BASE_URL = "https://api.mxroute.com"
 
-# Cloudflare Configuration
-CF_API_TOKEN = os.getenv("CF_API_TOKEN")
-CF_ACCOUNT_ID = os.getenv("CF_ACCOUNT_ID")
+def get_mx_headers():
+    return {
+        "X-Server": get_config_value("MX_SERVER"),
+        "X-Username": get_config_value("MX_USER"),
+        "X-API-Key": get_config_value("MX_API_KEY"),
+        "Content-Type": "application/json"
+    }
 
 def mx_request_raw(method, path, payload=None):
     url = f"{BASE_URL}{path}"
+    headers = get_mx_headers()
     try:
         if method == "GET":
-            response = requests.get(url, headers=HEADERS, timeout=30)
+            response = requests.get(url, headers=headers, timeout=30)
         elif method == "POST":
-            response = requests.post(url, json=payload, headers=HEADERS, timeout=30)
+            response = requests.post(url, json=payload, headers=headers, timeout=30)
         elif method == "PATCH":
-            response = requests.patch(url, json=payload, headers=HEADERS, timeout=30)
+            response = requests.patch(url, json=payload, headers=headers, timeout=30)
         elif method == "DELETE":
-            response = requests.delete(url, headers=HEADERS, timeout=30)
+            response = requests.delete(url, headers=headers, timeout=30)
         else:
             return {"success": False, "error": {"message": "Invalid method"}}, 400
 
@@ -344,14 +372,14 @@ def mx_request(method, path, payload=None):
     return jsonify(res), status
 
 
-# Cloudflare Request Helper
 def cf_request(method, path, payload=None):
-    if not CF_API_TOKEN:
+    cf_token = get_config_value("CF_API_TOKEN")
+    if not cf_token:
         raise ValueError("Cloudflare API token not configured")
 
     url = f"https://api.cloudflare.com/client/v4{path}"
     headers = {
-        "Authorization": f"Bearer {CF_API_TOKEN}",
+        "Authorization": f"Bearer {cf_token}",
         "Content-Type": "application/json"
     }
 
@@ -413,7 +441,7 @@ def login_page():
                 return redirect(url_for('home'))
         
         # Fallback to local admin config check
-        if ADMIN_PASSWORD and username == ADMIN_USER and secrets.compare_digest(password, ADMIN_PASSWORD):
+        if get_admin_password() and username == get_admin_user() and secrets.compare_digest(password, get_admin_password()):
             session["user"] = {
                 "email": username,
                 "is_admin": True,
@@ -427,7 +455,7 @@ def login_page():
 
 @app.route('/login/redirect')
 def login_redirect():
-    if not OIDC_ENABLED:
+    if not is_oidc_enabled():
         return redirect(url_for('home'))
     try:
         config = get_oidc_config()
@@ -443,10 +471,10 @@ def login_redirect():
     session["oidc_state"] = state
     
     params = {
-        "client_id": OIDC_CLIENT_ID,
+        "client_id": get_oidc_client_id(),
         "response_type": "code",
-        "scope": OIDC_SCOPES,
-        "redirect_uri": OIDC_REDIRECT_URI,
+        "scope": get_oidc_scopes(),
+        "redirect_uri": get_oidc_redirect_uri(),
         "state": state
     }
     
@@ -455,7 +483,7 @@ def login_redirect():
 
 @app.route('/oidc/callback')
 def oidc_callback():
-    if not OIDC_ENABLED:
+    if not is_oidc_enabled():
         return redirect(url_for('home'))
         
     state = request.args.get('state')
@@ -478,9 +506,9 @@ def oidc_callback():
         payload = {
             "grant_type": "authorization_code",
             "code": code,
-            "redirect_uri": OIDC_REDIRECT_URI,
-            "client_id": OIDC_CLIENT_ID,
-            "client_secret": OIDC_CLIENT_SECRET
+            "redirect_uri": get_oidc_redirect_uri(),
+            "client_id": get_oidc_client_id(),
+            "client_secret": get_oidc_client_secret()
         }
         token_res = requests.post(token_endpoint, data=payload, timeout=15)
         token_res.raise_for_status()
@@ -509,7 +537,7 @@ def oidc_callback():
         user_groups = userinfo_data.get("groups", [])
         if not isinstance(user_groups, list):
             user_groups = []
-        is_admin = (email in OIDC_ADMIN_USERS) or (OIDC_ADMIN_GROUP in user_groups)
+        is_admin = (email in get_oidc_admin_users()) or (get_oidc_admin_group() in user_groups)
         
         user_row = None
         try:
@@ -583,7 +611,7 @@ def get_me():
             except Exception:
                 pass
                 
-            if email in OIDC_ADMIN_USERS or email == ADMIN_USER or email == "admin@local" or "*" in delegated_domains:
+            if email in get_oidc_admin_users() or email == get_admin_user() or email == "admin@local" or "*" in delegated_domains:
                 is_admin = True
                 
             user = {**user, "delegated_domains": delegated_domains, "is_admin": is_admin}
@@ -591,7 +619,7 @@ def get_me():
             
     return jsonify({
         "success": True,
-        "oidc_enabled": OIDC_ENABLED,
+        "oidc_enabled": is_oidc_enabled(),
         "user": {
             "email": user.get("email"),
             "is_admin": user.get("is_admin", False),
@@ -715,11 +743,63 @@ def delete_delegation(email=None):
             conn.commit()
             conn.close()
             return jsonify({"success": True})
-        conn.close()
         return jsonify({"success": False, "error": {"message": "User not found"}}), 404
     except Exception as e:
         app.logger.error(f"Error deleting user delegations from SQLite: {e}")
         return jsonify({"success": False, "error": {"message": f"Failed to delete configuration: {e}"}}), 500
+
+# --- SYSTEM SETTINGS API (ADMIN ONLY) ---
+
+@app.route('/api/admin/settings', methods=['GET'])
+@require_admin
+def get_settings():
+    keys = [
+        "OIDC_ENABLED", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_DISCOVERY_URL",
+        "OIDC_REDIRECT_URI", "OIDC_SCOPES", "OIDC_ADMIN_USERS", "OIDC_ADMIN_GROUP",
+        "MX_SERVER", "MX_USER", "MX_API_KEY", "CF_API_TOKEN", "CF_ACCOUNT_ID",
+        "ADMIN_USER", "ADMIN_PASSWORD"
+    ]
+    settings_dict = {}
+    for key in keys:
+        settings_dict[key] = get_config_value(key, "")
+    return jsonify({
+        "success": True,
+        "data": settings_dict
+    })
+
+@app.route('/api/admin/settings', methods=['POST'])
+@require_admin
+def update_settings():
+    data = request.json or {}
+    allowed_keys = [
+        "OIDC_ENABLED", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_DISCOVERY_URL",
+        "OIDC_REDIRECT_URI", "OIDC_SCOPES", "OIDC_ADMIN_USERS", "OIDC_ADMIN_GROUP",
+        "MX_SERVER", "MX_USER", "MX_API_KEY", "CF_API_TOKEN", "CF_ACCOUNT_ID",
+        "ADMIN_USER", "ADMIN_PASSWORD"
+    ]
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        for key in allowed_keys:
+            if key in data:
+                val = str(data[key]).strip()
+                cursor.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                    (key, val)
+                )
+        conn.commit()
+        conn.close()
+        
+        # Clear the cached OIDC config in case OIDC settings changed
+        global _oidc_config, _oidc_config_fetched_at
+        with _oidc_config_lock:
+            _oidc_config = None
+            _oidc_config_fetched_at = 0.0
+            
+        return jsonify({"success": True})
+    except Exception as e:
+        app.logger.error(f"Error saving system settings: {e}")
+        return jsonify({"success": False, "error": {"message": f"Failed to save settings: {e}"}}), 500
 
 @app.route('/')
 def home():
@@ -732,7 +812,7 @@ def home():
 def get_cf_status():
     return jsonify({
         "success": True,
-        "configured": bool(CF_API_TOKEN and CF_ACCOUNT_ID)
+        "configured": bool(get_config_value("CF_API_TOKEN") and get_config_value("CF_ACCOUNT_ID"))
     })
 
 @app.route('/api/cloudflare/setup', methods=['POST'])
@@ -743,8 +823,10 @@ def cloudflare_setup():
     if not domain or not validate_domain(domain):
         return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
         
-    if not CF_API_TOKEN or not CF_ACCOUNT_ID:
-        return jsonify({"success": False, "error": {"message": "Cloudflare credentials not configured in backend .env"}}), 400
+    cf_token = get_config_value("CF_API_TOKEN")
+    cf_account = get_config_value("CF_ACCOUNT_ID")
+    if not cf_token or not cf_account:
+        return jsonify({"success": False, "error": {"message": "Cloudflare credentials not configured"}}), 400
 
     steps = []
     
@@ -761,7 +843,7 @@ def cloudflare_setup():
             # Create zone
             zone_create = cf_request("POST", "/zones", {
                 "name": domain,
-                "account": {"id": CF_ACCOUNT_ID},
+                "account": {"id": cf_account},
                 "jump_start": True
             })
             if not zone_create.get("success"):
@@ -996,7 +1078,7 @@ def create_email_compat():
     if not validate_username(email_username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
         
-    if OIDC_ENABLED:
+    if is_oidc_enabled():
         current_user = get_current_user()
         if not current_user or not has_domain_access(current_user, domain):
             return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
@@ -1031,7 +1113,7 @@ def update_password_compat():
     if not validate_username(email_username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
         
-    if OIDC_ENABLED:
+    if is_oidc_enabled():
         current_user = get_current_user()
         if not current_user or not has_domain_access(current_user, domain):
             return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
@@ -1056,7 +1138,7 @@ def delete_email_compat():
     if not validate_username(email_username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
         
-    if OIDC_ENABLED:
+    if is_oidc_enabled():
         current_user = get_current_user()
         if not current_user or not has_domain_access(current_user, domain):
             return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403

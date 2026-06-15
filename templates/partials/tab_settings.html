@@ -1,0 +1,196 @@
+<!-- Settings Tab Panel -->
+<div id="tab-settings" class="tab-panel">
+    
+    <!-- System Settings (Admin Only) -->
+    <div class="glass-card" id="system-settings-card" style="display: none;">
+        <div class="card-title">
+            <span>⚙️</span> System Configuration
+            <span class="badge">Admin Only</span>
+        </div>
+        
+        <form id="form-system-settings" style="display: flex; flex-direction: column; gap: 2rem;">
+            
+            <!-- OpenID Connect (OIDC) Parameters -->
+            <div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
+                    🗝️ OpenID Connect (OIDC) Settings
+                </h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-oidc-enabled">OIDC Authentication</label>
+                        <select id="setting-oidc-enabled">
+                            <option value="true">Enabled (OAuth / SSO Required)</option>
+                            <option value="false">Disabled (Local Logins Only)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-oidc-scopes">OIDC Scopes</label>
+                        <input type="text" id="setting-oidc-scopes" placeholder="openid email profile groups">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-oidc-discovery-url">Discovery URL</label>
+                        <input type="text" id="setting-oidc-discovery-url" placeholder="https://auth.example.com/.well-known/openid-configuration">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-oidc-redirect-uri">Callback Redirect URI</label>
+                        <input type="text" id="setting-oidc-redirect-uri" placeholder="https://your-domain.com/oidc/callback">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-oidc-client-id">Client ID</label>
+                        <input type="text" id="setting-oidc-client-id" placeholder="your-oidc-client-id">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-oidc-client-secret">Client Secret</label>
+                        <input type="password" id="setting-oidc-client-secret" placeholder="••••••••••••••••" autocomplete="new-password">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-oidc-admin-users">Administrator Users (Emails)</label>
+                        <input type="text" id="setting-oidc-admin-users" placeholder="admin1@example.com, admin2@example.com">
+                        <span style="font-size: 0.75rem; color: var(--color-secondary);">Comma-separated email addresses to grant admin permissions upon OIDC login.</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-oidc-admin-group">Administrator Group</label>
+                        <input type="text" id="setting-oidc-admin-group" placeholder="administrators">
+                        <span style="font-size: 0.75rem; color: var(--color-secondary);">OIDC group claim value that automatically grants admin permissions.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MXroute API Settings -->
+            <div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
+                    📧 MXroute API Coordinates
+                </h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-mx-server">MXroute Server Hostname</label>
+                        <input type="text" id="setting-mx-server" placeholder="blizzard.mxrouting.net">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-mx-user">MXroute Portal Username</label>
+                        <input type="text" id="setting-mx-user" placeholder="your_username">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="setting-mx-api-key">MXroute API Key</label>
+                    <input type="password" id="setting-mx-api-key" placeholder="••••••••••••••••" autocomplete="new-password">
+                </div>
+            </div>
+            
+            <!-- Cloudflare API Settings -->
+            <div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
+                    ☁️ Cloudflare API Settings
+                </h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-cf-api-token">Cloudflare API Token</label>
+                        <input type="password" id="setting-cf-api-token" placeholder="••••••••••••••••" autocomplete="new-password">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-cf-account-id">Cloudflare Account ID</label>
+                        <input type="text" id="setting-cf-account-id" placeholder="your_account_id">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fallback Local Admin -->
+            <div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
+                    👤 Local Credentials Admin
+                </h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-admin-user">Local Admin Username</label>
+                        <input type="text" id="setting-admin-user" placeholder="admin">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-admin-password">Local Admin Password</label>
+                        <input type="password" id="setting-admin-password" placeholder="••••••••••••••••" autocomplete="new-password">
+                        <span style="font-size: 0.75rem; color: var(--color-secondary);">Changes the fallback local login credential password.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+                <button type="submit" class="btn btn-primary" id="btn-save-system-settings">💾 Save System Settings</button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Appearance Settings (All Users) -->
+    <div class="glass-card">
+        <div class="card-title">
+            <span>🎨</span> Appearance & Colorscheme
+            <span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border-color: rgba(99, 102, 241, 0.2);">Preferences</span>
+        </div>
+        
+        <p class="stat-card-subtitle mb-4">Choose your preferred accents and workspace styles. Your settings are saved locally to your browser.</p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1.25rem; margin-top: 1rem;" id="theme-selectors-grid">
+            
+            <!-- Emerald Theme -->
+            <div class="theme-select-card" data-theme="emerald" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #5cdd8d; box-shadow: 0 0 10px rgba(92, 221, 141, 0.4);"></div>
+                <div style="font-weight: 600; font-size: 0.9rem;">Emerald Glass</div>
+            </div>
+            
+            <!-- Indigo Theme -->
+            <div class="theme-select-card" data-theme="indigo" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #6366f1; box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);"></div>
+                <div style="font-weight: 600; font-size: 0.9rem;">Classic Indigo</div>
+            </div>
+            
+            <!-- Crimson Theme -->
+            <div class="theme-select-card" data-theme="crimson" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #f43f5e; box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);"></div>
+                <div style="font-weight: 600; font-size: 0.9rem;">Crimson Dusk</div>
+            </div>
+            
+            <!-- Amber Theme -->
+            <div class="theme-select-card" data-theme="amber" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);"></div>
+                <div style="font-weight: 600; font-size: 0.9rem;">Amber Sunset</div>
+            </div>
+            
+            <!-- Amethyst Theme -->
+            <div class="theme-select-card" data-theme="amethyst" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #a855f7; box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);"></div>
+                <div style="font-weight: 600; font-size: 0.9rem;">Amethyst Glow</div>
+            </div>
+            
+            <!-- Cyberpunk Theme -->
+            <div class="theme-select-card" data-theme="cyberpunk" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #00f0ff; box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);"></div>
+                <div style="font-weight: 600; font-size: 0.9rem;">Cyberpunk</div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<style>
+    .theme-select-card.active {
+        background: rgba(255, 255, 255, 0.07) !important;
+        border-color: var(--accent) !important;
+        box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.15);
+    }
+    .theme-select-card:hover:not(.active) {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border-color: rgba(255, 255, 255, 0.15) !important;
+    }
+</style>

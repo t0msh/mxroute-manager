@@ -6,16 +6,19 @@
     --glass-bg: rgba(26, 34, 46, 0.75);
     --glass-bg-hover: rgba(34, 45, 61, 0.85);
     --glass-border: rgba(255, 255, 255, 0.06);
-    --glass-border-focus: rgba(92, 221, 141, 0.4);
     
     --color-primary: #f8fafc;
     --color-secondary: #94a3b8;
     --color-muted: #64748b;
     
+    /* Dynamic theme components */
     --accent: #5cdd8d;
-    --accent-glow: rgba(92, 221, 141, 0.2);
-    --success: #5cdd8d;
-    --success-glow: rgba(92, 221, 141, 0.15);
+    --accent-rgb: 92, 221, 141;
+    
+    --accent-glow: rgba(var(--accent-rgb), 0.2);
+    --glass-border-focus: rgba(var(--accent-rgb), 0.4);
+    --success: var(--accent);
+    --success-glow: rgba(var(--accent-rgb), 0.15);
     --warning: #eab308;
     --danger: #f87171;
     --danger-glow: rgba(248, 113, 113, 0.15);
@@ -25,6 +28,37 @@
     
     --sidebar-width: 280px;
     --transition-speed: 0.25s;
+}
+
+/* Theme overrides */
+body.theme-emerald {
+    --accent: #5cdd8d;
+    --accent-rgb: 92, 221, 141;
+}
+
+body.theme-indigo {
+    --accent: #6366f1;
+    --accent-rgb: 99, 102, 241;
+}
+
+body.theme-crimson {
+    --accent: #f43f5e;
+    --accent-rgb: 244, 63, 94;
+}
+
+body.theme-amber {
+    --accent: #f59e0b;
+    --accent-rgb: 245, 158, 11;
+}
+
+body.theme-amethyst {
+    --accent: #a855f7;
+    --accent-rgb: 168, 85, 247;
+}
+
+body.theme-cyberpunk {
+    --accent: #00f0ff;
+    --accent-rgb: 0, 240, 255;
 }
 
 * {
@@ -87,7 +121,7 @@ aside.sidebar {
     font-family: var(--font-heading);
     font-size: 1.5rem;
     font-weight: 700;
-    background: linear-gradient(to right, #ffffff, #88f2b1, #5cdd8d);
+    background: linear-gradient(to right, #ffffff, rgba(var(--accent-rgb), 0.6), var(--accent));
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -121,9 +155,9 @@ aside.sidebar {
 
 .nav-item.active {
     color: var(--color-primary);
-    background: rgba(99, 102, 241, 0.15);
-    border-color: rgba(99, 102, 241, 0.25);
-    box-shadow: 0 4px 20px rgba(99, 102, 241, 0.1);
+    background: rgba(var(--accent-rgb), 0.15);
+    border-color: rgba(var(--accent-rgb), 0.25);
+    box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.1);
 }
 
 .sidebar-footer {

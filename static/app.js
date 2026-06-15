@@ -167,9 +167,9 @@ document.querySelectorAll(".nav-item").forEach(item => {
         document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.remove("active"));
         document.getElementById(`tab-${tab}`).classList.add("active");
         
-        // Show/hide global domain selector (not needed on Domains or Access Control pages)
+        // Show/hide global domain selector (not needed on Domains, Access Control, or Settings pages)
         const domainSelector = document.getElementById("global-domain-selector");
-        if (tab === "domains" || tab === "delegations") {
+        if (tab === "domains" || tab === "delegations" || tab === "settings") {
             domainSelector.style.display = "none";
         } else {
             domainSelector.style.display = "";
@@ -182,7 +182,8 @@ document.querySelectorAll(".nav-item").forEach(item => {
             emails: { title: "Email Mailboxes", subtitle: "Provision new accounts, change quotas, and modify routing parameters." },
             forwarders: { title: "Email Forwarders", subtitle: "Create forwarders to redirect messages to external addresses." },
             spam: { title: "Spam & Whitelist Controls", subtitle: "Configure SpamAssassin thresholds and manage list records." },
-            delegations: { title: "Access Control", subtitle: "Delegate email domain management rights to specific users." }
+            delegations: { title: "Access Control", subtitle: "Delegate email domain management rights to specific users." },
+            settings: { title: "Settings", subtitle: "Configure global system parameters, authentication methods, and user interface options." }
         };
         
         document.getElementById("page-title").textContent = titleMap[tab].title;
@@ -197,7 +198,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
 // --- 4. Main Data Refresher ---
 async function triggerDataRefresh() {
     const activeTab = document.querySelector(".nav-item.active").getAttribute("data-tab");
-    if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains") return;
+    if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains" && activeTab !== "settings") return;
     
     try {
         switch (activeTab) {
@@ -236,6 +237,9 @@ async function triggerDataRefresh() {
                 break;
             case "delegations":
                 await loadDelegationsPage();
+                break;
+            case "settings":
+                await loadSettingsPage();
                 break;
         }
     } catch (err) {
@@ -1423,4 +1427,130 @@ document.addEventListener("DOMContentLoaded", async () => {
             console.warn("Could not retrieve Cloudflare integration status:", e);
         }
     }
+
+    // 5. Load Active Theme Preference
+    loadTheme();
+
+    // 6. Setup theme select card event listeners
+    document.querySelectorAll(".theme-select-card").forEach(card => {
+        card.addEventListener("click", () => {
+            const theme = card.getAttribute("data-theme");
+            setTheme(theme);
+            showAlert("success", `Workspace theme changed to ${card.querySelector("div:last-child").textContent}`);
+        });
+    });
+
+    // 7. Setup system settings form submission listener
+    const settingsForm = document.getElementById("form-system-settings");
+    if (settingsForm) {
+        settingsForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById("btn-save-system-settings");
+            submitBtn.disabled = true;
+            submitBtn.textContent = "⌛ Saving Settings...";
+            
+            const payload = {
+                OIDC_ENABLED: document.getElementById("setting-oidc-enabled").value,
+                OIDC_SCOPES: document.getElementById("setting-oidc-scopes").value.trim(),
+                OIDC_DISCOVERY_URL: document.getElementById("setting-oidc-discovery-url").value.trim(),
+                OIDC_REDIRECT_URI: document.getElementById("setting-oidc-redirect-uri").value.trim(),
+                OIDC_CLIENT_ID: document.getElementById("setting-oidc-client-id").value.trim(),
+                OIDC_CLIENT_SECRET: document.getElementById("setting-oidc-client-secret").value,
+                OIDC_ADMIN_USERS: document.getElementById("setting-oidc-admin-users").value.trim(),
+                OIDC_ADMIN_GROUP: document.getElementById("setting-oidc-admin-group").value.trim(),
+                MX_SERVER: document.getElementById("setting-mx-server").value.trim(),
+                MX_USER: document.getElementById("setting-mx-user").value.trim(),
+                MX_API_KEY: document.getElementById("setting-mx-api-key").value,
+                CF_API_TOKEN: document.getElementById("setting-cf-api-token").value,
+                CF_ACCOUNT_ID: document.getElementById("setting-cf-account-id").value.trim(),
+                ADMIN_USER: document.getElementById("setting-admin-user").value.trim(),
+                ADMIN_PASSWORD: document.getElementById("setting-admin-password").value
+            };
+            
+            try {
+                const res = await apiRequest("/api/admin/settings", "POST", payload);
+                if (res.success) {
+                    showAlert("success", "System settings successfully updated!");
+                } else {
+                    showAlert("error", res.error.message || "Failed to update system settings.");
+                }
+            } catch (err) {
+                showAlert("error", `Error updating settings: ${err.message}`);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = "💾 Save System Settings";
+            }
+        });
+    }
 });
+
+// --- 7. Theming & Settings Controller ---
+
+function loadTheme() {
+    const activeTheme = localStorage.getItem("workspace-theme") || "emerald";
+    setTheme(activeTheme, false);
+}
+
+function setTheme(theme, save = true) {
+    const themes = ["emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk"];
+    
+    // Remove all theme classes from body
+    themes.forEach(t => document.body.classList.remove(`theme-${t}`));
+    
+    // Apply selected theme class
+    document.body.classList.add(`theme-${theme}`);
+    
+    if (save) {
+        localStorage.setItem("workspace-theme", theme);
+    }
+    
+    // Highlight selected card if settings page is loaded
+    document.querySelectorAll(".theme-select-card").forEach(card => {
+        if (card.getAttribute("data-theme") === theme) {
+            card.classList.add("active");
+        } else {
+            card.classList.remove("active");
+        }
+    });
+}
+
+async function loadSettingsPage() {
+    // Refresh theme active selector highlighted state
+    const activeTheme = localStorage.getItem("workspace-theme") || "emerald";
+    setTheme(activeTheme, false);
+    
+    if (currentUser && currentUser.is_admin) {
+        document.getElementById("system-settings-card").style.display = "block";
+        
+        try {
+            const res = await apiRequest("/api/admin/settings");
+            if (res.success && res.data) {
+                const settings = res.data;
+                
+                // Populate forms
+                document.getElementById("setting-oidc-enabled").value = settings.OIDC_ENABLED || "true";
+                document.getElementById("setting-oidc-scopes").value = settings.OIDC_SCOPES || "openid email profile groups";
+                document.getElementById("setting-oidc-discovery-url").value = settings.OIDC_DISCOVERY_URL || "";
+                document.getElementById("setting-oidc-redirect-uri").value = settings.OIDC_REDIRECT_URI || "";
+                document.getElementById("setting-oidc-client-id").value = settings.OIDC_CLIENT_ID || "";
+                document.getElementById("setting-oidc-client-secret").value = settings.OIDC_CLIENT_SECRET || "";
+                document.getElementById("setting-oidc-admin-users").value = settings.OIDC_ADMIN_USERS || "";
+                document.getElementById("setting-oidc-admin-group").value = settings.OIDC_ADMIN_GROUP || "administrators";
+                
+                document.getElementById("setting-mx-server").value = settings.MX_SERVER || "";
+                document.getElementById("setting-mx-user").value = settings.MX_USER || "";
+                document.getElementById("setting-mx-api-key").value = settings.MX_API_KEY || "";
+                
+                document.getElementById("setting-cf-api-token").value = settings.CF_API_TOKEN || "";
+                document.getElementById("setting-cf-account-id").value = settings.CF_ACCOUNT_ID || "";
+                
+                document.getElementById("setting-admin-user").value = settings.ADMIN_USER || "admin";
+                document.getElementById("setting-admin-password").value = settings.ADMIN_PASSWORD || "";
+            }
+        } catch (err) {
+            showAlert("error", `Failed to load settings: ${err.message}`);
+        }
+    } else {
+        document.getElementById("system-settings-card").style.display = "none";
+    }
+}

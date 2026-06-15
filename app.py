@@ -14,7 +14,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Flask Session security key
+# Flask Session security key and session cookies hardening
 _secret_key = os.getenv("SECRET_KEY")
 if not _secret_key:
     app.logger.warning("SECRET_KEY not set — sessions will not persist across restarts or workers!")
@@ -22,7 +22,28 @@ if not _secret_key:
 app.secret_key = _secret_key
 
 # OpenID Connect Configuration
-OIDC_ENABLED = os.getenv("OIDC_ENABLED", "false").lower() == "true"
+OIDC_ENABLED = os.getenv("OIDC_ENABLED", "true").lower() == "true" # Secure by default
+
+app.config.update(
+    SESSION_COOKIE_SECURE=OIDC_ENABLED, # Enforce secure session cookies when OIDC is active
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
+
+import re
+
+# Validation helpers
+def validate_domain(domain):
+    if not domain or not isinstance(domain, str):
+        return False
+    pattern = r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$"
+    return bool(re.match(pattern, domain))
+
+def validate_username(username):
+    if not username or not isinstance(username, str):
+        return False
+    pattern = r"^[a-zA-Z0-9._-]+$"
+    return bool(re.match(pattern, username))
 OIDC_CLIENT_ID = os.getenv("OIDC_CLIENT_ID")
 OIDC_CLIENT_SECRET = os.getenv("OIDC_CLIENT_SECRET")
 OIDC_DISCOVERY_URL = os.getenv("OIDC_DISCOVERY_URL")
@@ -140,6 +161,8 @@ def require_domain_access(f):
     def decorated_function(*args, **kwargs):
         domain = kwargs.get('domain')
         if domain:
+            if not validate_domain(domain):
+                return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
             user = get_current_user()
             if not user or not has_domain_access(user, domain):
                 return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
@@ -161,6 +184,36 @@ def check_authentication():
         if request.path.startswith('/api/'):
             return jsonify({"success": False, "error": {"message": "Unauthorized"}}), 401
         return redirect(url_for('login_page'))
+
+# CSRF protection implementation
+@app.before_request
+def generate_csrf_token():
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=session.get("csrf_token"))
+
+@app.after_request
+def set_csrf_cookie(response):
+    if "csrf_token" in session:
+        response.set_cookie("csrf_token", session["csrf_token"], samesite="Lax", secure=OIDC_ENABLED)
+    return response
+
+@app.before_request
+def csrf_protect():
+    # Only protect state-changing methods
+    if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
+        # Exclude specific paths like login endpoints
+        if request.path in ["/login", "/oidc/callback"]:
+            return
+        
+        token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
+        expected_token = session.get("csrf_token")
+        
+        if not expected_token or not token or not secrets.compare_digest(expected_token, token):
+            return jsonify({"success": False, "error": {"message": "Bad Request: CSRF token missing or invalid"}}), 400
 
 
 MX_SERVER = os.getenv("MX_SERVER")
@@ -258,7 +311,7 @@ def login_page():
         username = request.form.get('username', '').strip().lower()
         password = request.form.get('password', '')
         
-        if ADMIN_PASSWORD and username == ADMIN_USER and password == ADMIN_PASSWORD:
+        if ADMIN_PASSWORD and username == ADMIN_USER and secrets.compare_digest(password, ADMIN_PASSWORD):
             session["user"] = {
                 "email": username,
                 "is_admin": True,
@@ -305,7 +358,7 @@ def oidc_callback():
         
     state = request.args.get('state')
     expected_state = session.pop("oidc_state", None)
-    if not state or state != expected_state:
+    if not state or not expected_state or not secrets.compare_digest(state, expected_state):
         return "Authentication error: CSRF state verification failed", 400
         
     code = request.args.get('code')
@@ -479,8 +532,8 @@ def get_cf_status():
 def cloudflare_setup():
     data = request.json or {}
     domain = data.get("domain")
-    if not domain:
-        return jsonify({"success": False, "error": {"message": "Domain is required"}}), 400
+    if not domain or not validate_domain(domain):
+        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
         
     if not CF_API_TOKEN or not CF_ACCOUNT_ID:
         return jsonify({"success": False, "error": {"message": "Cloudflare credentials not configured in backend .env"}}), 400
@@ -660,7 +713,10 @@ def get_domains():
 @app.route('/api/domains', methods=['POST'])
 @require_admin
 def create_domain():
-    # Expects JSON {"domain": "..."}
+    data = request.json or {}
+    domain = data.get("domain")
+    if not validate_domain(domain):
+        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
     return mx_request("POST", "/domains", request.json)
 
 @app.route('/api/domains/<domain>', methods=['GET'])
@@ -671,6 +727,8 @@ def get_domain_details(domain):
 @app.route('/api/domains/<domain>', methods=['DELETE'])
 @require_admin
 def delete_domain(domain):
+    if not validate_domain(domain):
+        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
     return mx_request("DELETE", f"/domains/{domain}")
 
 @app.route('/api/domains/<domain>/mail-status', methods=['PATCH'])
@@ -713,17 +771,27 @@ def list_emails(domain):
 @app.route('/api/domains/<domain>/email-accounts', methods=['POST'])
 @require_domain_access
 def create_email_api(domain):
+    data = request.json or {}
+    username = data.get("username")
+    if not validate_username(username):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
     # Expects JSON {"username": "...", "password": "...", "quota": ..., "limit": ...}
     return mx_request("POST", f"/domains/{domain}/email-accounts", request.json)
 
 @app.route('/create-email', methods=['POST']) # backward compat (expects Form)
 def create_email_compat():
     domain = request.form.get('domain')
+    if not validate_domain(domain):
+        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+    
+    email_username = request.form.get('user')
+    if not validate_username(email_username):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        
     if OIDC_ENABLED:
         current_user = get_current_user()
         if not current_user or not has_domain_access(current_user, domain):
             return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
-    email_username = request.form.get('user')
     password = request.form.get('password')
     payload = {
         "username": email_username,
@@ -740,17 +808,25 @@ def get_email_account(domain, user):
 @app.route('/api/domains/<domain>/email-accounts/<user>', methods=['PATCH'])
 @require_domain_access
 def update_email_account(domain, user):
+    if not validate_username(user):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
     # Expects JSON {"password": "...", "quota": ..., "limit": ...}
     return mx_request("PATCH", f"/domains/{domain}/email-accounts/{user}", request.json)
 
 @app.route('/update-password', methods=['POST']) # backward compat (expects Form)
 def update_password_compat():
     domain = request.form.get('domain')
+    if not validate_domain(domain):
+        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        
+    email_username = request.form.get('user')
+    if not validate_username(email_username):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        
     if OIDC_ENABLED:
         current_user = get_current_user()
         if not current_user or not has_domain_access(current_user, domain):
             return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
-    email_username = request.form.get('user')
     password = request.form.get('password')
     payload = {"password": password}
     return mx_request("PATCH", f"/domains/{domain}/email-accounts/{email_username}", payload)
@@ -758,16 +834,24 @@ def update_password_compat():
 @app.route('/api/domains/<domain>/email-accounts/<user>', methods=['DELETE'])
 @require_domain_access
 def delete_email_api(domain, user):
+    if not validate_username(user):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
     return mx_request("DELETE", f"/domains/{domain}/email-accounts/{user}")
 
 @app.route('/delete-email', methods=['POST']) # backward compat (expects Form)
 def delete_email_compat():
     domain = request.form.get('domain')
+    if not validate_domain(domain):
+        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        
+    email_username = request.form.get('user')
+    if not validate_username(email_username):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        
     if OIDC_ENABLED:
         current_user = get_current_user()
         if not current_user or not has_domain_access(current_user, domain):
             return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
-    email_username = request.form.get('user')
     return mx_request("DELETE", f"/domains/{domain}/email-accounts/{email_username}")
 
 # --- EMAIL FORWARDERS ---

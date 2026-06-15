@@ -61,7 +61,18 @@ And configure the variables inside `.env`:
 - Python 3.11+
 
 ### Installation & Execution
-1. Create a Python virtual environment:
+1. Clone the repository:
+   * **Using SSH:**
+     ```bash
+     git clone git@github.com:t0msh/mxtoolbox.git
+     cd mxtoolbox
+     ```
+   * **Using HTTPS:**
+     ```bash
+     git clone https://github.com/t0msh/mxtoolbox.git
+     cd mxtoolbox
+     ```
+2. Create a Python virtual environment:
    ```bash
    python -m venv .venv
    source .venv/bin/activate

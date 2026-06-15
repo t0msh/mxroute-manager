@@ -198,7 +198,7 @@
                 <span>🛠️</span>
                 <div style="display: flex; flex-direction: column; align-items: center;">
                     <h1 style="margin: 0; line-height: 1.1;">mxtoolbox</h1>
-                    <span style="font-size: 0.7rem; color: var(--color-secondary); opacity: 0.6; font-weight: 500; margin-top: 0.2rem; letter-spacing: 0.05em;">v0.0.2</span>
+                    <span style="font-size: 0.7rem; color: var(--color-secondary); opacity: 0.6; font-weight: 500; margin-top: 0.2rem; letter-spacing: 0.05em;">v0.0.3</span>
                 </div>
             </div>
 
@@ -234,6 +234,7 @@
                 <div class="admin-inner">
                     <p class="admin-label">Local Admin</p>
                     <form action="/login" method="POST" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                         <div class="form-group">
                             <label for="username"
                                 style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Username</label>

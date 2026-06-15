@@ -3,6 +3,14 @@ let activeDomain = "";
 let accountQuota = null;
 let currentUser = null;
 
+// Helper to get cookie by name
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return "";
+}
+
 // Helper to make API requests easily
 async function apiRequest(url, method = "GET", body = null) {
     const options = {
@@ -13,6 +21,13 @@ async function apiRequest(url, method = "GET", body = null) {
     };
     if (body) {
         options.body = JSON.stringify(body);
+    }
+
+    if (method !== "GET") {
+        const csrfToken = getCookie("csrf_token");
+        if (csrfToken) {
+            options.headers["X-CSRF-Token"] = csrfToken;
+        }
     }
     
     try {

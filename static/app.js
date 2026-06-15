@@ -190,9 +190,7 @@ async function triggerDataRefresh() {
                 await Promise.all([
                     loadAccountQuota(),
                     loadDomainDetails(activeDomain),
-                    loadPointersList(activeDomain),
-                    loadDNSInfo(activeDomain),
-                    loadCatchAll(activeDomain)
+                    loadDNSInfo(activeDomain)
                 ]);
                 break;
             case "domains":
@@ -201,14 +199,25 @@ async function triggerDataRefresh() {
             case "emails":
                 // Set domain display labels
                 document.getElementById("create-email-domain-display").textContent = `@${activeDomain}`;
-                await loadEmailsList(activeDomain);
+                await Promise.all([
+                    loadEmailsList(activeDomain),
+                    checkDomainMailHostingStatus(activeDomain)
+                ]);
                 break;
             case "forwarders":
                 document.getElementById("forwarder-domain-display").textContent = `@${activeDomain}`;
-                await loadForwardersList(activeDomain);
+                await Promise.all([
+                    loadForwardersList(activeDomain),
+                    loadCatchAll(activeDomain),
+                    loadPointersList(activeDomain),
+                    checkDomainMailHostingStatus(activeDomain)
+                ]);
                 break;
             case "spam":
-                await loadSpamSettings(activeDomain);
+                await Promise.all([
+                    loadSpamSettings(activeDomain),
+                    checkDomainMailHostingStatus(activeDomain)
+                ]);
                 break;
             case "delegations":
                 await loadDelegationsPage();
@@ -337,11 +346,15 @@ async function loadDomainDetails(domain) {
                 `<span class="status-indicator success"><span class="dot"></span> Enabled</span>` : 
                 `<span class="status-indicator danger"><span class="dot"></span> Disabled</span>`;
             
-            document.getElementById("dash-ssl-status").innerHTML = data.ssl_enabled ? 
-                `<span class="status-indicator success"><span class="dot"></span> Secured (SSL)</span>` : 
-                `<span class="status-indicator danger"><span class="dot"></span> No SSL</span>`;
-            
             document.getElementById("dash-pointers-count").textContent = data.pointers ? data.pointers.length : 0;
+        }
+        
+        // Fetch mailboxes count
+        const mailboxRes = await apiRequest(`/api/domains/${domain}/email-accounts`);
+        if (mailboxRes.success && mailboxRes.data) {
+            document.getElementById("dash-mailboxes-count").textContent = mailboxRes.data.length;
+        } else {
+            document.getElementById("dash-mailboxes-count").textContent = 0;
         }
     } catch (err) {
         console.warn("Could not load domain details:", err);
@@ -679,6 +692,32 @@ async function loadEmailsList(domain) {
         }
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${err.message}</td></tr>`;
+    }
+}
+
+// Check if domain has mail hosting enabled and update the UI overlay
+async function checkDomainMailHostingStatus(domain) {
+    const emailOverlay = document.getElementById("email-hosting-disabled-overlay");
+    const forwardersOverlay = document.getElementById("forwarders-hosting-disabled-overlay");
+    const spamOverlay = document.getElementById("spam-hosting-disabled-overlay");
+    
+    try {
+        const result = await apiRequest(`/api/domains/${domain}`);
+        if (result.success && result.data) {
+            const displayMode = result.data.mail_hosting ? "none" : "flex";
+            if (emailOverlay) emailOverlay.style.display = displayMode;
+            if (forwardersOverlay) forwardersOverlay.style.display = displayMode;
+            if (spamOverlay) spamOverlay.style.display = displayMode;
+        } else {
+            if (emailOverlay) emailOverlay.style.display = "none";
+            if (forwardersOverlay) forwardersOverlay.style.display = "none";
+            if (spamOverlay) spamOverlay.style.display = "none";
+        }
+    } catch (err) {
+        console.warn("Could not check domain mail hosting status:", err);
+        if (emailOverlay) emailOverlay.style.display = "none";
+        if (forwardersOverlay) forwardersOverlay.style.display = "none";
+        if (spamOverlay) spamOverlay.style.display = "none";
     }
 }
 

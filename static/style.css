@@ -795,4 +795,22 @@ tr:hover td {
     color: var(--success);
 }
 
+/* Card Disabled Overlay Styles */
+.card-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(18, 24, 36, 0.88);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    border-radius: 16px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 2rem;
+    z-index: 10;
+}
+
+
 

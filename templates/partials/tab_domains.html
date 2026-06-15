@@ -1,0 +1,101 @@
+<!-- Tab Panel 2: Domain Management -->
+<div class="tab-panel" id="tab-domains">
+    <!-- Provision New Domain -->
+    <div class="glass-card">
+        <h3 class="card-title">🌐 Add New Domain</h3>
+        <p class="stat-card-subtitle mb-4">MXroute requires domain verification before creating a new hosting
+            record. Please follow these steps:</p>
+
+        <div class="telemetry-item mb-4">
+            <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">Step 1: Fetch and
+                Configure verification DNS TXT Record</div>
+            <div class="flex-row justify-between align-center mt-4">
+                <span style="font-size: 0.9rem;">Click here to fetch your account's unique verification
+                    key:</span>
+                <button class="btn btn-secondary btn-sm" id="btn-fetch-verify-key">Fetch Key</button>
+            </div>
+            <div id="verify-key-display" style="display: none; margin-top: 1rem;">
+                <div class="form-group">
+                    <label>DNS Record Name (Host)</label>
+                    <div class="copyable-code">
+                        <span id="verify-dns-name">_da-verify...</span>
+                        <button class="copy-btn" onclick="copyText('verify-dns-name')">Copy</button>
+                    </div>
+                </div>
+                <div class="form-group mt-2">
+                    <label>DNS Record Value</label>
+                    <div class="copyable-code">
+                        <span id="verify-dns-value">domain-verified</span>
+                        <button class="copy-btn" onclick="copyText('verify-dns-value')">Copy</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <form id="form-create-domain">
+            <div class="telemetry-item mb-4">
+                <div class="telemetry-item-label"
+                    style="font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">Step 2: Input Domain
+                    Name</div>
+
+                <!-- Cloudflare Integration Options -->
+                <div id="cf-option-container"
+                    style="display: none; margin-bottom: 1rem; background: rgba(255, 255, 255, 0.02); border: 1px dashed var(--glass-border); padding: 0.75rem 1rem; border-radius: 8px;">
+                    <label class="flex-row align-center"
+                        style="cursor: pointer; font-size: 0.9rem; font-weight: 500; color: var(--color-primary);">
+                        <input type="checkbox" id="chk-cf-auto"
+                            style="width: auto; height: auto; margin: 0; margin-right: 0.5rem;">
+                        🛡️ Auto-provision Zone and Setup mail DNS records in Cloudflare
+                    </label>
+                </div>
+                <div id="cf-option-missing"
+                    style="display: none; margin-bottom: 1rem; background: rgba(255, 255, 255, 0.01); border: 1px dashed var(--glass-border); padding: 0.75rem 1rem; border-radius: 8px; font-size: 0.85rem; color: var(--color-secondary);">
+                    ℹ️ <strong>Cloudflare Integration:</strong> To enable auto-provisioning, please set
+                    <code>CF_API_TOKEN</code> and <code>CF_ACCOUNT_ID</code> in your backend <code>.env</code>
+                    file.
+                </div>
+
+                <div class="flex-row">
+                    <input type="text" id="new-domain-name" placeholder="my-awesome-domain.com" required
+                        style="flex: 1;">
+                    <button type="submit" class="btn btn-primary" id="btn-create-domain-submit">Create Domain
+                        Record</button>
+                </div>
+
+                <!-- Progress Display -->
+                <div id="cf-progress-container"
+                    style="display: none; margin-top: 1rem; padding: 1rem; background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); border-radius: 8px;">
+                    <div
+                        style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--accent); display: flex; align-items: center; gap: 0.5rem;">
+                        <span class="dot" style="background: var(--accent);"></span> Setup Progress Log:
+                    </div>
+                    <ul id="cf-progress-list"
+                        style="font-size: 0.8rem; list-style-type: none; padding-left: 0; display: flex; flex-direction: column; gap: 0.35rem; color: var(--color-secondary);">
+                    </ul>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- List Domains -->
+    <div class="glass-card">
+        <h3 class="card-title">📋 Active Account Domains</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain Name</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="domains-list-tbody">
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--color-muted);">Loading active
+                            domains...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,86 @@
+<!-- Tab Panel 5: Spam Settings -->
+<div class="tab-panel" id="tab-spam" style="position: relative;">
+    <div class="card-overlay" id="spam-hosting-disabled-overlay">
+        <span style="font-size: 3rem; margin-bottom: 1rem;">⚠️</span>
+        <h3 style="font-family: var(--font-heading); font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--color-primary);">Mail Hosting Disabled</h3>
+        <p style="color: var(--color-secondary); max-width: 380px; font-size: 0.95rem; line-height: 1.5;">
+            Mail hosting is currently disabled for this domain. Enable it on the <a href="#" onclick="document.querySelector('[data-tab=\'dashboard\']').click(); return false;" style="color: var(--accent); text-decoration: underline;">Dashboard</a> to configure spam controls.
+        </p>
+    </div>
+    <!-- Domain Spam Threshold -->
+    <div class="glass-card">
+        <h3 class="card-title">🛡️ Spam Filtering Configuration</h3>
+        <p class="stat-card-subtitle mb-4">Specify the SpamAssassin score threshold at which incoming emails are
+            automatically deleted. Lower scores are more aggressive.</p>
+        <form id="form-spam-settings">
+            <div class="form-group mb-4">
+                <label for="spam-high-score">Auto-Delete Threshold Score: <span id="spam-high-score-val"
+                        style="color: var(--accent); font-weight: bold;">--</span></label>
+                <input type="range" id="spam-high-score" min="1" max="50" step="1" value="15"
+                    style="accent-color: var(--accent); margin-top: 0.5rem;">
+                <span style="font-size: 0.75rem; color: var(--color-muted);">Standard recommended score: 15. A
+                    score of 5 is highly aggressive.</span>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">Update Score Threshold</button>
+        </form>
+    </div>
+
+    <!-- Whitelist & Blacklist -->
+    <div class="grid-2">
+        <!-- Whitelist -->
+        <div class="glass-card">
+            <h3 class="card-title" style="color: #34d399;">🟢 Spam Whitelist</h3>
+            <form id="form-whitelist-add" class="mb-4">
+                <div class="flex-row">
+                    <input type="text" id="whitelist-entry" placeholder="*@trusted.com" required
+                        style="flex: 1;">
+                    <button type="submit" class="btn btn-primary btn-sm">Add</button>
+                </div>
+            </form>
+            <div class="table-container" style="max-height: 300px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Allowed Domain / Email</th>
+                            <th style="text-align: right;">Remove</th>
+                        </tr>
+                    </thead>
+                    <tbody id="whitelist-tbody">
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: var(--color-muted);">No whitelist
+                                entries</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Blacklist -->
+        <div class="glass-card">
+            <h3 class="card-title" style="color: #f87171;">🔴 Spam Blacklist</h3>
+            <form id="form-blacklist-add" class="mb-4">
+                <div class="flex-row">
+                    <input type="text" id="blacklist-entry" placeholder="spammer@domain.com" required
+                        style="flex: 1;">
+                    <button type="submit" class="btn btn-primary btn-sm">Add</button>
+                </div>
+            </form>
+            <div class="table-container" style="max-height: 300px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Blocked Domain / Email</th>
+                            <th style="text-align: right;">Remove</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blacklist-tbody">
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: var(--color-muted);">No blacklist
+                                entries</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

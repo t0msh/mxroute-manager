@@ -1,0 +1,92 @@
+<!-- Tab Panel 1: Dashboard / Overview -->
+<div class="tab-panel active" id="tab-dashboard">
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span>Mail Hosting Status</span>
+                <span>🌐</span>
+            </div>
+            <div class="stat-card-value flex-row justify-between align-center">
+                <span id="dash-mail-status">--</span>
+                <button class="btn btn-secondary btn-sm" id="btn-toggle-mail-hosting"
+                    style="padding: 0.25rem 0.75rem;">Toggle</button>
+            </div>
+            <div class="stat-card-subtitle">Controls if mail is routed here</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span>Active Mailboxes</span>
+                <span>📧</span>
+            </div>
+            <div class="stat-card-value" id="dash-mailboxes-count">--</div>
+            <div class="stat-card-subtitle">Total mailboxes configured</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-card-header">
+                <span>Domain Aliases (Pointers)</span>
+                <span>🔗</span>
+            </div>
+            <div class="stat-card-value" id="dash-pointers-count">0</div>
+            <div class="stat-card-subtitle">Alternative domains pointing here</div>
+        </div>
+    </div>
+
+    <!-- Detailed Quota Breakdown -->
+    <div class="glass-card" id="dash-quota-card">
+        <h3 class="card-title">💾 Account Quota Telemetry</h3>
+        <div class="quota-telemetry">
+            <div class="telemetry-details">
+                <div class="telemetry-item">
+                    <div class="telemetry-item-label">Used Storage</div>
+                    <div class="telemetry-item-value" id="quota-used">--</div>
+                </div>
+                <div class="telemetry-item">
+                    <div class="telemetry-item-label">Allocated Limit</div>
+                    <div class="telemetry-item-value" id="quota-limit">--</div>
+                </div>
+                <div class="telemetry-item">
+                    <div class="telemetry-item-label">Usage Percentage</div>
+                    <div class="telemetry-item-value" id="quota-percentage">0%</div>
+                </div>
+                <div class="telemetry-item">
+                    <div class="telemetry-item-label">Grace Period Status</div>
+                    <div class="telemetry-item-value" id="quota-grace">Compliant</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- DNS Config Info -->
+    <div class="glass-card">
+        <h3 class="card-title">🔑 Required DNS Records</h3>
+        <p class="stat-card-subtitle mb-4">Configure these DNS records at your domain registrar to ensure mail
+            delivers successfully.</p>
+
+        <div class="form-group mb-4">
+            <label>MX Records (Mail Servers)</label>
+            <div id="dns-mx-container">
+                <div style="color: var(--color-muted); font-size: 0.9rem;">Loading DNS configuration...</div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="form-group">
+                <label>SPF Record (TXT)</label>
+                <div class="copyable-code">
+                    <span id="dns-spf">v=spf1 include:mxroute.com -all</span>
+                    <button class="copy-btn" onclick="copyText('dns-spf')">Copy</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>DKIM Key (TXT - Selector: x)</label>
+                <div class="copyable-code">
+                    <span id="dns-dkim"
+                        style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading...</span>
+                    <button class="copy-btn" onclick="copyText('dns-dkim')">Copy</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

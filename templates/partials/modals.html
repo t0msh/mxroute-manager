@@ -1,0 +1,102 @@
+<!-- Modal 1: Update Email Password -->
+<div class="modal-overlay" id="modal-update-password">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Update Mailbox Password</h3>
+            <button class="alert-banner-close" style="font-size: 1.5rem;"
+                onclick="closeModal('modal-update-password')">×</button>
+        </div>
+        <form id="form-modal-update-pass">
+            <input type="hidden" id="modal-pass-username">
+            <div class="form-group mb-4">
+                <label>Updating Credentials For:</label>
+                <div class="copyable-code" style="margin-top: 0; padding: 0.5rem 1rem;">
+                    <span id="modal-pass-email-display" style="font-weight: 500;">alex@yourdomain.com</span>
+                </div>
+            </div>
+            <div class="form-group mb-4">
+                <label for="modal-pass-input">New Password</label>
+                <input type="password" id="modal-pass-input" placeholder="••••••••••••" required>
+            </div>
+            <ul class="validation-list" id="modal-pass-requirements">
+                <li data-req="length">✖ 8+ chars</li>
+                <li data-req="upper">✖ Uppercase</li>
+                <li data-req="lower">✖ Lowercase</li>
+                <li data-req="number">✖ Number</li>
+                <li data-req="special">✖ Special char</li>
+            </ul>
+            <div class="flex-row justify-end" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="closeModal('modal-update-password')">Cancel</button>
+                <button type="submit" id="btn-modal-pass-submit" class="btn btn-primary btn-sm" disabled>Save New
+                    Password</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 2: Update Email Quota / Limits -->
+<div class="modal-overlay" id="modal-update-quota">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Adjust Mailbox Resources</h3>
+            <button class="alert-banner-close" style="font-size: 1.5rem;"
+                onclick="closeModal('modal-update-quota')">×</button>
+        </div>
+        <form id="form-modal-update-quota">
+            <input type="hidden" id="modal-quota-username">
+            <div class="form-group mb-4">
+                <label>Updating Resources For:</label>
+                <div class="copyable-code" style="margin-top: 0; padding: 0.5rem 1rem;">
+                    <span id="modal-quota-email-display" style="font-weight: 500;">alex@yourdomain.com</span>
+                </div>
+            </div>
+            <div class="form-group mb-4">
+                <label for="modal-quota-input">Storage Quota (MB): <span id="modal-quota-val-lbl"
+                        style="color: var(--accent); font-weight: bold;">--</span></label>
+                <input type="range" id="modal-quota-input" min="0" max="10240" step="256" value="1024"
+                    style="accent-color: var(--accent); margin-top: 0.5rem;">
+            </div>
+            <div class="form-group mb-4">
+                <label for="modal-limit-input">Daily Send Limit: <span id="modal-limit-val-lbl"
+                        style="color: var(--accent); font-weight: bold;">--</span></label>
+                <input type="range" id="modal-limit-input" min="100" max="9600" step="100" value="9600"
+                    style="accent-color: var(--accent); margin-top: 0.5rem;">
+            </div>
+            <div class="flex-row justify-end" style="justify-content: flex-end; gap: 1rem;">
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="closeModal('modal-update-quota')">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal 3: Add Domain Pointer -->
+<div class="modal-overlay" id="modal-add-pointer">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Domain Pointer</h3>
+            <button class="alert-banner-close" style="font-size: 1.5rem;"
+                onclick="closeModal('modal-add-pointer')">×</button>
+        </div>
+        <form id="form-modal-create-pointer">
+            <div class="form-group mb-4">
+                <label for="pointer-name-input">Pointer Domain Name</label>
+                <input type="text" id="pointer-name-input" placeholder="my-alias-domain.com" required>
+            </div>
+            <div class="form-group mb-4">
+                <label for="pointer-type-select">Pointer Type</label>
+                <select id="pointer-type-select" required>
+                    <option value="alias" selected>Alias (Accepts mail for same addresses)</option>
+                    <option value="redirect">Redirect (Forward all mail elsewhere)</option>
+                </select>
+            </div>
+            <div class="flex-row justify-end" style="justify-content: flex-end; gap: 1rem;">
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="closeModal('modal-add-pointer')">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Add Pointer</button>
+            </div>
+        </form>
+    </div>
+</div>

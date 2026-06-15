@@ -1,0 +1,104 @@
+<!-- Tab Panel 4: Forwarders -->
+<div class="tab-panel" id="tab-forwarders" style="position: relative;">
+    <div class="card-overlay" id="forwarders-hosting-disabled-overlay">
+        <span style="font-size: 3rem; margin-bottom: 1rem;">⚠️</span>
+        <h3 style="font-family: var(--font-heading); font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--color-primary);">Mail Hosting Disabled</h3>
+        <p style="color: var(--color-secondary); max-width: 380px; font-size: 0.95rem; line-height: 1.5;">
+            Mail hosting is currently disabled for this domain. Enable it on the <a href="#" onclick="document.querySelector('[data-tab=\'dashboard\']').click(); return false;" style="color: var(--accent); text-decoration: underline;">Dashboard</a> to configure forwarders.
+        </p>
+    </div>
+
+    <!-- Catch-All Setting -->
+    <div class="glass-card">
+        <h3 class="card-title">📥 Catch-All Configuration</h3>
+        <p class="stat-card-subtitle mb-4">Set what happens to emails sent to non-existent mailboxes under this domain.</p>
+        <form id="form-catch-all">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="catch-all-type">Catch-All Action</label>
+                    <select id="catch-all-type" required>
+                        <option value="fail">Fail (Reject with error)</option>
+                        <option value="blackhole">Blackhole (Silently discard)</option>
+                        <option value="address">Address (Forward to specific email)</option>
+                    </select>
+                </div>
+                <div class="form-group" id="catch-all-address-group" style="display: none;">
+                    <label for="catch-all-address">Destination Email Address</label>
+                    <input type="text" id="catch-all-address" placeholder="catchall@yourdomain.com">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm mt-4">Update Catch-All</button>
+        </form>
+    </div>
+
+    <div class="grid-2">
+        <!-- Create Forwarder -->
+        <div class="glass-card">
+            <h3 class="card-title">➕ Create Email Forwarder</h3>
+            <form id="form-create-forwarder">
+                <div class="form-group mb-4">
+                    <label for="forwarder-alias">Source Alias (Username)</label>
+                    <div class="flex-row align-center">
+                        <input type="text" id="forwarder-alias" placeholder="support" required style="flex: 1;">
+                        <span id="forwarder-domain-display"
+                            style="font-weight: 500; color: var(--color-secondary);">@yourdomain.com</span>
+                    </div>
+                </div>
+                <div class="form-group mb-4">
+                    <label for="forwarder-destinations">Destination Emails (Comma separated)</label>
+                    <textarea id="forwarder-destinations" placeholder="alex@gmail.com, team@office.com" required
+                        rows="3"></textarea>
+                    <span style="font-size: 0.75rem; color: var(--color-muted);">Forwarding to Gmail/Yahoo will
+                        auto-activate spam filters.</span>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Forwarder</button>
+            </form>
+        </div>
+
+        <!-- List Forwarders -->
+        <div class="glass-card">
+            <h3 class="card-title">📋 Configured Forwarders</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Alias Address</th>
+                            <th>Destinations</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="forwarders-list-tbody">
+                        <tr>
+                            <td colspan="3" style="text-align: center; color: var(--color-muted);">No forwarders
+                                active for this domain.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Domain Pointers -->
+    <div class="glass-card mt-4">
+        <div class="flex-row justify-between align-center mb-4">
+            <h3 class="card-title" style="margin-bottom: 0;">🔗 Domain Pointers</h3>
+            <button class="btn btn-primary btn-sm" id="btn-open-pointer-modal">+ Add Pointer</button>
+        </div>
+        <div class="table-container" style="max-height: 250px;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Pointer Domain</th>
+                        <th>Type</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="pointers-tbody">
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--color-muted);">No pointers configured</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

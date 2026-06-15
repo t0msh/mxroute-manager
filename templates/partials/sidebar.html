@@ -1,0 +1,58 @@
+<!-- Sidebar Navigation -->
+<aside class="sidebar">
+    <div class="sidebar-brand">
+        <span style="font-size: 1.75rem;">🛠️</span>
+        <div style="display: flex; flex-direction: column;">
+            <h1 style="margin: 0; line-height: 1.1;">mxtoolbox</h1>
+            <span style="font-size: 0.7rem; color: var(--color-secondary); opacity: 0.6; font-weight: 500; margin-top: 0.2rem; letter-spacing: 0.05em;">v0.0.2</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <div class="nav-item active" data-tab="dashboard">
+            <span>📊</span> Dashboard
+        </div>
+        <div class="nav-item" data-tab="domains" id="nav-tab-domains">
+            <span>🌐</span> Domains
+        </div>
+        <div class="nav-item" data-tab="emails">
+            <span>📧</span> Email Accounts
+        </div>
+        <div class="nav-item" data-tab="forwarders">
+            <span>↪️</span> Forwarders
+        </div>
+        <div class="nav-item" data-tab="spam">
+            <span>🛡️</span> Spam Controls
+        </div>
+        <div class="nav-item" data-tab="delegations" id="nav-tab-delegations" style="display: none;">
+            <span>👥</span> Access Control
+        </div>
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="quota-mini" id="sidebar-quota-container">
+            <div class="quota-mini-header">
+                <span>Account Storage</span>
+                <span id="sidebar-quota-text">-- / --</span>
+            </div>
+            <div class="quota-bar">
+                <div class="quota-bar-fill" id="sidebar-quota-bar"></div>
+            </div>
+        </div>
+
+        <!-- User Profile card (OIDC) -->
+        <div id="user-profile-container"
+            style="display: none; margin-top: 1rem; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
+            <div
+                style="font-size: 0.8rem; color: var(--color-secondary); margin-bottom: 0.5rem; display: flex; align-items: center; justify-content: space-between;">
+                <span id="user-email"
+                    style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap; max-width: 180px;">user@example.com</span>
+                <span id="user-role-badge"
+                    style="font-size: 0.65rem; padding: 0.1rem 0.3rem; border-radius: 4px; background: var(--accent-glow); color: var(--accent);">Admin</span>
+            </div>
+            <a href="/logout" class="btn btn-secondary btn-sm"
+                style="width: 100%; font-size: 0.75rem; padding: 0.35rem 0.5rem; justify-content: center; display: inline-flex;">🚪
+                Log Out</a>
+        </div>
+    </div>
+</aside>

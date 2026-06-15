@@ -1,0 +1,117 @@
+<!-- Tab Panel 3: Email Accounts -->
+<div class="tab-panel" id="tab-emails">
+    <!-- Provision Email Account -->
+    <div class="glass-card" style="position: relative;" id="email-provision-card">
+        <div class="card-overlay" id="email-hosting-disabled-overlay">
+            <span style="font-size: 3rem; margin-bottom: 1rem;">⚠️</span>
+            <h3 style="font-family: var(--font-heading); font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--color-primary);">Mail Hosting Disabled</h3>
+            <p style="color: var(--color-secondary); max-width: 380px; font-size: 0.95rem; line-height: 1.5;">
+                Mail hosting is currently disabled for this domain. Enable it on the <a href="#" onclick="document.querySelector('[data-tab=\'dashboard\']').click(); return false;" style="color: var(--accent); text-decoration: underline;">Dashboard</a> to provision mailboxes.
+            </p>
+        </div>
+        <h3 class="card-title">➕ Provision New Email Account</h3>
+        <form id="form-create-email">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="create-email-username">Mailbox Username</label>
+                    <input type="text" id="create-email-username" placeholder="alex" required>
+                </div>
+                <div class="form-group">
+                    <label>Domain</label>
+                    <div class="copyable-code"
+                        style="margin-top: 0; padding: 0.8rem 1rem; height: 100%; border-radius: 10px;">
+                        <span id="create-email-domain-display">@yourdomain.com</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="create-email-password">Access Password</label>
+                    <div class="flex-row">
+                        <input type="password" id="create-email-password" placeholder="••••••••••••" required
+                            style="flex: 1;">
+                        <button type="button" class="btn btn-secondary" id="btn-generate-password"
+                            style="padding: 0.8rem 1rem;">Generate</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Password Requirements</label>
+                    <ul class="validation-list" id="create-email-requirements">
+                        <li data-req="length">✖ 8+ chars</li>
+                        <li data-req="upper">✖ Uppercase</li>
+                        <li data-req="lower">✖ Lowercase</li>
+                        <li data-req="number">✖ Number</li>
+                        <li data-req="special">✖ Special char</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="create-email-quota">Storage Quota (MB) <span id="create-email-quota-val"
+                            style="color: var(--accent); font-weight: bold;">1024 MB</span></label>
+                    <input type="range" id="create-email-quota" min="0" max="10240" step="256" value="1024"
+                        style="accent-color: var(--accent); margin-top: 0.5rem;">
+                    <span style="font-size: 0.75rem; color: var(--color-muted);">0 MB represents unlimited
+                        storage</span>
+                </div>
+                <div class="form-group">
+                    <label for="create-email-limit">Daily Outgoing Limit <span id="create-email-limit-val"
+                            style="color: var(--accent); font-weight: bold;">9600 / day</span></label>
+                    <input type="range" id="create-email-limit" min="100" max="9600" step="100" value="9600"
+                        style="accent-color: var(--accent); margin-top: 0.5rem;">
+                    <span style="font-size: 0.75rem; color: var(--color-muted);">Maximum allowed: 9600 emails
+                        per day</span>
+                </div>
+            </div>
+
+            <button type="submit" id="btn-provision-submit" class="btn btn-primary mt-4" disabled>Provision
+                Mailbox</button>
+        </form>
+    </div>
+
+    <!-- Credentials Output Card -->
+    <div id="credentials-output-card" class="glass-card"
+        style="display: none; border-color: var(--success); box-shadow: 0 0 20px var(--success-glow);">
+        <div class="flex-row justify-between align-center mb-4">
+            <h3 class="card-title" style="color: var(--success); margin-bottom: 0;">🎉 Mailbox Created
+                Successfully!</h3>
+            <button class="btn btn-secondary btn-sm"
+                onclick="document.getElementById('credentials-output-card').style.display='none'">Dismiss</button>
+        </div>
+        <p class="stat-card-subtitle mb-4">Copy or screenshot these configurations to onboard the user:</p>
+        <div class="copyable-code" style="display: block; font-family: monospace;">
+            <div class="mb-4"><strong>Username (Email):</strong> <span id="out-email-addr"></span></div>
+            <div class="mb-4"><strong>Password:</strong> <span id="out-email-pass"></span></div>
+            <div class="mb-4"><strong>IMAP Hostname:</strong> <span id="out-imap-host"></span> (Port 993,
+                SSL/TLS)</div>
+            <div class="mb-4"><strong>SMTP Hostname:</strong> <span id="out-smtp-host"></span> (Port 465,
+                SSL/TLS)</div>
+            <div><strong>Webmail Link:</strong> <span id="out-webmail-url"></span></div>
+        </div>
+    </div>
+
+    <!-- List Email Accounts -->
+    <div class="glass-card">
+        <h3 class="card-title">📋 Active Domain Mailboxes</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Mailbox Address</th>
+                        <th>Storage Usage (Quota)</th>
+                        <th>Outbound Today (Limit)</th>
+                        <th style="text-align: right;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="emails-list-tbody">
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--color-muted);">Select a domain
+                            to see email accounts.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

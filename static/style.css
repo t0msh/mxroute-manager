@@ -711,6 +711,82 @@ tr:hover td {
 .dns-health-item.pass { border-color: rgba(92, 221, 141, 0.35); }
 .dns-health-item.warn { border-color: rgba(245, 158, 11, 0.35); }
 .dns-health-item.fail { border-color: rgba(248, 113, 113, 0.35); }
+.dns-health-item.pending { border-color: rgba(96, 165, 250, 0.35); }
+
+.setup-wizard-steps {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.setup-wizard-step {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.02);
+    font-size: 0.85rem;
+    color: var(--color-secondary);
+}
+
+.setup-wizard-step.active {
+    border-color: var(--glass-border-focus);
+    color: var(--color-primary);
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
+.setup-wizard-step.completed {
+    color: var(--accent);
+}
+
+.setup-wizard-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.setup-wizard-step.active .setup-wizard-step-num,
+.setup-wizard-step.completed .setup-wizard-step-num {
+    background: rgba(var(--accent-rgb), 0.2);
+    color: var(--accent);
+}
+
+.setup-domain-mode {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.setup-mode-option {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.setup-mode-option input {
+    width: auto;
+    height: auto;
+    margin: 0;
+}
+
+.setup-domain-banner {
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    font-size: 0.95rem;
+}
 
 .dns-health-item-title {
     font-weight: 600;

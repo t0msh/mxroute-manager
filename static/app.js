@@ -414,55 +414,94 @@ async function loadAccountQuota() {
 }
 
 // 5.2 Domains List
+const DNS_CHECK_SHORT = {
+    mx: "MX",
+    spf: "SPF",
+    dkim: "DKIM",
+    dmarc: "DMARC",
+    verification: "Verify",
+};
+
+function renderDnsStatusBadge(health) {
+    if (!health || !health.checks) {
+        return `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
+    }
+    const failing = Object.entries(health.checks)
+        .filter(([, check]) => check.status === "warn" || check.status === "fail")
+        .map(([key]) => DNS_CHECK_SHORT[key] || key);
+    const pending = Object.entries(health.checks)
+        .filter(([, check]) => check.status === "pending")
+        .map(([key]) => DNS_CHECK_SHORT[key] || key);
+
+    if (health.overall === "healthy") {
+        return `<span class="status-indicator success"><span class="dot"></span> All OK</span>`;
+    }
+    if (failing.length > 0) {
+        return `<span class="status-indicator ${health.overall === "unhealthy" ? "danger" : "warning"}"><span class="dot"></span> ${escapeHtml(failing.join(" · "))}</span>`;
+    }
+    if (pending.length > 0) {
+        return `<span class="status-indicator warning"><span class="dot"></span> Pending</span>`;
+    }
+    return `<span class="status-indicator warning"><span class="dot"></span> Degraded</span>`;
+}
+
 async function loadDomainsList() {
     const tbody = document.getElementById("domains-list-tbody");
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Querying domains...</td></tr>';
-    
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">Querying domains...</td></tr>';
+
     try {
         const result = await apiRequest("/api/domains");
         tbody.innerHTML = "";
-        
+
         if (result.success && result.data && result.data.length > 0) {
-            // Render rows immediately with a loading spinner in the status column
             const rows = {};
             result.data.forEach(domain => {
+                const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
                 const tr = document.createElement("tr");
-                const statusId = `domain-status-${domain.replace(/[^a-zA-Z0-9-]/g, '-')}`;
                 tr.innerHTML = `
                     <td><strong>${escapeHtml(domain)}</strong></td>
-                    <td id="${statusId}"><span style="color: var(--color-muted); font-size: 0.85rem;">⌛ checking...</span></td>
+                    <td id="domain-mail-${safeId}"><span style="color: var(--color-muted); font-size: 0.85rem;">⌛</span></td>
+                    <td id="domain-dns-${safeId}"><span style="color: var(--color-muted); font-size: 0.85rem;">⌛</span></td>
                     <td style="text-align: right;">
+                        <button class="btn btn-secondary btn-sm" onclick="openDomainDnsSetup(${jsString(domain)})">Fix DNS</button>
                         <button class="btn btn-danger btn-sm" onclick="handleDeleteDomain(${jsString(domain)})">Delete</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
-                rows[domain] = statusId;
+                rows[domain] = safeId;
             });
 
-            // Fetch each domain's details in parallel and update status badges as results arrive
             await Promise.allSettled(result.data.map(async domain => {
-                const statusId = rows[domain];
-                const cell = document.getElementById(statusId);
-                if (!cell) return;
-                try {
-                    const details = await apiRequest(`/api/domains/${domain}`);
-                    if (details.success && details.data) {
-                        const mailOn = details.data.mail_hosting;
-                        cell.innerHTML = mailOn
-                            ? `<span class="status-indicator success"><span class="dot"></span> Mail Enabled</span>`
-                            : `<span class="status-indicator danger"><span class="dot"></span> Mail Disabled</span>`;
-                    } else {
-                        cell.innerHTML = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
-                    }
-                } catch {
-                    cell.innerHTML = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
+                const safeId = rows[domain];
+                const mailCell = document.getElementById(`domain-mail-${safeId}`);
+                const dnsCell = document.getElementById(`domain-dns-${safeId}`);
+                if (!mailCell || !dnsCell) return;
+
+                const [detailsResult, healthResult] = await Promise.allSettled([
+                    apiRequest(`/api/domains/${domain}`),
+                    apiRequest(`/api/domains/${encodeURIComponent(domain)}/dns/setup-health`),
+                ]);
+
+                if (detailsResult.status === "fulfilled" && detailsResult.value.success && detailsResult.value.data) {
+                    const mailOn = detailsResult.value.data.mail_hosting;
+                    mailCell.innerHTML = mailOn
+                        ? `<span class="status-indicator success"><span class="dot"></span> Enabled</span>`
+                        : `<span class="status-indicator danger"><span class="dot"></span> Disabled</span>`;
+                } else {
+                    mailCell.innerHTML = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
+                }
+
+                if (healthResult.status === "fulfilled" && healthResult.value.success && healthResult.value.data) {
+                    dnsCell.innerHTML = renderDnsStatusBadge(healthResult.value.data);
+                } else {
+                    dnsCell.innerHTML = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
                 }
             }));
         } else {
-            tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">No domains found on this account.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">No domains found on this account.</td></tr>';
         }
     } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--danger); font-weight: 500;">Failed to load domains: ${escapeHtml(err.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: 500;">Failed to load domains: ${escapeHtml(err.message)}</td></tr>`;
     }
 }
 
@@ -506,87 +545,300 @@ document.getElementById("btn-toggle-mail-hosting").addEventListener("click", asy
     }
 });
 
-// Domain Verification Key
-document.getElementById("btn-fetch-verify-key").addEventListener("click", async () => {
-    const display = document.getElementById("verify-key-display");
-    const nameEl = document.getElementById("verify-dns-name");
-    const valEl = document.getElementById("verify-dns-value");
-    
+// --- Domain & DNS Setup Wizard ---
+let setupWizardDomain = "";
+let setupWizardStep = 1;
+let setupCfConfigured = false;
+let setupCurrentHealth = null;
+
+function getSetupDomainValue() {
+    const mode = document.querySelector('input[name="setup-domain-mode"]:checked')?.value;
+    if (mode === "new") {
+        return document.getElementById("setup-domain-input")?.value.trim().toLowerCase() || "";
+    }
+    return document.getElementById("setup-domain-select")?.value || "";
+}
+
+function setSetupWizardStep(step) {
+    setupWizardStep = step;
+    document.querySelectorAll(".setup-wizard-step").forEach(el => {
+        el.classList.toggle("active", parseInt(el.dataset.step, 10) === step);
+        el.classList.toggle("completed", parseInt(el.dataset.step, 10) < step);
+    });
+    document.getElementById("setup-step-1").style.display = step === 1 ? "block" : "none";
+    document.getElementById("setup-step-2").style.display = step === 2 ? "block" : "none";
+    document.getElementById("setup-step-3").style.display = step === 3 ? "block" : "none";
+}
+
+async function populateSetupDomainSelect() {
+    const select = document.getElementById("setup-domain-select");
+    if (!select) return;
+    select.innerHTML = '<option value="">Loading domains...</option>';
     try {
-        const result = await apiRequest("/api/verification-key");
-        if (result.success && result.data) {
-            nameEl.textContent = result.data.record.name;
-            valEl.textContent = result.data.record.value;
-            display.style.display = "block";
-            showAlert("success", "Verification key retrieved.");
+        const result = await apiRequest("/api/domains");
+        select.innerHTML = "";
+        if (result.success && result.data && result.data.length > 0) {
+            result.data.forEach(domain => {
+                const option = document.createElement("option");
+                option.value = domain;
+                option.textContent = domain;
+                select.appendChild(option);
+            });
+        } else {
+            select.innerHTML = '<option value="">No domains on MXroute yet</option>';
         }
+    } catch {
+        select.innerHTML = '<option value="">Error loading domains</option>';
+    }
+}
+
+function renderSetupDnsChecks(health) {
+    const checksEl = document.getElementById("setup-dns-checks");
+    const fixAllBtn = document.getElementById("btn-setup-fix-all-dns");
+    if (!checksEl) return;
+
+    checksEl.innerHTML = "";
+    setupCurrentHealth = health;
+
+    const fixable = [];
+    Object.entries(health.checks || {}).forEach(([key, check]) => {
+        const item = document.createElement("div");
+        const statusClass = check.status === "pass" ? "pass" : check.status === "pending" ? "pending" : check.status;
+        const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "warn" ? "⚠️" : "❌";
+        const canFix = setupCfConfigured && (check.status === "warn" || check.status === "fail");
+        if (canFix) fixable.push(key);
+
+        item.className = `dns-health-item ${statusClass}`;
+        item.innerHTML = `
+            <div class="dns-health-item-title">${icon} ${escapeHtml(check.label)}</div>
+            <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
+            ${canFix ? `<button class="btn btn-secondary btn-sm setup-fix-btn" data-record="${escapeHtml(key)}" style="margin-top: 0.6rem;">Fix in Cloudflare</button>` : ""}
+        `;
+        checksEl.appendChild(item);
+    });
+
+    checksEl.querySelectorAll(".setup-fix-btn").forEach(btn => {
+        btn.addEventListener("click", () => handleFixDnsRecord(btn.dataset.record));
+    });
+
+    if (fixAllBtn) {
+        fixAllBtn.style.display = fixable.length > 0 ? "inline-flex" : "none";
+    }
+
+    const pendingNotice = document.getElementById("setup-mxroute-pending-notice");
+    const completeNotice = document.getElementById("setup-mxroute-complete-notice");
+    const step2MxrouteBtn = document.getElementById("btn-setup-step2-mxroute");
+    const step2DoneBtn = document.getElementById("btn-setup-step2-done");
+
+    if (pendingNotice) pendingNotice.style.display = health.on_mxroute ? "none" : "block";
+    if (completeNotice) completeNotice.style.display = health.on_mxroute ? "block" : "none";
+
+    const hasPendingMail = Object.values(health.checks || {}).some(c => c.status === "pending");
+    const hasIssues = Object.values(health.checks || {}).some(c => c.status === "warn" || c.status === "fail");
+
+    if (step2MxrouteBtn) {
+        step2MxrouteBtn.style.display = !health.on_mxroute ? "inline-flex" : "none";
+    }
+    if (step2DoneBtn) {
+        step2DoneBtn.style.display = health.on_mxroute && !hasIssues && !hasPendingMail ? "inline-flex" : "none";
+    }
+}
+
+async function loadSetupDnsHealth() {
+    if (!setupWizardDomain) return;
+    const label = document.getElementById("setup-domain-label");
+    if (label) {
+        label.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
+    }
+
+    const checksEl = document.getElementById("setup-dns-checks");
+    if (checksEl) {
+        checksEl.innerHTML = '<div style="color: var(--color-muted); padding: 1rem;">Running DNS health check...</div>';
+    }
+
+    try {
+        const result = await apiRequest(`/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/setup-health`);
+        if (!result.success || !result.data) {
+            throw new Error(result.error?.message || "Health check failed");
+        }
+        renderSetupDnsChecks(result.data);
     } catch (err) {
+        if (checksEl) {
+            checksEl.innerHTML = `<div class="dns-health-item fail"><div class="dns-health-item-message">${escapeHtml(err.message)}</div></div>`;
+        }
         showAlert("error", err.message);
     }
-});
+}
 
-// Create Domain
-document.getElementById("form-create-domain").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const domainInput = document.getElementById("new-domain-name");
-    const domainName = domainInput.value.trim().toLowerCase();
-    if (!domainName) return;
-    
-    const isCfAuto = document.getElementById("chk-cf-auto") && document.getElementById("chk-cf-auto").checked;
-    const submitBtn = document.getElementById("btn-create-domain-submit");
-    const progressContainer = document.getElementById("cf-progress-container");
-    const progressList = document.getElementById("cf-progress-list");
-    
-    submitBtn.disabled = true;
-    
-    if (isCfAuto) {
-        submitBtn.textContent = "⌛ Deploying DNS...";
-        progressContainer.style.display = "block";
-        progressList.innerHTML = '<li>⌛ Initializing setup flow...</li>';
-        
-        try {
-            const result = await apiRequest("/api/cloudflare/setup", "POST", { domain: domainName });
-            progressList.innerHTML = "";
-            if (result.steps) {
-                result.steps.forEach(step => {
-                    progressList.innerHTML += `<li>✅ ${escapeHtml(step)}</li>`;
-                });
-            }
-            showAlert("success", `Domain "${domainName}" set up successfully in Cloudflare and MXroute!`);
-            domainInput.value = "";
-            document.getElementById("chk-cf-auto").checked = false;
-            await loadDomainsList();
-            await initDomainDropdowns();
-        } catch (err) {
-            if (err.steps) {
-                progressList.innerHTML = "";
-                err.steps.forEach(step => {
-                    progressList.innerHTML += `<li>✅ ${escapeHtml(step)}</li>`;
-                });
-            }
-            progressList.innerHTML += `<li style="color: var(--danger);">❌ Failed: ${escapeHtml(err.message)}</li>`;
-            showAlert("error", `Setup failed: ${err.message}`);
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = "Create Domain Record";
+function showSetupDnsProgress(steps, isError = false) {
+    const container = document.getElementById("setup-dns-progress");
+    const list = document.getElementById("setup-dns-progress-list");
+    if (!container || !list) return;
+    container.style.display = "block";
+    list.innerHTML = "";
+    (steps || []).forEach(step => {
+        list.innerHTML += `<li>✅ ${escapeHtml(step)}</li>`;
+    });
+    if (isError) {
+        list.innerHTML += `<li style="color: var(--danger);">❌ See alert for details</li>`;
+    }
+}
+
+async function handleFixDnsRecord(recordType) {
+    if (!setupWizardDomain) return;
+    try {
+        const result = await apiRequest(
+            `/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/fix`,
+            "POST",
+            { records: [recordType] }
+        );
+        if (result.data?.steps) showSetupDnsProgress(result.data.steps);
+        const fixed = result.data?.fixed || [];
+        if (fixed.length > 0) {
+            showAlert("success", `Added ${fixed.join(", ").toUpperCase()} record(s) to Cloudflare. DNS propagation may take a few minutes.`);
+        } else {
+            showAlert("info", "Record already exists or was not applicable.");
         }
-    } else {
-        submitBtn.textContent = "⌛ Registering...";
+        await loadSetupDnsHealth();
+        await loadDomainsList();
+    } catch (err) {
+        if (err.steps) showSetupDnsProgress(err.steps, true);
+        showAlert("error", err.message);
+    }
+}
+
+async function handleFixAllDns() {
+    if (!setupWizardDomain) return;
+    const btn = document.getElementById("btn-setup-fix-all-dns");
+    if (btn) btn.disabled = true;
+    try {
+        const result = await apiRequest(
+            `/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/fix`,
+            "POST",
+            {}
+        );
+        if (result.data?.steps) showSetupDnsProgress(result.data.steps);
+        const fixed = result.data?.fixed || [];
+        if (fixed.length > 0) {
+            showAlert("success", `Fixed: ${fixed.join(", ").toUpperCase()}. DNS propagation may take a few minutes.`);
+        } else {
+            showAlert("info", "No missing records to fix.");
+        }
+        await loadSetupDnsHealth();
+        await loadDomainsList();
+    } catch (err) {
+        if (err.steps) showSetupDnsProgress(err.steps, true);
+        showAlert("error", err.message);
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+function openDomainDnsSetup(domain, startStep = 2) {
+    setupWizardDomain = domain.toLowerCase().trim();
+    document.querySelector('input[name="setup-domain-mode"][value="existing"]').checked = true;
+    document.getElementById("setup-existing-container").style.display = "block";
+    document.getElementById("setup-new-container").style.display = "none";
+
+    populateSetupDomainSelect().then(() => {
+        const select = document.getElementById("setup-domain-select");
+        if (select) select.value = setupWizardDomain;
+        setSetupWizardStep(startStep);
+        if (startStep >= 2) loadSetupDnsHealth();
+        if (startStep === 3) updateSetupStep3State();
+        document.getElementById("domain-setup-wizard")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+}
+
+async function updateSetupStep3State() {
+    const label = document.getElementById("setup-step3-domain-label");
+    const statusEl = document.getElementById("setup-mxroute-status");
+    const registerBtn = document.getElementById("btn-setup-register-mxroute");
+    const returnBtn = document.getElementById("btn-setup-step3-dns");
+
+    if (label) label.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
+
+    try {
+        const result = await apiRequest(`/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/setup-health`);
+        const onMxroute = result.data?.on_mxroute;
+        if (statusEl) {
+            statusEl.innerHTML = onMxroute
+                ? `<span class="status-indicator success"><span class="dot"></span> Already registered on MXroute</span>`
+                : `<span class="status-indicator warning"><span class="dot"></span> Not yet registered on MXroute</span>`;
+        }
+        if (registerBtn) registerBtn.style.display = onMxroute ? "none" : "inline-flex";
+        if (returnBtn) returnBtn.style.display = onMxroute ? "inline-flex" : "none";
+    } catch (err) {
+        if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">${escapeHtml(err.message)}</span>`;
+    }
+}
+
+function initSetupWizard() {
+    document.querySelectorAll('input[name="setup-domain-mode"]').forEach(radio => {
+        radio.addEventListener("change", () => {
+            const isNew = radio.value === "new" && radio.checked;
+            document.getElementById("setup-existing-container").style.display = isNew ? "none" : "block";
+            document.getElementById("setup-new-container").style.display = isNew ? "block" : "none";
+        });
+    });
+
+    document.getElementById("btn-setup-step1-next")?.addEventListener("click", async () => {
+        const domain = getSetupDomainValue();
+        if (!domain) {
+            showAlert("warning", "Please select or enter a domain name.");
+            return;
+        }
+        setupWizardDomain = domain;
+        setSetupWizardStep(2);
+        await loadSetupDnsHealth();
+    });
+
+    document.getElementById("btn-setup-step2-back")?.addEventListener("click", () => setSetupWizardStep(1));
+    document.getElementById("btn-setup-step2-mxroute")?.addEventListener("click", async () => {
+        setSetupWizardStep(3);
+        await updateSetupStep3State();
+    });
+    document.getElementById("btn-setup-step2-done")?.addEventListener("click", () => {
+        showAlert("success", `DNS setup complete for ${setupWizardDomain}.`);
+        setSetupWizardStep(1);
+    });
+    document.getElementById("btn-setup-recheck-dns")?.addEventListener("click", loadSetupDnsHealth);
+    document.getElementById("btn-setup-fix-all-dns")?.addEventListener("click", handleFixAllDns);
+
+    document.getElementById("btn-setup-step3-back")?.addEventListener("click", async () => {
+        setSetupWizardStep(2);
+        await loadSetupDnsHealth();
+    });
+    document.getElementById("btn-setup-step3-dns")?.addEventListener("click", async () => {
+        setSetupWizardStep(2);
+        await loadSetupDnsHealth();
+    });
+
+    document.getElementById("btn-setup-register-mxroute")?.addEventListener("click", async () => {
+        const btn = document.getElementById("btn-setup-register-mxroute");
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "⌛ Registering...";
+        }
         try {
-            await apiRequest("/api/domains", "POST", { domain: domainName });
-            showAlert("success", `Domain "${domainName}" added successfully!`);
-            domainInput.value = "";
-            progressContainer.style.display = "none";
+            await apiRequest("/api/domains", "POST", { domain: setupWizardDomain });
+            showAlert("success", `${setupWizardDomain} registered on MXroute. Return to Step 2 to add DKIM and mail DNS records.`);
+            await initDomainDropdowns();
             await loadDomainsList();
-            await initDomainDropdowns(); // Refresh active selectors
+            await updateSetupStep3State();
+            document.getElementById("btn-setup-step3-dns").style.display = "inline-flex";
         } catch (err) {
             showAlert("error", err.message);
         } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = "Create Domain Record";
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = "Register Domain on MXroute";
+            }
         }
-    }
-});
+    });
+
+    populateSetupDomainSelect();
+}
 
 // Delete Domain
 async function handleDeleteDomain(domain) {
@@ -831,7 +1083,7 @@ async function loadDnsHealth(domain) {
             Object.values(health.checks || {}).forEach(check => {
                 const item = document.createElement("div");
                 item.className = `dns-health-item ${check.status}`;
-                const icon = check.status === "pass" ? "✅" : check.status === "warn" ? "⚠️" : "❌";
+                const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "warn" ? "⚠️" : "❌";
                 item.innerHTML = `
                     <div class="dns-health-item-title">${icon} ${escapeHtml(check.label)}</div>
                     <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
@@ -1679,14 +1931,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // 4. Check Cloudflare integration status (if admin)
     if (!currentUser || currentUser.is_admin) {
+        initSetupWizard();
         try {
             const cfStatus = await apiRequest("/api/cloudflare/status");
-            if (cfStatus && cfStatus.configured) {
-                document.getElementById("cf-option-container").style.display = "block";
-                document.getElementById("cf-option-missing").style.display = "none";
-            } else {
-                document.getElementById("cf-option-container").style.display = "none";
-                document.getElementById("cf-option-missing").style.display = "block";
+            setupCfConfigured = !!(cfStatus && cfStatus.configured);
+            const cfMissing = document.getElementById("setup-cf-missing");
+            if (cfMissing) {
+                cfMissing.style.display = setupCfConfigured ? "none" : "block";
+            }
+            if (setupWizardStep === 2 && setupCurrentHealth) {
+                renderSetupDnsChecks(setupCurrentHealth);
             }
         } catch (e) {
             console.warn("Could not retrieve Cloudflare integration status:", e);

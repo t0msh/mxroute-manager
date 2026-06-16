@@ -1,19 +1,19 @@
 version: '3.8'
 
 services:
-  mxtoolbox:
+  mxroute-manager:
     build: .
-    container_name: mxtoolbox
+    container_name: mxroute-manager
     restart: always
     ports:
       - "5000:5000"
     env_file:
       - .env
     environment:
-      - DATABASE_FILE=/data/mxtoolbox.db
+      - DATABASE_FILE=/data/mxroute-manager.db
       - LOG_DIR=/data/logs
     volumes:
-      - mxtoolbox_data:/data
+      - mxroute_manager_data:/data
 
 volumes:
-  mxtoolbox_data:
+  mxroute_manager_data:

@@ -1,6 +1,6 @@
-# MXToolbox (MXroute Email Manager)
+# MXroute Manager
 
-MXToolbox is a self-hosted Flask-based web application designed to simplify email hosting management on the MXroute platform. It integrates directly with **MXroute** for mail service management and **Cloudflare** for automated DNS provisioning (MX, SPF, DKIM, DMARC, and verification records).
+MXroute Manager is a self-hosted Flask-based web application designed to simplify email hosting management on the MXroute platform. It integrates directly with **MXroute** for mail service management and **Cloudflare** for automated DNS provisioning (MX, SPF, DKIM, DMARC, and verification records).
 
 Authentication is supported via both OpenID Connect (OIDC) and traditional local credentials (username/password), with fine-grained access control to delegate specific domain management to individual users.
 
@@ -86,7 +86,7 @@ Most settings can also be changed later from the **Settings** tab in the web UI 
 - `ADMIN_PASSWORD`: A secure password for the fallback administrator.
 
 ### 6. Storage & Logging
-- `DATABASE_FILE`: Path to the SQLite database (defaults to `mxtoolbox.db` in the app directory). In Docker, use `/data/mxtoolbox.db`.
+- `DATABASE_FILE`: Path to the SQLite database (defaults to `mxroute-manager.db` in the app directory). In Docker, use `/data/mxroute-manager.db`. If upgrading from the old project name, set this to your existing file (e.g. `/data/mxtoolbox.db`).
 - `LOG_DIR`: Directory for daily audit log files (defaults to `./logs`). In Docker, use `/data/logs` on the persistent volume.
 
 ---
@@ -120,13 +120,13 @@ Logged actions include authentication events, domain and mailbox CRUD, password 
 1. Clone the repository:
    * **Using SSH:**
      ```bash
-     git clone git@github.com:t0msh/mxtoolbox.git
-     cd mxtoolbox
+     git clone git@github.com:t0msh/mxroute-manager.git
+     cd mxroute-manager
      ```
    * **Using HTTPS:**
      ```bash
-     git clone https://github.com/t0msh/mxtoolbox.git
-     cd mxtoolbox
+     git clone https://github.com/t0msh/mxroute-manager.git
+     cd mxroute-manager
      ```
 2. Create a Python virtual environment:
    ```bash
@@ -158,7 +158,7 @@ The application includes a `Dockerfile` and `docker-compose.yml` for easy contai
 > Persist both the SQLite database **and** the audit log directory using a volume. Without this, data and logs are lost when the container is recreated.
 
 ### Using Docker Compose (Recommended)
-Docker Compose reads configuration from `.env` and persists data in a named volume (`mxtoolbox_data`).
+Docker Compose reads configuration from `.env` and persists data in a named volume (`mxroute_manager_data`).
 
 1. Configure your `.env` file.
 2. Build and start the containers in detached (background) mode:
@@ -171,40 +171,40 @@ The default `docker-compose.yml` configuration:
 version: '3.8'
 
 services:
-  mxtoolbox:
+  mxroute-manager:
     build: .
-    container_name: mxtoolbox
+    container_name: mxroute-manager
     restart: always
     ports:
       - "5000:5000"
     env_file:
       - .env
     environment:
-      - DATABASE_FILE=/data/mxtoolbox.db
+      - DATABASE_FILE=/data/mxroute-manager.db
       - LOG_DIR=/data/logs
     volumes:
-      - mxtoolbox_data:/data
+      - mxroute_manager_data:/data
 
 volumes:
-  mxtoolbox_data:
+  mxroute_manager_data:
 ```
 
 ### Using Raw Docker Commands
 1. Build the Docker image:
    ```bash
-   docker build -t mxtoolbox .
+   docker build -t mxroute-manager .
    ```
 2. Run the container with a persistent volume for the database and logs:
    ```bash
    docker run -d \
-     --name mxtoolbox \
+     --name mxroute-manager \
      -p 5000:5000 \
      --env-file .env \
-     -e DATABASE_FILE=/data/mxtoolbox.db \
+     -e DATABASE_FILE=/data/mxroute-manager.db \
      -e LOG_DIR=/data/logs \
-     -v mxtoolbox_data:/data \
+     -v mxroute_manager_data:/data \
      --restart always \
-     mxtoolbox
+     mxroute-manager
    ```
 
 ---

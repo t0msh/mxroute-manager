@@ -26,7 +26,7 @@ app.secret_key = _secret_key
 
 # SQLite Persistent Storage configuration (early definition for dynamic configs)
 import sqlite3
-DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(__file__), "mxtoolbox.db"))
+DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(__file__), "mxroute-manager.db"))
 MAPPING_FILE = os.path.join(os.path.dirname(__file__), "domain_mapping.json")
 
 def get_config_value(key, default=None):

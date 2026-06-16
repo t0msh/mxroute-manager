@@ -11,7 +11,7 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from dotenv import load_dotenv
 
 from audit_log import write_audit_log
-from dns_health import check_dns_health
+from dns_health import check_dns_health, _normalize_txt, dkim_record_parts
 
 load_dotenv()
 
@@ -428,6 +428,10 @@ def cf_request(method, path, payload=None):
             response = requests.get(url, headers=headers, timeout=30)
         elif method == "POST":
             response = requests.post(url, json=payload, headers=headers, timeout=30)
+        elif method == "PUT":
+            response = requests.put(url, json=payload, headers=headers, timeout=30)
+        elif method == "DELETE":
+            response = requests.delete(url, headers=headers, timeout=30)
         else:
             raise ValueError("Unsupported Cloudflare method")
 
@@ -586,10 +590,50 @@ def fetch_cf_dns_sets(zone_id):
             existing_mx.add((rname, rcontent.lower(), rec.get("priority")))
         elif rtype == "TXT":
             existing_txt.add((rname, rcontent))
-    return existing_mx, existing_txt
+    return existing_mx, existing_txt, existing_records
 
 
-def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verification_record, existing_mx, existing_txt, steps=None):
+def cf_upsert_txt(zone_id, cf_name, fqdn, content, existing_records, existing_txt, steps, log_messages):
+    """Create or update a TXT record when missing or incorrect. Returns added, updated, or skipped."""
+    fqdn = fqdn.lower().rstrip(".")
+    expected_norm = _normalize_txt(content)
+    at_name = [
+        rec for rec in existing_records
+        if rec.get("type") == "TXT" and rec.get("name", "").lower().rstrip(".") == fqdn
+    ]
+
+    for rec in at_name:
+        if _normalize_txt(rec.get("content", "")) == expected_norm:
+            if steps is not None:
+                steps.append(log_messages["skipped"])
+            return "skipped"
+
+    payload = {"type": "TXT", "name": cf_name, "content": content, "ttl": 3600}
+
+    if at_name:
+        result = cf_request("PUT", f"/zones/{zone_id}/dns_records/{at_name[0]['id']}", payload)
+        if not result.get("success"):
+            err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+            raise ValueError(f"Failed to update TXT record at {fqdn}: {err_msg}")
+        for extra in at_name[1:]:
+            cf_request("DELETE", f"/zones/{zone_id}/dns_records/{extra['id']}")
+        existing_txt.difference_update({(n, c) for n, c in existing_txt if n == fqdn})
+        existing_txt.add((fqdn, content))
+        if steps is not None:
+            steps.append(log_messages["updated"])
+        return "updated"
+
+    result = cf_request("POST", f"/zones/{zone_id}/dns_records", payload)
+    if not result.get("success"):
+        err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+        raise ValueError(f"Failed to add TXT record at {fqdn}: {err_msg}")
+    existing_txt.add((fqdn, content))
+    if steps is not None:
+        steps.append(log_messages["added"])
+    return "added"
+
+
+def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verification_record, existing_mx, existing_txt, existing_records, steps=None):
     """Deploy a single DNS record type to Cloudflare. Returns 'added' or 'skipped'."""
     domain_lower = domain.lower()
 
@@ -599,27 +643,15 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
         verify_name = verification_record.get("name")
         verify_value = verification_record.get("value")
         verify_name_full = f"{verify_name}.{domain}".lower()
-        has_verify = any(
-            rname == verify_name_full and rcontent == verify_value
-            for rname, rcontent in existing_txt
+        return cf_upsert_txt(
+            zone_id, verify_name, verify_name_full, verify_value,
+            existing_records, existing_txt, steps,
+            {
+                "skipped": "Verification TXT record already correct in Cloudflare",
+                "added": "Verification TXT record deployed successfully",
+                "updated": "Verification TXT record updated in Cloudflare",
+            },
         )
-        if has_verify:
-            if steps is not None:
-                steps.append("Verification TXT record already exists in Cloudflare")
-            return "skipped"
-        verify_dns_add = cf_request("POST", f"/zones/{zone_id}/dns_records", {
-            "type": "TXT",
-            "name": verify_name,
-            "content": verify_value,
-            "ttl": 3600,
-        })
-        if not verify_dns_add.get("success"):
-            err_msg = verify_dns_add.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
-            raise ValueError(f"Failed to add verification TXT: {err_msg}")
-        existing_txt.add((verify_name_full, verify_value))
-        if steps is not None:
-            steps.append("Verification TXT record deployed successfully")
-        return "added"
 
     if record_type not in MAIL_DNS_RECORD_TYPES:
         raise ValueError(f"Unknown record type: {record_type}")
@@ -652,65 +684,41 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
 
     if record_type == "spf" and mx_dns_data.get("spf"):
         spf_val = mx_dns_data["spf"]["value"]
-        has_spf = any(
-            rname == domain_lower and rcontent.startswith("v=spf1")
-            for rname, rcontent in existing_txt
+        return cf_upsert_txt(
+            zone_id, "@", domain_lower, spf_val,
+            existing_records, existing_txt, steps,
+            {
+                "skipped": "SPF record already correct in Cloudflare",
+                "added": "SPF record configured",
+                "updated": "SPF record updated in Cloudflare",
+            },
         )
-        if has_spf:
-            if steps is not None:
-                steps.append("SPF record exists (skipping)")
-            return "skipped"
-        cf_request("POST", f"/zones/{zone_id}/dns_records", {
-            "type": "TXT",
-            "name": "@",
-            "content": spf_val,
-            "ttl": 3600,
-        })
-        if steps is not None:
-            steps.append("SPF record configured")
-        return "added"
 
     if record_type == "dkim" and mx_dns_data.get("dkim"):
-        dkim_name = mx_dns_data["dkim"]["name"]
+        dkim_host_part, dkim_name_full = dkim_record_parts(mx_dns_data["dkim"], domain)
         dkim_val = mx_dns_data["dkim"]["value"]
-        dkim_host_part = dkim_name.replace(f".{domain}", "")
-        dkim_name_full = f"{dkim_host_part}.{domain}".lower()
-        has_dkim = any(rname == dkim_name_full for rname, _ in existing_txt)
-        if has_dkim:
-            if steps is not None:
-                steps.append("DKIM record exists (skipping)")
-            return "skipped"
-        cf_request("POST", f"/zones/{zone_id}/dns_records", {
-            "type": "TXT",
-            "name": dkim_host_part,
-            "content": dkim_val,
-            "ttl": 3600,
-        })
-        if steps is not None:
-            steps.append("DKIM record configured")
-        return "added"
+        return cf_upsert_txt(
+            zone_id, dkim_host_part, dkim_name_full, dkim_val,
+            existing_records, existing_txt, steps,
+            {
+                "skipped": "DKIM record already correct in Cloudflare",
+                "added": "DKIM record configured",
+                "updated": "DKIM record updated in Cloudflare (previous value did not match MXroute)",
+            },
+        )
 
     if record_type == "dmarc":
         dmarc_val = get_dmarc_record()
         dmarc_name_full = f"_dmarc.{domain}".lower()
-        has_dmarc = any(
-            rname == dmarc_name_full and "v=dmarc1" in rcontent.replace(" ", "").lower()
-            for rname, rcontent in existing_txt
+        return cf_upsert_txt(
+            zone_id, "_dmarc", dmarc_name_full, dmarc_val,
+            existing_records, existing_txt, steps,
+            {
+                "skipped": "DMARC record already correct in Cloudflare",
+                "added": "DMARC record configured",
+                "updated": "DMARC record updated in Cloudflare",
+            },
         )
-        if has_dmarc:
-            if steps is not None:
-                steps.append("DMARC record exists (skipping)")
-            return "skipped"
-        cf_request("POST", f"/zones/{zone_id}/dns_records", {
-            "type": "TXT",
-            "name": "_dmarc",
-            "content": dmarc_val,
-            "ttl": 3600,
-        })
-        existing_txt.add((dmarc_name_full, dmarc_val))
-        if steps is not None:
-            steps.append("DMARC record configured")
-        return "added"
 
     if steps is not None:
         steps.append(f"No {record_type.upper()} data available from MXroute (skipping)")
@@ -762,7 +770,7 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
 
     steps.append("Fetching existing DNS records from Cloudflare...")
     zone_id = ensure_cf_zone(domain, steps)
-    existing_mx, existing_txt = fetch_cf_dns_sets(zone_id)
+    existing_mx, existing_txt, existing_records = fetch_cf_dns_sets(zone_id)
 
     verification_record = get_mxroute_verification_record()
     mx_dns_data = get_mxroute_dns_data(domain) if health["on_mxroute"] else None
@@ -781,9 +789,9 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
             continue
         result = deploy_dns_record_to_cf(
             domain, zone_id, record_type, mx_dns_data, verification_record,
-            existing_mx, existing_txt, steps,
+            existing_mx, existing_txt, existing_records, steps,
         )
-        if result == "added":
+        if result in ("added", "updated"):
             fixed.append(record_type)
         else:
             skipped.append(record_type)
@@ -1228,12 +1236,12 @@ def cloudflare_setup():
             return jsonify({"success": False, "error": {"message": "Failed to get verification key from MXroute"}, "steps": steps}), 500
 
         steps.append("Fetching existing DNS records from Cloudflare...")
-        existing_mx, existing_txt = fetch_cf_dns_sets(zone_id)
+        existing_mx, existing_txt, existing_records = fetch_cf_dns_sets(zone_id)
 
         steps.append("Injecting DNS verification TXT record into Cloudflare...")
         deploy_dns_record_to_cf(
             domain, zone_id, "verification", None, verification_record,
-            existing_mx, existing_txt, steps,
+            existing_mx, existing_txt, existing_records, steps,
         )
 
         steps.append("Registering domain with MXroute platform...")
@@ -1248,7 +1256,7 @@ def cloudflare_setup():
         for record_type in MAIL_DNS_RECORD_TYPES:
             deploy_dns_record_to_cf(
                 domain, zone_id, record_type, mx_dns_data, verification_record,
-                existing_mx, existing_txt, steps,
+                existing_mx, existing_txt, existing_records, steps,
             )
 
         steps.append("Domain setup complete! All MXroute and Cloudflare settings active.")

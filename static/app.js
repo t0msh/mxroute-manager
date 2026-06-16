@@ -695,7 +695,7 @@ async function handleFixDnsRecord(recordType) {
         if (result.data?.steps) showSetupDnsProgress(result.data.steps);
         const fixed = result.data?.fixed || [];
         if (fixed.length > 0) {
-            showAlert("success", `Added ${fixed.join(", ").toUpperCase()} record(s) to Cloudflare. DNS propagation may take a few minutes.`);
+            showAlert("success", `Updated ${fixed.join(", ").toUpperCase()} in Cloudflare. DNS propagation may take a few minutes.`);
         } else {
             showAlert("info", "Record already exists or was not applicable.");
         }

@@ -86,19 +86,102 @@ function showAlert(type, message) {
     const text = document.getElementById("alert-banner-text");
     
     banner.className = `alert-banner ${type}`;
-    icon.textContent = type === "success" ? "✅" : "❌";
+    const icons = { success: "✅", error: "❌", warning: "⚠️", info: "ℹ️" };
+    icon.textContent = icons[type] || "🔔";
     text.textContent = message;
     
     banner.classList.add("show");
     
-    // Auto-dismiss success notifications after 5 seconds
-    if (type === "success") {
+    if (type === "success" || type === "info") {
         setTimeout(dismissAlert, 5000);
     }
 }
 
 function dismissAlert() {
     document.getElementById("alert-banner").classList.remove("show");
+}
+
+let _confirmResolver = null;
+let _typedConfirmResolver = null;
+
+function initConfirmModals() {
+    const confirmModal = document.getElementById("modal-confirm");
+    const typedModal = document.getElementById("modal-typed-confirm");
+    const typedInput = document.getElementById("modal-typed-confirm-input");
+    const typedSubmit = document.getElementById("modal-typed-confirm-submit");
+
+    function closeConfirm(result) {
+        confirmModal.classList.remove("show");
+        if (_confirmResolver) {
+            _confirmResolver(result);
+            _confirmResolver = null;
+        }
+    }
+
+    function closeTypedConfirm(result) {
+        typedModal.classList.remove("show");
+        typedInput.value = "";
+        typedInput.classList.remove("matching");
+        typedSubmit.disabled = true;
+        if (_typedConfirmResolver) {
+            _typedConfirmResolver(result);
+            _typedConfirmResolver = null;
+        }
+    }
+
+    document.getElementById("modal-confirm-submit").addEventListener("click", () => closeConfirm(true));
+    document.getElementById("modal-confirm-cancel").addEventListener("click", () => closeConfirm(false));
+    document.getElementById("modal-confirm-close").addEventListener("click", () => closeConfirm(false));
+
+    document.getElementById("modal-typed-confirm-submit").addEventListener("click", () => {
+        if (!typedSubmit.disabled) closeTypedConfirm(true);
+    });
+    document.getElementById("modal-typed-confirm-cancel").addEventListener("click", () => closeTypedConfirm(false));
+    document.getElementById("modal-typed-confirm-close").addEventListener("click", () => closeTypedConfirm(false));
+
+    typedInput.addEventListener("input", () => {
+        const expected = typedInput.dataset.expected || "";
+        const matches = typedInput.value.trim().toLowerCase() === expected.toLowerCase();
+        typedSubmit.disabled = !matches;
+        typedInput.classList.toggle("matching", matches);
+    });
+
+    typedInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !typedSubmit.disabled) {
+            event.preventDefault();
+            closeTypedConfirm(true);
+        }
+    });
+}
+
+function showConfirm({ title, message, confirmLabel = "Confirm", variant = "danger" }) {
+    return new Promise((resolve) => {
+        _confirmResolver = resolve;
+        document.getElementById("modal-confirm-title").textContent = title;
+        document.getElementById("modal-confirm-message").textContent = message;
+        const submitBtn = document.getElementById("modal-confirm-submit");
+        submitBtn.textContent = confirmLabel;
+        submitBtn.className = variant === "danger" ? "btn btn-danger btn-sm" : "btn btn-primary btn-sm";
+        document.getElementById("modal-confirm").classList.add("show");
+    });
+}
+
+function showTypedConfirm({ title, message, expectedValue, confirmLabel = "Delete", inputLabel = "Type the email address to confirm" }) {
+    return new Promise((resolve) => {
+        _typedConfirmResolver = resolve;
+        const input = document.getElementById("modal-typed-confirm-input");
+        document.getElementById("modal-typed-confirm-title").textContent = title;
+        document.getElementById("modal-typed-confirm-message").textContent = message;
+        document.getElementById("modal-typed-confirm-label").textContent = inputLabel;
+        document.getElementById("modal-typed-confirm-hint").textContent = `Enter exactly: ${expectedValue}`;
+        document.getElementById("modal-typed-confirm-submit").textContent = confirmLabel;
+        input.value = "";
+        input.dataset.expected = expectedValue;
+        input.classList.remove("matching");
+        document.getElementById("modal-typed-confirm-submit").disabled = true;
+        document.getElementById("modal-typed-confirm").classList.add("show");
+        setTimeout(() => input.focus(), 100);
+    });
 }
 
 // Copy to Clipboard Utility
@@ -233,7 +316,8 @@ async function triggerDataRefresh() {
                 await Promise.all([
                     loadAccountQuota(),
                     loadDomainDetails(activeDomain),
-                    loadDNSInfo(activeDomain)
+                    loadDNSInfo(activeDomain),
+                    loadDnsHealth(activeDomain)
                 ]);
                 break;
             case "domains":
@@ -506,9 +590,14 @@ document.getElementById("form-create-domain").addEventListener("submit", async (
 
 // Delete Domain
 async function handleDeleteDomain(domain) {
-    if (!confirm(`Are you absolutely sure you want to delete "${domain}"?\nThis will destroy all associated mailboxes and configurations permanently!`)) {
-        return;
-    }
+    const confirmed = await showTypedConfirm({
+        title: "Delete Domain",
+        message: `This will permanently delete "${domain}" and destroy all associated mailboxes and configurations.`,
+        expectedValue: domain,
+        confirmLabel: "Delete Domain",
+        inputLabel: "Type the domain name to confirm"
+    });
+    if (!confirmed) return;
     
     try {
         await apiRequest(`/api/domains/${domain}`, "DELETE");
@@ -578,7 +667,12 @@ document.getElementById("form-modal-create-pointer").addEventListener("submit", 
 
 // Delete Pointer
 async function handleDeletePointer(pointer) {
-    if (!confirm(`Remove pointer "${pointer}"?`)) return;
+    const confirmed = await showConfirm({
+        title: "Remove Pointer",
+        message: `Remove pointer "${pointer}" from ${activeDomain}?`,
+        confirmLabel: "Remove Pointer"
+    });
+    if (!confirmed) return;
     try {
         await apiRequest(`/api/domains/${activeDomain}/pointers/${pointer}`, "DELETE");
         showAlert("success", "Pointer deleted.");
@@ -669,11 +763,90 @@ async function loadDNSInfo(domain) {
             
             // DKIM
             dkimEl.textContent = data.dkim ? data.dkim.value : "No DKIM key available";
+
+            // DMARC
+            const dmarcEl = document.getElementById("dns-dmarc");
+            if (dmarcEl) {
+                dmarcEl.textContent = data.dmarc ? data.dmarc.value : "v=DMARC1; p=none; sp=none; adkim=r; aspf=r;";
+            }
         }
     } catch (err) {
         mxContainer.innerHTML = `<div style="color: var(--danger);">Failed to pull DNS info from MXroute.</div>`;
         spfEl.textContent = "v=spf1 include:mxroute.com -all";
         dkimEl.textContent = "Error loading DKIM key";
+    }
+}
+
+function updateDnsHealthHeader(health) {
+    const statusEl = document.getElementById("dns-health-status");
+    const textEl = document.getElementById("dns-health-status-text");
+    if (!statusEl || !textEl) return;
+
+    if (!health) {
+        statusEl.className = "status-indicator";
+        textEl.textContent = "No domain selected";
+        return;
+    }
+
+    const labels = {
+        healthy: { className: "status-indicator success", text: "DNS Healthy" },
+        degraded: { className: "status-indicator warning", text: "DNS Degraded" },
+        unhealthy: { className: "status-indicator danger", text: "DNS Issues Detected" }
+    };
+    const cfg = labels[health.overall] || labels.degraded;
+    const mxrouteNote = health.mxroute_reachable === false ? " · MXroute unreachable" : "";
+    statusEl.className = cfg.className;
+    textEl.textContent = `${cfg.text}${mxrouteNote}`;
+}
+
+async function loadDnsHealth(domain) {
+    if (!domain) {
+        updateDnsHealthHeader(null);
+        return;
+    }
+
+    const summaryEl = document.getElementById("dns-health-summary");
+    const checksEl = document.getElementById("dns-health-checks");
+
+    try {
+        const result = await apiRequest(`/api/domains/${encodeURIComponent(domain)}/dns/health`);
+        if (!result.success || !result.data) {
+            throw new Error(result.error?.message || "Health check failed");
+        }
+
+        const health = result.data;
+        updateDnsHealthHeader(health);
+
+        if (summaryEl) {
+            const summaryMap = {
+                healthy: "All required DNS records look good in public DNS.",
+                degraded: "Mail may work, but some recommended records need attention.",
+                unhealthy: "Critical DNS records are missing or incorrect."
+            };
+            summaryEl.textContent = summaryMap[health.overall] || summaryMap.degraded;
+        }
+
+        if (checksEl) {
+            checksEl.innerHTML = "";
+            Object.values(health.checks || {}).forEach(check => {
+                const item = document.createElement("div");
+                item.className = `dns-health-item ${check.status}`;
+                const icon = check.status === "pass" ? "✅" : check.status === "warn" ? "⚠️" : "❌";
+                item.innerHTML = `
+                    <div class="dns-health-item-title">${icon} ${escapeHtml(check.label)}</div>
+                    <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
+                `;
+                checksEl.appendChild(item);
+            });
+        }
+    } catch (err) {
+        updateDnsHealthHeader({ overall: "unhealthy", mxroute_reachable: false });
+        if (summaryEl) {
+            summaryEl.textContent = `DNS health check failed: ${err.message}`;
+        }
+        if (checksEl) {
+            checksEl.innerHTML = "";
+        }
     }
 }
 
@@ -853,9 +1026,15 @@ document.getElementById("create-email-limit").addEventListener("input", (e) => {
 
 // Delete Email Account
 async function handleDeleteEmail(username) {
-    if (!confirm(`Delete mailbox "${username}@${activeDomain}" permanently?\nThis action cannot be undone and all stored messages will be wiped!`)) {
-        return;
-    }
+    const emailAddress = `${username}@${activeDomain}`;
+    const confirmed = await showTypedConfirm({
+        title: "Delete Mailbox",
+        message: `This will permanently delete ${emailAddress} and wipe all stored messages. This cannot be undone.`,
+        expectedValue: emailAddress,
+        confirmLabel: "Delete Mailbox",
+        inputLabel: "Type the email address to confirm"
+    });
+    if (!confirmed) return;
     
     try {
         await apiRequest(`/api/domains/${activeDomain}/email-accounts/${username}`, "DELETE");
@@ -871,9 +1050,14 @@ async function handleDeleteEmail(username) {
 async function handleToggleSuspend(username, isSuspended) {
     const suspended = isSuspended === true || isSuspended === "true";
     const actionText = suspended ? "activate" : "suspend";
-    if (!confirm(`Are you sure you want to ${actionText} mailbox "${username}@${activeDomain}"?`)) {
-        return;
-    }
+    const emailAddress = `${username}@${activeDomain}`;
+    const confirmed = await showConfirm({
+        title: suspended ? "Activate Mailbox" : "Suspend Mailbox",
+        message: `Are you sure you want to ${actionText} ${emailAddress}?`,
+        confirmLabel: suspended ? "Activate" : "Suspend",
+        variant: suspended ? "primary" : "danger"
+    });
+    if (!confirmed) return;
     
     try {
         await apiRequest(`/api/domains/${activeDomain}/email-accounts/${username}`, "PATCH", { suspended: !suspended });
@@ -1013,7 +1197,15 @@ document.getElementById("form-create-forwarder").addEventListener("submit", asyn
 
 // Delete Forwarder
 async function handleDeleteForwarder(alias) {
-    if (!confirm(`Delete forwarder for "${alias}@${activeDomain}"?`)) return;
+    const forwarderAddress = `${alias}@${activeDomain}`;
+    const confirmed = await showTypedConfirm({
+        title: "Delete Forwarder",
+        message: `Remove the forwarder for ${forwarderAddress}?`,
+        expectedValue: forwarderAddress,
+        confirmLabel: "Delete Forwarder",
+        inputLabel: "Type the forwarder email address to confirm"
+    });
+    if (!confirmed) return;
     try {
         await apiRequest(`/api/domains/${activeDomain}/forwarders/${alias}`, "DELETE");
         showAlert("success", `Forwarder ${alias}@${activeDomain} deleted.`);
@@ -1157,7 +1349,12 @@ document.getElementById("form-blacklist-add").addEventListener("submit", async (
 
 // Remove Whitelist/Blacklist Entry
 async function handleRemoveSpamList(type, entry) {
-    if (!confirm(`Remove "${entry}" from spam ${type}?`)) return;
+    const confirmed = await showConfirm({
+        title: `Remove from ${type}`,
+        message: `Remove "${entry}" from the spam ${type}?`,
+        confirmLabel: "Remove"
+    });
+    if (!confirmed) return;
     try {
         // Encode entry for URL safeness (since it may contain symbols/wildcards)
         const encodedEntry = encodeURIComponent(entry);
@@ -1196,6 +1393,7 @@ async function initDomainDropdowns() {
             }
             select.value = activeDomain;
             
+            await loadDnsHealth(activeDomain);
             // Load initial page data
             await triggerDataRefresh();
         } else {
@@ -1222,6 +1420,7 @@ async function initDomainDropdowns() {
 // Dropdown Change Handler
 document.getElementById("global-domain-select").addEventListener("change", async (e) => {
     activeDomain = e.target.value;
+    await loadDnsHealth(activeDomain);
     await triggerDataRefresh();
 });
 
@@ -1368,9 +1567,15 @@ function handleEditDelegation(email, domains) {
 window.handleEditDelegation = handleEditDelegation;
 
 async function handleDeleteDelegation(email) {
-    if (!confirm(`Are you sure you want to revoke all access rights for "${email}"?`)) {
-        return;
-    }
+    const confirmed = await showTypedConfirm({
+        title: "Revoke Access",
+        message: `Revoke all access rights for ${email}? They will no longer be able to sign in.`,
+        expectedValue: email,
+        confirmLabel: "Revoke Access",
+        inputLabel: "Type the user's email address to confirm"
+    });
+    if (!confirmed) return;
+
     try {
         await apiRequest(`/api/admin/delegations?email=${encodeURIComponent(email)}`, "DELETE");
         showAlert("success", `Access rights revoked for ${email}.`);
@@ -1410,6 +1615,29 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
 
 // On DOM Loaded
 document.addEventListener("DOMContentLoaded", async () => {
+    initConfirmModals();
+
+    const refreshDnsHealthBtn = document.getElementById("btn-refresh-dns-health");
+    if (refreshDnsHealthBtn) {
+        refreshDnsHealthBtn.addEventListener("click", async () => {
+            if (!activeDomain) {
+                showAlert("warning", "Select a domain first.");
+                return;
+            }
+            refreshDnsHealthBtn.disabled = true;
+            refreshDnsHealthBtn.textContent = "⌛ Checking...";
+            try {
+                await loadDnsHealth(activeDomain);
+                showAlert("success", "DNS health rechecked.");
+            } catch (err) {
+                showAlert("error", err.message);
+            } finally {
+                refreshDnsHealthBtn.textContent = "🔄 Recheck DNS";
+                refreshDnsHealthBtn.disabled = false;
+            }
+        });
+    }
+
     // 1. Fetch current user context
     try {
         const meResult = await apiRequest("/api/me");

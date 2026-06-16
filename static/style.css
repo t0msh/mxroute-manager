@@ -672,6 +672,72 @@ tr:hover td {
     color: #fff5f5;
 }
 
+.alert-banner.warning {
+    background: rgba(120, 53, 15, 0.9);
+    border-color: #f59e0b;
+    color: #fffbeb;
+}
+
+.alert-banner.info {
+    background: rgba(30, 58, 138, 0.85);
+    border-color: #60a5fa;
+    color: #eff6ff;
+}
+
+.status-indicator.warning .dot { background: #f59e0b; }
+
+.dns-health-summary {
+    margin-bottom: 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    font-size: 0.95rem;
+}
+
+.dns-health-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.85rem;
+}
+
+.dns-health-item {
+    padding: 0.9rem 1rem;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dns-health-item.pass { border-color: rgba(92, 221, 141, 0.35); }
+.dns-health-item.warn { border-color: rgba(245, 158, 11, 0.35); }
+.dns-health-item.fail { border-color: rgba(248, 113, 113, 0.35); }
+
+.dns-health-item-title {
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.dns-health-item-message {
+    font-size: 0.82rem;
+    color: var(--color-secondary);
+    line-height: 1.45;
+}
+
+.modal-content.modal-danger {
+    border-color: rgba(248, 113, 113, 0.35);
+}
+
+#modal-typed-confirm-input.matching {
+    border-color: var(--success);
+}
+
+#modal-typed-confirm-input:not(.matching):not(:placeholder-shown) {
+    border-color: var(--danger);
+}
+
 .alert-banner-close {
     background: none;
     border: none;

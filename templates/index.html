@@ -29,8 +29,8 @@
                 <h2 id="page-title">Dashboard</h2>
                 <p id="page-subtitle">Overview of your hosted mail accounts, resources, and endpoints.</p>
             </div>
-            <div id="connection-status" class="status-indicator success">
-                <span class="dot"></span> MXroute Nodes Online
+            <div id="dns-health-status" class="status-indicator" title="DNS health for the active domain">
+                <span class="dot"></span> <span id="dns-health-status-text">Checking DNS...</span>
             </div>
         </header>
 
@@ -70,7 +70,7 @@
     {% include 'partials/modals.html' %}
 
     <!-- Global App Logic -->
-    <script src="/static/app.js?v=5"></script>
+    <script src="/static/app.js?v=6"></script>
 </body>
 
 </html>

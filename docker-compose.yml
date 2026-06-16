@@ -11,6 +11,7 @@ services:
       - .env
     environment:
       - DATABASE_FILE=/data/mxtoolbox.db
+      - LOG_DIR=/data/logs
     volumes:
       - mxtoolbox_data:/data
 

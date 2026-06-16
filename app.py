@@ -10,6 +10,9 @@ import requests  # type: ignore
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
 
+from audit_log import write_audit_log
+from dns_health import check_dns_health
+
 load_dotenv()
 
 app = Flask(__name__)
@@ -70,6 +73,10 @@ def get_admin_user():
 
 def get_admin_password():
     return get_config_value("ADMIN_PASSWORD")
+
+def get_dmarc_record():
+    default = os.getenv("DMARC_RECORD", "v=DMARC1; p=none; sp=none; adkim=r; aspf=r;")
+    return get_config_value("DMARC_RECORD", default).strip()
 
 def use_secure_cookies():
     """Use Secure cookies when FORCE_HTTPS is set, or OIDC is enabled (legacy default)."""
@@ -248,6 +255,11 @@ def get_oidc_config():
 def get_current_user():
     return session.get("user")
 
+def audit(action, target="", **details):
+    user = get_current_user()
+    email = (user or {}).get("email", "system")
+    write_audit_log(action, email, target, details or None)
+
 def is_user_admin(user):
     if not user:
         return False
@@ -386,6 +398,19 @@ def mx_request(method, path, payload=None):
     return jsonify(res), status
 
 
+def audited_mx(method, path, payload, action, target=""):
+    res, status = mx_request_raw(method, path, payload)
+    if status in (200, 201, 204) and (not isinstance(res, dict) or res.get("success", True)):
+        details = {}
+        if isinstance(payload, dict):
+            details = {
+                key: value for key, value in payload.items()
+                if "password" not in key.lower()
+            }
+        audit(action, target=target or path, **details)
+    return jsonify(res), status
+
+
 def cf_request(method, path, payload=None):
     cf_token = get_config_value("CF_API_TOKEN")
     if not cf_token:
@@ -452,6 +477,7 @@ def login_page():
                     "is_admin": bool(user_row[3]),
                     "delegated_domains": load_domain_mapping().get(user_row[1], [])
                 }
+                write_audit_log("auth.login", user_row[1], user_row[1])
                 return redirect(url_for('home'))
         
         # Fallback to local admin config check
@@ -461,8 +487,10 @@ def login_page():
                 "is_admin": True,
                 "delegated_domains": []
             }
+            write_audit_log("auth.login", username, username)
             return redirect(url_for('home'))
             
+        write_audit_log("auth.login_failed", username, username, {"reason": "invalid_credentials"})
         error = "Invalid credentials. Please try again."
             
     return render_template('login.html', error=error)
@@ -593,6 +621,7 @@ def oidc_callback():
             "delegated_domains": delegated_domains
         }
         
+        write_audit_log("auth.login", email, email, {"method": "oidc"})
         return redirect(url_for('home'))
     except Exception as e:
         app.logger.error(f"OIDC flow callback failure: {e}")
@@ -719,6 +748,7 @@ def update_delegation():
             
         conn.commit()
         conn.close()
+        audit("delegation.update", target=email, domains=normalized_domains, is_admin=is_admin)
         return jsonify({"success": True})
     except Exception as e:
         app.logger.error(f"Error updating user delegations in SQLite: {e}")
@@ -756,6 +786,7 @@ def delete_delegation(email=None):
             cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
             conn.commit()
             conn.close()
+            audit("delegation.revoke", target=email)
             return jsonify({"success": True})
         return jsonify({"success": False, "error": {"message": "User not found"}}), 404
     except Exception as e:
@@ -810,6 +841,7 @@ def update_settings():
             _oidc_config = None
             _oidc_config_fetched_at = 0.0
             
+        audit("settings.update", target="system", keys=[key for key in allowed_keys if key in data])
         return jsonify({"success": True})
     except Exception as e:
         app.logger.error(f"Error saving system settings: {e}")
@@ -991,8 +1023,28 @@ def cloudflare_setup():
                 steps.append("DKIM record configured")
             else:
                 steps.append("DKIM record exists (skipping)")
+
+        # Add DMARC record
+        dmarc_val = get_dmarc_record()
+        dmarc_name_full = f"_dmarc.{domain}".lower()
+        has_dmarc = any(
+            rname == dmarc_name_full and "v=dmarc1" in rcontent.replace(" ", "").lower()
+            for rname, rcontent in existing_txt
+        )
+        if not has_dmarc:
+            cf_request("POST", f"/zones/{zone_id}/dns_records", {
+                "type": "TXT",
+                "name": "_dmarc",
+                "content": dmarc_val,
+                "ttl": 3600
+            })
+            steps.append("DMARC record configured")
+            existing_txt.add((dmarc_name_full, dmarc_val))
+        else:
+            steps.append("DMARC record exists (skipping)")
                 
         steps.append("Domain setup complete! All MXroute and Cloudflare settings active.")
+        audit("cloudflare.setup", target=domain, steps=len(steps))
         return jsonify({"success": True, "steps": steps})
         
     except Exception as e:
@@ -1021,7 +1073,7 @@ def create_domain():
     domain = data.get("domain")
     if not validate_domain(domain):
         return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
-    return mx_request("POST", "/domains", request.json)
+    return audited_mx("POST", "/domains", request.json, "domain.create", target=domain)
 
 @app.route('/api/domains/<domain>', methods=['GET'])
 @require_domain_access
@@ -1033,13 +1085,12 @@ def get_domain_details(domain):
 def delete_domain(domain):
     if not validate_domain(domain):
         return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
-    return mx_request("DELETE", f"/domains/{domain}")
+    return audited_mx("DELETE", f"/domains/{domain}", None, "domain.delete", target=domain)
 
 @app.route('/api/domains/<domain>/mail-status', methods=['PATCH'])
 @require_domain_access
 def set_mail_status(domain):
-    # Expects JSON {"enabled": true/false}
-    return mx_request("PATCH", f"/domains/{domain}/mail-status", request.json)
+    return audited_mx("PATCH", f"/domains/{domain}/mail-status", request.json, "domain.mail_status", target=domain)
 
 @app.route('/api/verification-key', methods=['GET'])
 @require_admin
@@ -1056,13 +1107,12 @@ def list_pointers(domain):
 @app.route('/api/domains/<domain>/pointers', methods=['POST'])
 @require_domain_access
 def create_pointer(domain):
-    # Expects JSON {"pointer": "...", "alias": true/false}
-    return mx_request("POST", f"/domains/{domain}/pointers", request.json)
+    return audited_mx("POST", f"/domains/{domain}/pointers", request.json, "pointer.create", target=domain)
 
 @app.route('/api/domains/<domain>/pointers/<pointer>', methods=['DELETE'])
 @require_domain_access
 def delete_pointer(domain, pointer):
-    return mx_request("DELETE", f"/domains/{domain}/pointers/{pointer}")
+    return audited_mx("DELETE", f"/domains/{domain}/pointers/{pointer}", None, "pointer.delete", target=f"{pointer}@{domain}")
 
 # --- EMAIL ACCOUNTS ---
 
@@ -1079,8 +1129,7 @@ def create_email_api(domain):
     username = data.get("username")
     if not validate_username(username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-    # Expects JSON {"username": "...", "password": "...", "quota": ..., "limit": ...}
-    return mx_request("POST", f"/domains/{domain}/email-accounts", request.json)
+    return audited_mx("POST", f"/domains/{domain}/email-accounts", request.json, "mailbox.create", target=f"{username}@{domain}")
 
 @app.route('/create-email', methods=['POST']) # backward compat (expects Form)
 def create_email_compat():
@@ -1102,7 +1151,7 @@ def create_email_compat():
         "password": password,
         "quota": 0
     }
-    return mx_request("POST", f"/domains/{domain}/email-accounts", payload)
+    return audited_mx("POST", f"/domains/{domain}/email-accounts", payload, "mailbox.create", target=f"{email_username}@{domain}")
 
 @app.route('/api/domains/<domain>/email-accounts/<user>', methods=['GET'])
 @require_domain_access
@@ -1114,8 +1163,9 @@ def get_email_account(domain, user):
 def update_email_account(domain, user):
     if not validate_username(user):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-    # Expects JSON {"password": "...", "quota": ..., "limit": ...}
-    return mx_request("PATCH", f"/domains/{domain}/email-accounts/{user}", request.json)
+    payload = request.json or {}
+    action = "mailbox.password_update" if "password" in payload else "mailbox.update"
+    return audited_mx("PATCH", f"/domains/{domain}/email-accounts/{user}", payload, action, target=f"{user}@{domain}")
 
 @app.route('/update-password', methods=['POST']) # backward compat (expects Form)
 def update_password_compat():
@@ -1133,14 +1183,14 @@ def update_password_compat():
 
     password = request.form.get('password')
     payload = {"password": password}
-    return mx_request("PATCH", f"/domains/{domain}/email-accounts/{email_username}", payload)
+    return audited_mx("PATCH", f"/domains/{domain}/email-accounts/{email_username}", payload, "mailbox.password_update", target=f"{email_username}@{domain}")
 
 @app.route('/api/domains/<domain>/email-accounts/<user>', methods=['DELETE'])
 @require_domain_access
 def delete_email_api(domain, user):
     if not validate_username(user):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-    return mx_request("DELETE", f"/domains/{domain}/email-accounts/{user}")
+    return audited_mx("DELETE", f"/domains/{domain}/email-accounts/{user}", None, "mailbox.delete", target=f"{user}@{domain}")
 
 @app.route('/delete-email', methods=['POST']) # backward compat (expects Form)
 def delete_email_compat():
@@ -1156,7 +1206,7 @@ def delete_email_compat():
     if denied:
         return denied
 
-    return mx_request("DELETE", f"/domains/{domain}/email-accounts/{email_username}")
+    return audited_mx("DELETE", f"/domains/{domain}/email-accounts/{email_username}", None, "mailbox.delete", target=f"{email_username}@{domain}")
 
 # --- EMAIL FORWARDERS ---
 
@@ -1168,13 +1218,14 @@ def list_forwarders(domain):
 @app.route('/api/domains/<domain>/forwarders', methods=['POST'])
 @require_domain_access
 def create_forwarder(domain):
-    # Expects JSON {"alias": "...", "destinations": [...]}
-    return mx_request("POST", f"/domains/{domain}/forwarders", request.json)
+    data = request.json or {}
+    alias = data.get("alias", "")
+    return audited_mx("POST", f"/domains/{domain}/forwarders", request.json, "forwarder.create", target=f"{alias}@{domain}")
 
 @app.route('/api/domains/<domain>/forwarders/<alias>', methods=['DELETE'])
 @require_domain_access
 def delete_forwarder(domain, alias):
-    return mx_request("DELETE", f"/domains/{domain}/forwarders/{alias}")
+    return audited_mx("DELETE", f"/domains/{domain}/forwarders/{alias}", None, "forwarder.delete", target=f"{alias}@{domain}")
 
 # --- SPAM SETTINGS ---
 
@@ -1186,8 +1237,7 @@ def get_spam_settings(domain):
 @app.route('/api/domains/<domain>/spam/settings', methods=['PATCH'])
 @require_domain_access
 def update_spam_settings(domain):
-    # Expects JSON {"high_score": ...}
-    return mx_request("PATCH", f"/domains/{domain}/spam/settings", request.json)
+    return audited_mx("PATCH", f"/domains/{domain}/spam/settings", request.json, "spam.settings_update", target=domain)
 
 @app.route('/api/domains/<domain>/spam/whitelist', methods=['GET'])
 @require_domain_access
@@ -1226,7 +1276,39 @@ def delete_spam_blacklist(domain, entry):
 @app.route('/api/domains/<domain>/dns', methods=['GET'])
 @require_domain_access
 def get_dns_info(domain):
-    return mx_request("GET", f"/domains/{domain}/dns")
+    res, status = mx_request_raw("GET", f"/domains/{domain}/dns")
+    if status == 200 and isinstance(res, dict) and res.get("success"):
+        data = res.get("data") or {}
+        data["dmarc"] = {
+            "name": "_dmarc",
+            "value": get_dmarc_record(),
+        }
+        res["data"] = data
+    return jsonify(res), status
+
+@app.route('/api/domains/<domain>/dns/health', methods=['GET'])
+@require_domain_access
+def get_dns_health(domain):
+    mx_dns_res, mx_dns_status = mx_request_raw("GET", f"/domains/{domain}/dns")
+    if mx_dns_status != 200:
+        return jsonify({"success": False, "error": {"message": "Failed to fetch DNS expectations from MXroute"}}), 502
+
+    verification_record = None
+    verify_res, verify_status = mx_request_raw("GET", "/verification-key")
+    if verify_status == 200:
+        verification_record = verify_res.get("data", {}).get("record")
+
+    health = check_dns_health(
+        domain,
+        mx_dns_res.get("data", {}),
+        verification_record=verification_record,
+        dmarc_expected=get_dmarc_record(),
+    )
+
+    _, mx_status = mx_request_raw("GET", "/domains")
+    health["mxroute_reachable"] = mx_status == 200
+
+    return jsonify({"success": True, "data": health})
 
 # --- CATCH-ALL ---
 
@@ -1238,8 +1320,7 @@ def get_catch_all(domain):
 @app.route('/api/domains/<domain>/catch-all', methods=['PATCH'])
 @require_domain_access
 def update_catch_all(domain):
-    # Expects JSON {"type": "...", "address": "..."}
-    return mx_request("PATCH", f"/domains/{domain}/catch-all", request.json)
+    return audited_mx("PATCH", f"/domains/{domain}/catch-all", request.json, "catchall.update", target=domain)
 
 # --- QUOTA ---
 

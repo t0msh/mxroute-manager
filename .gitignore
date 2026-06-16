@@ -1,3 +1,6 @@
+# Audit logs (daily files in logs/)
+logs/
+
 # Environment variables and secrets
 .env
 deploy.sh

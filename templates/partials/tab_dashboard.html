@@ -56,7 +56,18 @@
         </div>
     </div>
 
-
+    <!-- DNS Health -->
+    <div class="glass-card" id="dns-health-card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+            <span>🩺 DNS Health Check</span>
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-dns-health">🔄 Recheck DNS</button>
+        </div>
+        <p class="stat-card-subtitle mb-4">Live public DNS lookup compared against MXroute expectations for the active domain.</p>
+        <div id="dns-health-summary" class="dns-health-summary">
+            <span style="color: var(--color-muted);">Run a check to see DNS status...</span>
+        </div>
+        <div id="dns-health-checks" class="dns-health-grid"></div>
+    </div>
 
     <!-- DNS Config Info -->
     <div class="glass-card">
@@ -86,6 +97,14 @@
                         style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading...</span>
                     <button class="copy-btn" onclick="copyText('dns-dkim')">Copy</button>
                 </div>
+            </div>
+        </div>
+
+        <div class="form-group mt-4">
+            <label>DMARC Record (TXT — Host: _dmarc)</label>
+            <div class="copyable-code">
+                <span id="dns-dmarc">v=DMARC1; p=none; sp=none; adkim=r; aspf=r;</span>
+                <button class="copy-btn" onclick="copyText('dns-dmarc')">Copy</button>
             </div>
         </div>
     </div>

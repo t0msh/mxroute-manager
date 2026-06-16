@@ -72,6 +72,41 @@
     </div>
 </div>
 
+<!-- Modal 4: Simple confirmation -->
+<div class="modal-overlay" id="modal-confirm">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-confirm-title">Confirm Action</h3>
+            <button type="button" class="alert-banner-close" style="font-size: 1.5rem;" id="modal-confirm-close">×</button>
+        </div>
+        <p id="modal-confirm-message" style="color: var(--color-secondary); line-height: 1.6; margin-bottom: 1.5rem;"></p>
+        <div class="flex-row justify-end" style="justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary btn-sm" id="modal-confirm-cancel">Cancel</button>
+            <button type="button" class="btn btn-danger btn-sm" id="modal-confirm-submit">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal 5: Typed confirmation (destructive deletes) -->
+<div class="modal-overlay" id="modal-typed-confirm">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="modal-typed-confirm-title">Confirm Deletion</h3>
+            <button type="button" class="alert-banner-close" style="font-size: 1.5rem;" id="modal-typed-confirm-close">×</button>
+        </div>
+        <p id="modal-typed-confirm-message" style="color: var(--color-secondary); line-height: 1.6; margin-bottom: 1rem;"></p>
+        <div class="form-group mb-4">
+            <label for="modal-typed-confirm-input" id="modal-typed-confirm-label">Type to confirm</label>
+            <input type="text" id="modal-typed-confirm-input" autocomplete="off" spellcheck="false">
+            <span id="modal-typed-confirm-hint" style="font-size: 0.75rem; color: var(--color-muted); display: block; margin-top: 0.5rem;"></span>
+        </div>
+        <div class="flex-row justify-end" style="justify-content: flex-end; gap: 0.75rem;">
+            <button type="button" class="btn btn-secondary btn-sm" id="modal-typed-confirm-cancel">Cancel</button>
+            <button type="button" class="btn btn-danger btn-sm" id="modal-typed-confirm-submit" disabled>Delete</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal 3: Add Domain Pointer -->
 <div class="modal-overlay" id="modal-add-pointer">
     <div class="modal-content">

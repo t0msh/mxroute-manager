@@ -6,6 +6,7 @@
 
 MXroute Manager is a self-hosted Flask application for managing MXroute domains, mailboxes, forwarders, DNS setup, and delegated access from a single UI.
 
+
 ## Features
 
 ### Mail and domain operations
@@ -21,8 +22,6 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 - DNS health checks for MX, SPF, DKIM, DMARC, and verification records
 - One-click Cloudflare fixes (single record or fix-all)
 - Global DNS health status in the UI header
-- Fix DNS action shown only when a domain actually needs fixes
-- If mail hosting is disabled for a domain, mail DNS checks are treated as informational and do not affect overall health
 
 ### Access control and authentication
 - OIDC/SSO login flow
@@ -34,8 +33,6 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 - In-app Settings tab for MXroute, OIDC, Cloudflare, and local admin settings
 - About box with version, repository link, license, and attributions
 - Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk)
-- Theme-aware logo in sidebar, login, favicon, and About section
-- Centralized app metadata/version in `app_meta.py`
 
 ### Security and observability
 - CSRF protection for state-changing requests
@@ -68,8 +65,6 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 ### Settings
 ![Settings](screenshots/settings.png)
 
-### Logo Asset
-![Logo](screenshots/logo.svg)
 
 ## Installation
 

@@ -2087,6 +2087,10 @@ function setTheme(theme, save = true) {
             card.classList.remove("active");
         }
     });
+
+    if (typeof updateThemedFavicon === "function") {
+        updateThemedFavicon();
+    }
 }
 
 function renderSecretStatus(elementId, configured, envLabel = "environment") {

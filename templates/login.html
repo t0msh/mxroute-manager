@@ -7,8 +7,7 @@
     <title>MXroute Manager - Log In</title>
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ app_version }}">
 
     <!-- Custom stylesheet connection -->
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
@@ -36,37 +35,16 @@
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-radius: 20px;
-            padding: 3.5rem 2.5rem;
+            padding: 3.5rem 2.5rem 2rem;
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
             text-align: center;
             transition: border-color var(--transition-speed) ease;
+            display: flex;
+            flex-direction: column;
         }
 
         .login-card:hover {
             border-color: rgba(92, 221, 141, 0.15);
-        }
-
-        .login-brand {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-        }
-
-        .login-brand span {
-            font-size: 2.25rem;
-        }
-
-        .login-brand h1 {
-            font-family: var(--font-heading);
-            font-size: 2rem;
-            font-weight: 700;
-            background: linear-gradient(to right, #ffffff, #88f2b1, #5cdd8d);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin: 0;
         }
 
         .login-desc {
@@ -193,6 +171,16 @@
             border-top: none;
             padding-top: 0;
         }
+
+        .login-version {
+            margin-top: auto;
+            padding-top: 2rem;
+            font-size: 0.7rem;
+            color: var(--color-secondary);
+            opacity: 0.6;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+        }
     </style>
 </head>
 
@@ -200,10 +188,9 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-brand">
-                <span>🛠️</span>
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                    <h1 style="margin: 0; line-height: 1.1;">MXroute Manager</h1>
-                    <span style="font-size: 0.7rem; color: var(--color-secondary); opacity: 0.6; font-weight: 500; margin-top: 0.2rem; letter-spacing: 0.05em;">v{{ app_version }}</span>
+                <span class="app-logo" role="img" aria-label="MXroute Manager"></span>
+                <div class="brand-title-block">
+                    <h1 class="brand-title">MXroute Manager</h1>
                 </div>
             </div>
 
@@ -264,6 +251,8 @@
                     </form>
                 </div>
             </div>
+
+            <p class="login-version">v{{ app_version }}</p>
         </div>
     </div>
 
@@ -283,6 +272,7 @@
         const oidcEnabled = document.body.dataset.oidcEnabled === 'true';
         if (hasLoginError || !oidcEnabled) toggleAdmin();
     </script>
+    <script src="/static/brand.js?v={{ app_version }}"></script>
 </body>
 
 </html>

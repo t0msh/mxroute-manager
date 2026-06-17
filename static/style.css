@@ -115,16 +115,69 @@ aside.sidebar {
     align-items: center;
     gap: 0.75rem;
     margin-bottom: 2.5rem;
+    --brand-logo-height: 3.35rem;
 }
 
-.sidebar-brand h1 {
+.app-logo {
+    --logo-aspect: 1.3413;
+    height: var(--brand-logo-height, 1.75rem);
+    width: calc(var(--brand-logo-height, 1.75rem) * var(--logo-aspect));
+    flex-shrink: 0;
+    background-color: var(--accent);
+    mask-image: url("/static/logo.svg");
+    mask-repeat: no-repeat;
+    mask-position: center;
+    mask-size: contain;
+    -webkit-mask-image: url("/static/logo.svg");
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    -webkit-mask-size: contain;
+    transition: background-color var(--transition-speed) ease;
+    filter: drop-shadow(0 0 8px var(--accent-glow));
+}
+
+.brand-title {
     font-family: var(--font-heading);
-    font-size: 1.5rem;
     font-weight: 700;
-    background: linear-gradient(to right, #ffffff, rgba(var(--accent-rgb), 0.6), var(--accent));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--accent);
+    margin: 0;
+    line-height: 1.1;
+    transition: color var(--transition-speed) ease;
+}
+
+.sidebar-brand .brand-title {
+    font-size: 1.5rem;
+}
+
+.brand-version {
+    font-size: 0.7rem;
+    color: var(--color-secondary);
+    opacity: 0.6;
+    font-weight: 500;
+    margin-top: 0.2rem;
+    letter-spacing: 0.05em;
+}
+
+.brand-title-block {
+    display: flex;
+    flex-direction: column;
+}
+
+.login-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    margin-bottom: 2rem;
+    --brand-logo-height: 4.4rem;
+}
+
+.login-brand .brand-title {
+    font-size: 2rem;
+}
+
+.login-brand .brand-title-block {
+    align-items: flex-start;
 }
 
 .sidebar-nav {
@@ -1000,12 +1053,19 @@ tr:hover td {
     gap: 0.75rem;
 }
 
+.about-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    --brand-logo-height: 2.75rem;
+}
+
 .about-title {
     font-family: var(--font-heading);
     font-size: 1.1rem;
     font-weight: 600;
     margin: 0;
-    color: var(--color-primary);
+    color: var(--accent);
 }
 
 .about-version {

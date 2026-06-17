@@ -9,8 +9,7 @@
         content="Control panel for managing hosted MXroute email domains, quotas, forwards, and spam protection.">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ app_version }}">
 
     <!-- Custom Stylesheet -->
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
@@ -70,6 +69,7 @@
     {% include 'partials/modals.html' %}
 
     <!-- Global App Logic -->
+    <script src="/static/brand.js?v={{ app_version }}"></script>
     <script src="/static/app.js?v={{ app_version }}"></script>
 </body>
 

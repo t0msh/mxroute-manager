@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 
 from utils.validators import validate_domain
-from utils.auth_helpers import require_admin, require_domain_access
+from utils.auth_helpers import require_admin, require_any_permission
 from models.db import get_config_value, get_dmarc_record
 from services.cloudflare import (
     cf_is_configured,
@@ -117,7 +117,7 @@ def fix_domain_dns(domain):
 
 
 @cloudflare_bp.route('/api/domains/<domain>/dns', methods=['GET'])
-@require_domain_access
+@require_any_permission("dashboard", "dns")
 def get_dns_info(domain):
     res, status = mx_request_raw("GET", f"/domains/{domain}/dns")
     if status == 200 and isinstance(res, dict) and res.get("success"):
@@ -131,7 +131,7 @@ def get_dns_info(domain):
 
 
 @cloudflare_bp.route('/api/domains/<domain>/dns/health', methods=['GET'])
-@require_domain_access
+@require_any_permission("dashboard", "dns")
 def get_dns_health(domain):
     mx_dns_res, mx_dns_status = mx_request_raw("GET", f"/domains/{domain}/dns")
     if mx_dns_status != 200:

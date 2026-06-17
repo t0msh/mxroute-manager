@@ -9,7 +9,10 @@ from models.db import (
     get_oidc_admin_users,
     get_admin_user,
     load_domain_mapping,
+    load_user_grants,
+    ALL_PERMISSIONS,
 )
+from utils.validators import validate_domain
 
 _oidc_config = None
 _oidc_config_fetched_at = 0.0
@@ -64,22 +67,71 @@ def is_user_admin(user):
     return user.get("is_admin", False)
 
 
+def _user_email(user):
+    email_val = user.get("email") if user else None
+    return email_val.lower() if isinstance(email_val, str) else ""
+
+
+def get_domain_grants(user):
+    if not user:
+        return {}
+    cached = user.get("domain_grants")
+    if isinstance(cached, dict):
+        return cached
+    email = _user_email(user)
+    return load_user_grants().get(email, {})
+
+
 def has_domain_access(user, domain):
     if not user:
         return False
     if is_user_admin(user):
         return True
-    email_val = user.get("email")
-    email = email_val.lower() if isinstance(email_val, str) else ""
-    mapping = load_domain_mapping()
-    return domain.lower() in [d.lower() for d in mapping.get(email, [])]
+    grants = get_domain_grants(user)
+    return domain.lower() in grants
 
 
-def require_compat_domain_access(domain):
-    """Enforce domain access on backward-compat form routes."""
+def has_permission(user, domain, permission):
+    if not user:
+        return False
+    if is_user_admin(user):
+        return True
+    if permission not in ALL_PERMISSIONS:
+        return False
+    grants = get_domain_grants(user)
+    domain_permissions = grants.get(domain.lower(), [])
+    return permission in domain_permissions
+
+
+def has_any_permission(user, domain, *permissions):
+    if not user:
+        return False
+    if is_user_admin(user):
+        return True
+    return any(has_permission(user, domain, permission) for permission in permissions)
+
+
+def _forbidden_domain_message(domain):
+    return jsonify({
+        "success": False,
+        "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"},
+    }), 403
+
+
+def _forbidden_permission_message(permission):
+    return jsonify({
+        "success": False,
+        "error": {"message": f"Forbidden: Missing '{permission}' permission for this domain"},
+    }), 403
+
+
+def require_compat_domain_access(domain, permission="emails"):
+    """Enforce domain + permission access on backward-compat form routes."""
     user = get_current_user()
-    if not user or not has_domain_access(user, domain):
-        return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
+    if not user or not has_permission(user, domain, permission):
+        if user and has_domain_access(user, domain):
+            return _forbidden_permission_message(permission)
+        return _forbidden_domain_message(domain)
     return None
 
 
@@ -96,13 +148,51 @@ def require_admin(f):
 def require_domain_access(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        domain = kwargs.get('domain')
+        domain = kwargs.get("domain")
         if domain:
-            from utils.validators import validate_domain
             if not validate_domain(domain):
                 return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
             user = get_current_user()
             if not user or not has_domain_access(user, domain):
-                return jsonify({"success": False, "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"}}), 403
+                return _forbidden_domain_message(domain)
         return f(*args, **kwargs)
     return decorated_function
+
+
+def require_permission(permission):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            domain = kwargs.get("domain")
+            if domain:
+                if not validate_domain(domain):
+                    return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+                user = get_current_user()
+                if not user or not has_permission(user, domain, permission):
+                    if user and has_domain_access(user, domain):
+                        return _forbidden_permission_message(permission)
+                    return _forbidden_domain_message(domain)
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+def require_any_permission(*permissions):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            domain = kwargs.get("domain")
+            if domain:
+                if not validate_domain(domain):
+                    return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+                user = get_current_user()
+                if not user or not has_any_permission(user, domain, *permissions):
+                    if user and has_domain_access(user, domain):
+                        return jsonify({
+                            "success": False,
+                            "error": {"message": "Forbidden: Insufficient permissions for this domain"},
+                        }), 403
+                    return _forbidden_domain_message(domain)
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator

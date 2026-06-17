@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 
 from utils.validators import validate_domain, validate_username
-from utils.auth_helpers import require_domain_access, require_compat_domain_access
+from utils.auth_helpers import require_permission, require_any_permission, require_compat_domain_access
 from services.mxroute import mx_request, audited_mx
 
 emails_bp = Blueprint("emails", __name__)
@@ -11,13 +11,13 @@ emails_bp = Blueprint("emails", __name__)
 
 @emails_bp.route('/api/domains/<domain>/email-accounts', methods=['GET'])
 @emails_bp.route('/list-emails/<domain>', methods=['GET'])  # backward compat
-@require_domain_access
+@require_any_permission("dashboard", "emails")
 def list_emails(domain):
     return mx_request("GET", f"/domains/{domain}/email-accounts")
 
 
 @emails_bp.route('/api/domains/<domain>/email-accounts', methods=['POST'])
-@require_domain_access
+@require_permission("emails")
 def create_email_api(domain):
     data = request.json or {}
     username = data.get("username")
@@ -36,7 +36,7 @@ def create_email_compat():
     if not validate_username(email_username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
 
-    denied = require_compat_domain_access(domain)
+    denied = require_compat_domain_access(domain, "emails")
     if denied:
         return denied
 
@@ -50,13 +50,13 @@ def create_email_compat():
 
 
 @emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['GET'])
-@require_domain_access
+@require_permission("emails")
 def get_email_account(domain, user):
     return mx_request("GET", f"/domains/{domain}/email-accounts/{user}")
 
 
 @emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['PATCH'])
-@require_domain_access
+@require_permission("emails")
 def update_email_account(domain, user):
     if not validate_username(user):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
@@ -82,7 +82,7 @@ def update_password_compat():
     if not validate_username(email_username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
 
-    denied = require_compat_domain_access(domain)
+    denied = require_compat_domain_access(domain, "emails")
     if denied:
         return denied
 
@@ -92,7 +92,7 @@ def update_password_compat():
 
 
 @emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['DELETE'])
-@require_domain_access
+@require_permission("emails")
 def delete_email_api(domain, user):
     if not validate_username(user):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
@@ -109,7 +109,7 @@ def delete_email_compat():
     if not validate_username(email_username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
 
-    denied = require_compat_domain_access(domain)
+    denied = require_compat_domain_access(domain, "emails")
     if denied:
         return denied
 
@@ -119,13 +119,13 @@ def delete_email_compat():
 # --- EMAIL FORWARDERS ---
 
 @emails_bp.route('/api/domains/<domain>/forwarders', methods=['GET'])
-@require_domain_access
+@require_permission("forwarders")
 def list_forwarders(domain):
     return mx_request("GET", f"/domains/{domain}/forwarders")
 
 
 @emails_bp.route('/api/domains/<domain>/forwarders', methods=['POST'])
-@require_domain_access
+@require_permission("forwarders")
 def create_forwarder(domain):
     data = request.json or {}
     alias = data.get("alias", "")
@@ -133,7 +133,7 @@ def create_forwarder(domain):
 
 
 @emails_bp.route('/api/domains/<domain>/forwarders/<alias>', methods=['DELETE'])
-@require_domain_access
+@require_permission("forwarders")
 def delete_forwarder(domain, alias):
     return audited_mx("DELETE", f"/domains/{domain}/forwarders/{alias}", None, "forwarder.delete", target=f"{alias}@{domain}")
 
@@ -141,12 +141,12 @@ def delete_forwarder(domain, alias):
 # --- CATCH-ALL ---
 
 @emails_bp.route('/api/domains/<domain>/catch-all', methods=['GET'])
-@require_domain_access
+@require_permission("forwarders")
 def get_catch_all(domain):
     return mx_request("GET", f"/domains/{domain}/catch-all")
 
 
 @emails_bp.route('/api/domains/<domain>/catch-all', methods=['PATCH'])
-@require_domain_access
+@require_permission("forwarders")
 def update_catch_all(domain):
     return audited_mx("PATCH", f"/domains/{domain}/catch-all", request.json, "catchall.update", target=domain)

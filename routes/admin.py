@@ -1,3 +1,4 @@
+import json
 import sqlite3
 from flask import Blueprint, request, jsonify
 
@@ -8,8 +9,11 @@ from models.db import (
     get_admin_user,
     migrate_settings_secrets,
     mask_settings_for_response,
-    load_domain_mapping,
+    load_delegations_detail,
     is_oidc_enabled,
+    ALL_PERMISSIONS,
+    DEFAULT_PERMISSIONS,
+    _normalize_permissions,
 )
 from utils.auth_helpers import require_admin, get_current_user, clear_oidc_config_cache
 from utils.validators import validate_local_user_identifier, requires_local_password
@@ -23,17 +27,35 @@ admin_bp = Blueprint("admin", __name__)
 @admin_bp.route('/api/admin/delegations', methods=['GET'])
 @require_admin
 def list_delegations():
-    mapping = load_domain_mapping()
-    delegations_list = []
-    for email, domains in mapping.items():
-        delegations_list.append({
-            "email": email,
-            "domains": domains
-        })
     return jsonify({
         "success": True,
-        "data": delegations_list
+        "data": load_delegations_detail(),
+        "permissions": list(ALL_PERMISSIONS),
     })
+
+
+def _parse_delegation_grants(data):
+    grants = data.get("grants")
+    if isinstance(grants, list):
+        parsed = []
+        for grant in grants:
+            if not isinstance(grant, dict):
+                continue
+            domain = (grant.get("domain") or "").strip().lower()
+            if not domain or domain == "*":
+                continue
+            permissions = _normalize_permissions(grant.get("permissions"))
+            parsed.append({"domain": domain, "permissions": permissions})
+        return parsed
+
+    domains = data.get("domains")
+    if isinstance(domains, list):
+        return [
+            {"domain": d.strip().lower(), "permissions": list(DEFAULT_PERMISSIONS)}
+            for d in domains
+            if isinstance(d, str) and d.strip() and d.strip().lower() != "*"
+        ]
+    return []
 
 
 @admin_bp.route('/api/admin/delegations', methods=['POST'])
@@ -41,13 +63,10 @@ def list_delegations():
 def update_delegation():
     data = request.json or {}
     email = data.get("email")
-    domains = data.get("domains")
     password = data.get("password")
 
     if not email:
         return jsonify({"success": False, "error": {"message": "User identifier is required"}}), 400
-    if not isinstance(domains, list):
-        return jsonify({"success": False, "error": {"message": "Domains list is required"}}), 400
 
     email = email.strip().lower()
     if not validate_local_user_identifier(email):
@@ -55,8 +74,25 @@ def update_delegation():
             "success": False,
             "error": {"message": "Invalid user identifier. Use a username (e.g. billy), user@local, or email address."},
         }), 400
-    normalized_domains = [d.strip().lower() for d in domains if d.strip()]
-    is_admin = "*" in normalized_domains
+
+    grants = _parse_delegation_grants(data)
+    domains = data.get("domains")
+    is_admin = False
+    if isinstance(domains, list):
+        is_admin = "*" in [d.strip().lower() for d in domains if isinstance(d, str)]
+    if not is_admin and not grants:
+        return jsonify({
+            "success": False,
+            "error": {"message": "Select at least one domain with permissions, or grant Admin access."},
+        }), 400
+
+    for grant in grants:
+        if not grant["permissions"]:
+            return jsonify({
+                "success": False,
+                "error": {"message": f"Select at least one permission for {grant['domain']}."},
+            }), 400
+
     local_user = requires_local_password(email, is_oidc_enabled())
     password_provided = bool(password and str(password).strip())
 
@@ -64,7 +100,6 @@ def update_delegation():
         conn = sqlite3.connect(DATABASE_FILE)
         cursor = conn.cursor()
 
-        # Check if user exists
         cursor.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
         row = cursor.fetchone()
 
@@ -86,7 +121,6 @@ def update_delegation():
         hashed_password = generate_password_hash(password) if password_provided else None
 
         if not row:
-            # Create user
             cursor.execute(
                 "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, ?)",
                 (email, hashed_password, 1 if is_admin else 0)
@@ -94,7 +128,6 @@ def update_delegation():
             user_id = cursor.lastrowid
         else:
             user_id = row[0]
-            # Update user
             if password_provided:
                 cursor.execute(
                     "UPDATE users SET password_hash = ?, is_admin = ? WHERE id = ?",
@@ -106,19 +139,23 @@ def update_delegation():
                     (1 if is_admin else 0, user_id)
                 )
 
-        # Update delegations
         cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
-        for d in normalized_domains:
-            if d == "*":
-                continue
-            cursor.execute(
-                "INSERT INTO delegations (user_id, domain) VALUES (?, ?)",
-                (user_id, d)
-            )
+        if not is_admin:
+            for grant in grants:
+                cursor.execute(
+                    "INSERT INTO delegations (user_id, domain, permissions) VALUES (?, ?, ?)",
+                    (user_id, grant["domain"], json.dumps(grant["permissions"])),
+                )
 
         conn.commit()
         conn.close()
-        audit("delegation.update", target=email, domains=normalized_domains, is_admin=is_admin)
+        audit(
+            "delegation.update",
+            target=email,
+            domains=[grant["domain"] for grant in grants],
+            is_admin=is_admin,
+            grants=grants,
+        )
         return jsonify({"success": True})
     except Exception as e:
         from flask import current_app

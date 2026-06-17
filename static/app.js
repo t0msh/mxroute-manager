@@ -6,6 +6,133 @@ let currentUser = null;
 let oidcEnabled = false;
 let knownDelegationUsers = new Set();
 let lastCreatedMailboxCredentials = null;
+let delegationPermissionCatalog = ["dashboard", "emails", "forwarders", "spam", "dns"];
+
+const DELEGATION_PERMISSION_LABELS = {
+    dashboard: "Dashboard",
+    emails: "Email Accounts",
+    forwarders: "Forwarders",
+    spam: "Spam Controls",
+    dns: "DNS Records",
+};
+
+const TAB_REQUIRED_PERMISSION = {
+    dashboard: "dashboard",
+    emails: "emails",
+    forwarders: "forwarders",
+    spam: "spam",
+};
+
+function userHasPermission(permission, domain = activeDomain) {
+    if (!currentUser) return false;
+    if (currentUser.is_admin) return true;
+    const grants = currentUser.domain_grants || {};
+    const domainKey = (domain || "").toLowerCase();
+    return (grants[domainKey] || []).includes(permission);
+}
+
+function userHasAnyPermission(permissions, domain = activeDomain) {
+    return permissions.some(permission => userHasPermission(permission, domain));
+}
+
+function getUserPermissionUnion() {
+    if (!currentUser || currentUser.is_admin) {
+        return new Set(delegationPermissionCatalog);
+    }
+    const union = new Set();
+    Object.values(currentUser.domain_grants || {}).forEach(perms => {
+        perms.forEach(permission => union.add(permission));
+    });
+    return union;
+}
+
+function tabVisibleForUser(tab) {
+    if (!currentUser || currentUser.is_admin) return true;
+    if (tab === "dashboard") {
+        const union = getUserPermissionUnion();
+        return union.has("dashboard") || union.has("dns");
+    }
+    const required = TAB_REQUIRED_PERMISSION[tab];
+    if (!required) return true;
+    return getUserPermissionUnion().has(required);
+}
+
+function activeTabAllowedForDomain() {
+    const activeTab = document.querySelector(".nav-item.active")?.getAttribute("data-tab");
+    if (!activeTab || !activeDomain) return true;
+    if (activeTab === "dashboard") {
+        return userHasAnyPermission(["dashboard", "dns"], activeDomain);
+    }
+    const required = TAB_REQUIRED_PERMISSION[activeTab];
+    return !required || userHasPermission(required, activeDomain);
+}
+
+function applyDashboardSectionVisibility() {
+    const statsGrid = document.querySelector("#tab-dashboard .stats-grid");
+    const quotaCard = document.getElementById("dash-quota-card");
+    const dnsHealthCard = document.getElementById("dns-health-card");
+    const dnsRecordsCard = document.getElementById("dns-records-card");
+    const mailToggle = document.getElementById("btn-toggle-mail-hosting");
+    const hasDashboard = userHasPermission("dashboard", activeDomain);
+    const hasDns = userHasPermission("dns", activeDomain);
+
+    if (statsGrid) statsGrid.style.display = hasDashboard ? "" : "none";
+    if (quotaCard) quotaCard.style.display = currentUser?.is_admin && hasDashboard ? "" : "none";
+    if (dnsHealthCard) dnsHealthCard.style.display = hasDashboard ? "" : "none";
+    if (dnsRecordsCard) dnsRecordsCard.style.display = (hasDashboard || hasDns) ? "" : "none";
+    if (mailToggle) mailToggle.style.display = currentUser?.is_admin ? "" : "none";
+}
+
+function applyUserPermissionsUI() {
+    if (!currentUser) return;
+
+    const navTabs = {
+        dashboard: document.querySelector('.nav-item[data-tab="dashboard"]'),
+        domains: document.getElementById("nav-tab-domains"),
+        emails: document.querySelector('.nav-item[data-tab="emails"]'),
+        forwarders: document.querySelector('.nav-item[data-tab="forwarders"]'),
+        spam: document.querySelector('.nav-item[data-tab="spam"]'),
+        delegations: document.getElementById("nav-tab-delegations"),
+        logs: document.getElementById("nav-tab-logs"),
+        settings: document.getElementById("nav-tab-settings"),
+    };
+
+    if (currentUser.is_admin) {
+        Object.values(navTabs).forEach(tab => {
+            if (tab) tab.style.display = tab.id === "nav-tab-delegations" || tab.id === "nav-tab-logs" ? "flex" : "";
+        });
+        document.getElementById("sidebar-quota-container").style.display = "";
+        document.getElementById("dash-quota-card").style.display = "";
+        applyDashboardSectionVisibility();
+        return;
+    }
+
+    document.getElementById("nav-tab-domains").style.display = "none";
+    document.getElementById("nav-tab-delegations").style.display = "none";
+    document.getElementById("nav-tab-logs").style.display = "none";
+    document.getElementById("sidebar-quota-container").style.display = "none";
+    document.getElementById("dash-quota-card").style.display = "none";
+
+    Object.entries(navTabs).forEach(([tab, el]) => {
+        if (!el || tab === "domains" || tab === "delegations" || tab === "logs") return;
+        el.style.display = tabVisibleForUser(tab) ? "" : "none";
+    });
+
+    applyDashboardSectionVisibility();
+    activateFirstAllowedTab();
+}
+
+function activateFirstAllowedTab() {
+    const activeTab = document.querySelector(".nav-item.active")?.getAttribute("data-tab");
+    if (activeTab && tabVisibleForUser(activeTab) && activeTabAllowedForDomain()) return;
+
+    const fallbackOrder = ["dashboard", "emails", "forwarders", "spam", "settings"];
+    const nextTab = fallbackOrder.find(tab => tabVisibleForUser(tab));
+    if (!nextTab) return;
+
+    const navItem = document.querySelector(`.nav-item[data-tab="${nextTab}"]`);
+    if (navItem) navItem.click();
+}
 
 function escapeHtml(value) {
     return String(value ?? "")
@@ -476,6 +603,11 @@ document.querySelectorAll(".nav-item").forEach(item => {
         document.getElementById("page-subtitle").textContent = titleMap[tab].subtitle;
         
         // Reload page specific data (uses cache when still fresh)
+        if (!activeTabAllowedForDomain()) {
+            showAlert("warning", "You do not have access to this section for the selected domain.");
+            activateFirstAllowedTab();
+            return;
+        }
         triggerDataRefresh();
     });
 });
@@ -489,14 +621,22 @@ async function triggerDataRefresh(options = {}) {
     
     try {
         switch (activeTab) {
-            case "dashboard":
-                await Promise.all([
-                    loadAccountQuota({ force }),
-                    loadDomainDetails(activeDomain, { force }),
-                    loadDNSInfo(activeDomain, { force }),
-                    loadDnsHealth(activeDomain, { force })
-                ]);
+            case "dashboard": {
+                const tasks = [];
+                if (userHasPermission("dashboard", activeDomain)) {
+                    if (!currentUser || currentUser.is_admin) {
+                        tasks.push(loadAccountQuota({ force }));
+                    }
+                    tasks.push(loadDomainDetails(activeDomain, { force }));
+                    tasks.push(loadDnsHealth(activeDomain, { force }));
+                }
+                if (userHasAnyPermission(["dashboard", "dns"], activeDomain)) {
+                    tasks.push(loadDNSInfo(activeDomain, { force }));
+                }
+                applyDashboardSectionVisibility();
+                await Promise.all(tasks);
                 break;
+            }
             case "domains":
                 await loadDomainsList({ force });
                 break;
@@ -2157,7 +2297,15 @@ async function initDomainDropdowns() {
 // Dropdown Change Handler
 document.getElementById("global-domain-select").addEventListener("change", async (e) => {
     activeDomain = e.target.value;
-    await loadDnsHealth(activeDomain);
+    applyDashboardSectionVisibility();
+    if (userHasPermission("dashboard", activeDomain)) {
+        await loadDnsHealth(activeDomain);
+    }
+    if (!activeTabAllowedForDomain()) {
+        showAlert("warning", "You do not have access to this section for the selected domain.");
+        activateFirstAllowedTab();
+        return;
+    }
     await triggerDataRefresh();
 });
 
@@ -2214,48 +2362,44 @@ async function loadDelegationsPage() {
     checklist.innerHTML = '<div style="color: var(--color-muted); font-size: 0.9rem;">Loading available domains...</div>';
     
     try {
-        // Fetch all domains from backend for the checkboxes
-        const domainsRes = await apiRequest("/api/domains");
+        const [domainsRes, delegationsRes] = await Promise.all([
+            apiRequest("/api/domains"),
+            apiRequest("/api/admin/delegations"),
+        ]);
+
+        if (delegationsRes?.permissions?.length) {
+            delegationPermissionCatalog = delegationsRes.permissions;
+        }
+
         if (domainsRes.success && domainsRes.data) {
             checklist.innerHTML = "";
-            
-            // Add static "*" (All Domains / Admin Access) option at the top
-            const adminLabel = document.createElement("label");
-            adminLabel.className = "flex-row align-center";
-            adminLabel.style.cursor = "pointer";
-            adminLabel.style.fontSize = "0.9rem";
-            adminLabel.style.color = "var(--accent)";
-            adminLabel.style.fontWeight = "600";
-            adminLabel.innerHTML = `
-                <input type="checkbox" name="delegated-domain-cb" value="*" style="width: auto; height: auto; margin: 0;">
-                <span>Admin</span>
+
+            const adminRow = document.createElement("label");
+            adminRow.className = "delegation-admin-option flex-row align-center";
+            adminRow.innerHTML = `
+                <input type="checkbox" id="delegation-admin-cb" name="delegated-domain-cb" value="*" style="width: auto; height: auto; margin: 0;">
+                <span>Admin (full access to all domains and settings)</span>
             `;
-            checklist.appendChild(adminLabel);
-            
+            checklist.appendChild(adminRow);
+
+            const matrix = document.createElement("div");
+            matrix.id = "delegation-permissions-matrix";
+            matrix.className = "delegation-permissions-matrix";
+
             if (domainsRes.data.length > 0) {
                 domainsRes.data.forEach(domain => {
-                    const label = document.createElement("label");
-                    label.className = "flex-row align-center";
-                    label.style.cursor = "pointer";
-                    label.style.fontSize = "0.9rem";
-                    const checkbox = document.createElement("input");
-                    checkbox.type = "checkbox";
-                    checkbox.name = "delegated-domain-cb";
-                    checkbox.value = domain;
-                    checkbox.style.width = "auto";
-                    checkbox.style.height = "auto";
-                    checkbox.style.margin = "0";
-                    const span = document.createElement("span");
-                    span.textContent = domain;
-                    label.appendChild(checkbox);
-                    label.appendChild(span);
-                    checklist.appendChild(label);
+                    matrix.appendChild(createDelegationDomainRow(domain));
                 });
+            } else {
+                matrix.innerHTML = '<div style="color: var(--color-muted); font-size: 0.9rem;">No domains available yet.</div>';
             }
+            checklist.appendChild(matrix);
+
+            document.getElementById("delegation-admin-cb").addEventListener("change", (event) => {
+                matrix.style.display = event.target.checked ? "none" : "flex";
+            });
         }
         
-        // Fetch delegations list
-        const delegationsRes = await apiRequest("/api/admin/delegations");
         listBody.innerHTML = "";
         knownDelegationUsers = new Set();
 
@@ -2264,31 +2408,34 @@ async function loadDelegationsPage() {
                 knownDelegationUsers.add(item.email.toLowerCase());
                 const tr = document.createElement("tr");
                 
-                // Format domains display
                 let domainsStr = "";
-                if (item.domains.includes("*")) {
+                if (item.is_admin || item.domains.includes("*")) {
                     domainsStr = '<span style="color: var(--accent); font-weight: 600;">Admin</span>';
+                } else if (item.grants && item.grants.length > 0) {
+                    domainsStr = item.grants.map(grant => {
+                        const labels = (grant.permissions || [])
+                            .map(perm => DELEGATION_PERMISSION_LABELS[perm] || perm)
+                            .join(", ");
+                        return `<div><strong>${escapeHtml(grant.domain)}</strong><br><span style="color: var(--color-secondary); font-size: 0.8rem;">${escapeHtml(labels || "No permissions")}</span></div>`;
+                    }).join('<div style="margin-top: 0.5rem;"></div>');
                 } else if (item.domains.length > 0) {
-                    domainsStr = item.domains.map(escapeHtml).join(", ");
+                    domainsStr = item.domains.filter(d => d !== "*").map(escapeHtml).join(", ");
                 } else {
                     domainsStr = '<span style="color: var(--color-muted); font-style: italic;">None</span>';
                 }
                 
-                // 1. Email Cell
                 const emailTd = document.createElement("td");
                 const emailStrong = document.createElement("strong");
                 emailStrong.textContent = item.email;
                 emailTd.appendChild(emailStrong);
                 tr.appendChild(emailTd);
                 
-                // 2. Domains Cell
                 const domainsTd = document.createElement("td");
-                domainsTd.style.maxWidth = "300px";
-                domainsTd.style.wordBreak = "break-all";
+                domainsTd.style.maxWidth = "360px";
+                domainsTd.style.wordBreak = "break-word";
                 domainsTd.innerHTML = domainsStr;
                 tr.appendChild(domainsTd);
                 
-                // 3. Action Cell
                 const actionTd = document.createElement("td");
                 actionTd.style.textAlign = "right";
                 
@@ -2297,16 +2444,14 @@ async function loadDelegationsPage() {
                 wrapper.style.justifyContent = "flex-end";
                 wrapper.style.gap = "0.5rem";
                 
-                // Edit Button
                 const editBtn = document.createElement("button");
                 editBtn.className = "btn btn-secondary btn-sm";
                 editBtn.innerHTML = "⚙️ Edit";
                 editBtn.addEventListener("click", () => {
-                    handleEditDelegation(item.email, item.domains);
+                    handleEditDelegation(item.email, item.grants || [], item.is_admin || item.domains.includes("*"));
                 });
                 wrapper.appendChild(editBtn);
                 
-                // Revoke Button
                 const revokeBtn = document.createElement("button");
                 revokeBtn.className = "btn btn-danger btn-sm";
                 revokeBtn.innerHTML = "Revoke";
@@ -2324,7 +2469,6 @@ async function loadDelegationsPage() {
                 
                 actionTd.appendChild(wrapper);
                 tr.appendChild(actionTd);
-                
                 listBody.appendChild(tr);
             });
         } else {
@@ -2337,14 +2481,84 @@ async function loadDelegationsPage() {
     }
 }
 
-function handleEditDelegation(email, domains) {
+function createDelegationDomainRow(domain) {
+    const row = document.createElement("div");
+    row.className = "delegation-domain-row";
+    row.dataset.domain = domain;
+
+    const permissionMarkup = delegationPermissionCatalog.map(permission => `
+        <label class="delegation-permission-option">
+            <input type="checkbox" class="delegation-permission-cb" value="${escapeHtml(permission)}" checked>
+            <span>${escapeHtml(DELEGATION_PERMISSION_LABELS[permission] || permission)}</span>
+        </label>
+    `).join("");
+
+    row.innerHTML = `
+        <label class="delegation-domain-toggle flex-row align-center">
+            <input type="checkbox" class="delegation-domain-enable" value="${escapeHtml(domain)}" style="width: auto; height: auto; margin: 0;">
+            <strong>${escapeHtml(domain)}</strong>
+        </label>
+        <div class="delegation-permission-grid">${permissionMarkup}</div>
+    `;
+
+    const enableCb = row.querySelector(".delegation-domain-enable");
+    const permissionGrid = row.querySelector(".delegation-permission-grid");
+    enableCb.addEventListener("change", () => {
+        permissionGrid.style.display = enableCb.checked ? "grid" : "none";
+    });
+    permissionGrid.style.display = "none";
+    return row;
+}
+
+function collectDelegationGrants() {
+    const grants = [];
+    document.querySelectorAll(".delegation-domain-row").forEach(row => {
+        const enableCb = row.querySelector(".delegation-domain-enable");
+        if (!enableCb?.checked) return;
+        const permissions = [...row.querySelectorAll(".delegation-permission-cb:checked")].map(cb => cb.value);
+        grants.push({ domain: enableCb.value, permissions });
+    });
+    return grants;
+}
+
+function handleEditDelegation(email, grants, isAdmin) {
     document.getElementById("delegation-email").value = email;
     const passInput = document.getElementById("delegation-password");
     if (passInput) passInput.value = "";
-    const checkboxes = document.querySelectorAll('input[name="delegated-domain-cb"]');
-    checkboxes.forEach(cb => {
-        cb.checked = domains.includes(cb.value);
+
+    const adminCb = document.getElementById("delegation-admin-cb");
+    const matrix = document.getElementById("delegation-permissions-matrix");
+    document.querySelectorAll(".delegation-domain-row").forEach(row => {
+        const enableCb = row.querySelector(".delegation-domain-enable");
+        const permissionGrid = row.querySelector(".delegation-permission-grid");
+        enableCb.checked = false;
+        row.querySelectorAll(".delegation-permission-cb").forEach(cb => {
+            cb.checked = true;
+        });
+        permissionGrid.style.display = "none";
     });
+
+    if (adminCb) {
+        adminCb.checked = !!isAdmin;
+        if (matrix) matrix.style.display = isAdmin ? "none" : "flex";
+    }
+
+    if (!isAdmin) {
+        const grantMap = Object.fromEntries((grants || []).map(grant => [grant.domain, grant.permissions || []]));
+        document.querySelectorAll(".delegation-domain-row").forEach(row => {
+            const domain = row.dataset.domain;
+            const enableCb = row.querySelector(".delegation-domain-enable");
+            const permissionGrid = row.querySelector(".delegation-permission-grid");
+            const selected = grantMap[domain];
+            if (!selected) return;
+            enableCb.checked = true;
+            permissionGrid.style.display = "grid";
+            row.querySelectorAll(".delegation-permission-cb").forEach(cb => {
+                cb.checked = selected.includes(cb.value);
+            });
+        });
+    }
+
     updateDelegationPasswordHint();
     document.getElementById("form-create-delegation").scrollIntoView({ behavior: "smooth" });
 }
@@ -2378,8 +2592,9 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
     const email = emailInput.value.trim().toLowerCase();
     const passInput = document.getElementById("delegation-password");
     const password = passInput ? passInput.value : "";
-    const checkboxes = document.querySelectorAll('input[name="delegated-domain-cb"]:checked');
-    const domains = Array.from(checkboxes).map(cb => cb.value);
+    const adminCb = document.getElementById("delegation-admin-cb");
+    const isAdmin = !!adminCb?.checked;
+    const grants = collectDelegationGrants();
     
     if (!email) return;
     if (!validateLocalUserIdentifier(email)) {
@@ -2390,16 +2605,34 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
         showAlert("error", "Password is required when creating a local user.");
         return;
     }
+    if (!isAdmin && grants.length === 0) {
+        showAlert("error", "Select at least one domain with permissions, or grant Admin access.");
+        return;
+    }
+    if (!isAdmin && grants.some(grant => grant.permissions.length === 0)) {
+        showAlert("error", "Each selected domain needs at least one permission.");
+        return;
+    }
     
     try {
-        const payload = { email, domains };
+        const payload = {
+            email,
+            domains: isAdmin ? ["*"] : grants.map(grant => grant.domain),
+            grants: isAdmin ? [] : grants,
+        };
         if (password) payload.password = password;
         
         await apiRequest("/api/admin/delegations", "POST", payload);
         showAlert("success", `Permissions updated for ${email}.`);
         emailInput.value = "";
         if (passInput) passInput.value = "";
-        document.querySelectorAll('input[name="delegated-domain-cb"]').forEach(cb => cb.checked = false);
+        if (adminCb) adminCb.checked = false;
+        document.getElementById("delegation-permissions-matrix")?.style.setProperty("display", "flex");
+        document.querySelectorAll(".delegation-domain-row").forEach(row => {
+            row.querySelector(".delegation-domain-enable").checked = false;
+            row.querySelector(".delegation-permission-grid").style.display = "none";
+            row.querySelectorAll(".delegation-permission-cb").forEach(cb => { cb.checked = true; });
+        });
         await loadDelegationsPage();
     } catch (err) {
         showAlert("error", err.message);
@@ -2446,18 +2679,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 roleBadge.style.background = currentUser.is_admin ? "rgba(92, 221, 141, 0.2)" : "rgba(99, 102, 241, 0.2)";
                 roleBadge.style.color = currentUser.is_admin ? "var(--accent)" : "#a5b4fc";
                 document.getElementById("user-profile-container").style.display = "block";
-                
-                // Hide features for standard users
-                if (!currentUser.is_admin) {
-                    document.getElementById("nav-tab-domains").style.display = "none";
-                    document.getElementById("nav-tab-delegations").style.display = "none";
-                    document.getElementById("nav-tab-logs").style.display = "none";
-                    document.getElementById("sidebar-quota-container").style.display = "none";
-                    document.getElementById("dash-quota-card").style.display = "none";
-                } else {
-                    document.getElementById("nav-tab-delegations").style.display = "flex";
-                    document.getElementById("nav-tab-logs").style.display = "flex";
-                }
+                applyUserPermissionsUI();
             }
         }
     } catch (e) {
@@ -2465,7 +2687,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // 2. Fetch overall quotas (if admin)
-    if (!currentUser || currentUser.is_admin) {
+    if (currentUser?.is_admin) {
         await loadAccountQuota();
     }
     

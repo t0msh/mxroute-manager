@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 
 from utils.validators import validate_domain
-from utils.auth_helpers import require_admin, require_domain_access, get_current_user, is_user_admin
+from utils.auth_helpers import require_admin, require_permission, require_any_permission, get_current_user, is_user_admin
 from models.db import load_domain_mapping
 from services.mxroute import mx_request, mx_request_raw, audited_mx
 
@@ -34,7 +34,7 @@ def create_domain():
 
 
 @domains_bp.route('/api/domains/<domain>', methods=['GET'])
-@require_domain_access
+@require_any_permission("dashboard", "emails", "forwarders", "spam")
 def get_domain_details(domain):
     return mx_request("GET", f"/domains/{domain}")
 
@@ -48,7 +48,7 @@ def delete_domain(domain):
 
 
 @domains_bp.route('/api/domains/<domain>/mail-status', methods=['PATCH'])
-@require_domain_access
+@require_admin
 def set_mail_status(domain):
     return audited_mx("PATCH", f"/domains/{domain}/mail-status", request.json, "domain.mail_status", target=domain)
 
@@ -62,18 +62,18 @@ def get_verification_key():
 # --- DOMAIN POINTERS ---
 
 @domains_bp.route('/api/domains/<domain>/pointers', methods=['GET'])
-@require_domain_access
+@require_any_permission("forwarders", "dashboard")
 def list_pointers(domain):
     return mx_request("GET", f"/domains/{domain}/pointers")
 
 
 @domains_bp.route('/api/domains/<domain>/pointers', methods=['POST'])
-@require_domain_access
+@require_permission("forwarders")
 def create_pointer(domain):
     return audited_mx("POST", f"/domains/{domain}/pointers", request.json, "pointer.create", target=domain)
 
 
 @domains_bp.route('/api/domains/<domain>/pointers/<pointer>', methods=['DELETE'])
-@require_domain_access
+@require_permission("forwarders")
 def delete_pointer(domain, pointer):
     return audited_mx("DELETE", f"/domains/{domain}/pointers/{pointer}", None, "pointer.delete", target=f"{pointer}@{domain}")

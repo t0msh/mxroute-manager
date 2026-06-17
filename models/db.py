@@ -6,6 +6,9 @@ import secrets
 DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mxroute-manager.db"))
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "domain_mapping.json")
 
+ALL_PERMISSIONS = ("dashboard", "emails", "forwarders", "spam", "dns")
+DEFAULT_PERMISSIONS = list(ALL_PERMISSIONS)
+
 ENV_ONLY_SECRET_KEYS = frozenset({
     "MX_API_KEY",
     "CF_API_TOKEN",
@@ -225,6 +228,77 @@ def load_domain_mapping():
     return mapping
 
 
+def _normalize_permissions(raw_permissions):
+    if not raw_permissions:
+        return list(DEFAULT_PERMISSIONS)
+    if isinstance(raw_permissions, str):
+        try:
+            raw_permissions = json.loads(raw_permissions)
+        except Exception:
+            return list(DEFAULT_PERMISSIONS)
+    if not isinstance(raw_permissions, list):
+        return list(DEFAULT_PERMISSIONS)
+    normalized = []
+    for permission in raw_permissions:
+        if isinstance(permission, str):
+            perm = permission.strip().lower()
+            if perm in ALL_PERMISSIONS and perm not in normalized:
+                normalized.append(perm)
+    return normalized or list(DEFAULT_PERMISSIONS)
+
+
+def load_user_grants():
+    """Return {email: {domain: [permissions]}} for non-admin domain grants."""
+    grants = {}
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT u.email, u.is_admin, d.domain, d.permissions
+            FROM users u
+            LEFT JOIN delegations d ON u.id = d.user_id
+        """)
+        rows = cursor.fetchall()
+        conn.close()
+
+        for email, is_admin, domain, permissions in rows:
+            email = email.lower()
+            if is_admin:
+                continue
+            if not domain:
+                continue
+            domain = domain.lower()
+            if email not in grants:
+                grants[email] = {}
+            grants[email][domain] = _normalize_permissions(permissions)
+    except Exception:
+        pass
+    return grants
+
+
+def load_delegations_detail():
+    """Return structured delegation records for admin UI/API."""
+    mapping = load_domain_mapping()
+    grant_map = load_user_grants()
+    records = []
+    for email, domains in mapping.items():
+        is_admin = "*" in domains
+        domain_list = [d for d in domains if d != "*"]
+        grant_rows = []
+        for domain in domain_list:
+            grant_rows.append({
+                "domain": domain,
+                "permissions": grant_map.get(email, {}).get(domain, list(DEFAULT_PERMISSIONS)),
+            })
+        records.append({
+            "email": email,
+            "is_admin": is_admin,
+            "domains": domains,
+            "grants": grant_rows,
+        })
+    return records
+
+
 def get_or_create_secret_key():
     # 1. Check environment variable first
     env_key = os.getenv("SECRET_KEY")
@@ -282,10 +356,22 @@ def init_db(logger=None):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 domain TEXT NOT NULL,
+                permissions TEXT,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 UNIQUE(user_id, domain)
             );
         """)
+
+        cursor.execute("PRAGMA table_info(delegations)")
+        delegation_columns = {row[1] for row in cursor.fetchall()}
+        if "permissions" not in delegation_columns:
+            cursor.execute("ALTER TABLE delegations ADD COLUMN permissions TEXT")
+            default_permissions = json.dumps(DEFAULT_PERMISSIONS)
+            cursor.execute(
+                "UPDATE delegations SET permissions = ? WHERE permissions IS NULL OR permissions = ''",
+                (default_permissions,),
+            )
+            conn.commit()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
@@ -322,8 +408,8 @@ def init_db(logger=None):
                         if domain == "*":
                             continue
                         cursor.execute(
-                            "INSERT OR IGNORE INTO delegations (user_id, domain) VALUES (?, ?)",
-                            (user_id, domain)
+                            "INSERT OR IGNORE INTO delegations (user_id, domain, permissions) VALUES (?, ?, ?)",
+                            (user_id, domain, json.dumps(DEFAULT_PERMISSIONS))
                         )
                 conn.commit()
                 

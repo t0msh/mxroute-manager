@@ -16,11 +16,33 @@ from models.db import (
     get_oidc_admin_users,
     get_oidc_admin_group,
     load_domain_mapping,
+    load_user_grants,
+    ALL_PERMISSIONS,
 )
 from utils.auth_helpers import get_oidc_config, get_current_user
 from utils.audit_log import write_audit_log
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def build_session_user(email, is_admin=False):
+    email = email.lower()
+    mapping = load_domain_mapping()
+    delegated_domains = mapping.get(email, [])
+    domain_grants = load_user_grants().get(email, {})
+    resolved_admin = bool(
+        is_admin
+        or email in get_oidc_admin_users()
+        or email == get_admin_user()
+        or email == "admin@local"
+        or "*" in delegated_domains
+    )
+    return {
+        "email": email,
+        "is_admin": resolved_admin,
+        "delegated_domains": delegated_domains,
+        "domain_grants": domain_grants,
+    }
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -47,21 +69,13 @@ def login_page():
         if user_row and user_row[2]:  # password_hash exists
             from werkzeug.security import check_password_hash
             if check_password_hash(user_row[2], password):
-                session["user"] = {
-                    "email": user_row[1],
-                    "is_admin": bool(user_row[3]),
-                    "delegated_domains": load_domain_mapping().get(user_row[1], [])
-                }
+                session["user"] = build_session_user(user_row[1], bool(user_row[3]))
                 write_audit_log("auth.login", user_row[1], user_row[1])
                 return redirect(url_for('home'))
 
         # Fallback to local admin config check (hashed password only)
         if username == get_admin_user() and verify_admin_password(password):
-            session["user"] = {
-                "email": username,
-                "is_admin": True,
-                "delegated_domains": []
-            }
+            session["user"] = build_session_user(username, True)
             write_audit_log("auth.login", username, username)
             return redirect(url_for('home'))
 
@@ -188,15 +202,10 @@ def oidc_callback():
         except Exception as db_err:
             current_app.logger.error(f"Failed to query/insert OIDC user in database: {db_err}")
 
-        # Load user's delegated domains from mapping store
-        mapping = load_domain_mapping()
-        delegated_domains = mapping.get(email, [])
-
-        session["user"] = {
-            "email": email,
-            "is_admin": is_admin or (user_row and bool(user_row[1])),
-            "delegated_domains": delegated_domains
-        }
+        session["user"] = build_session_user(
+            email,
+            is_admin or (user_row and bool(user_row[1])),
+        )
 
         write_audit_log("auth.login", email, email, {"method": "oidc"})
         return redirect(url_for('home'))
@@ -221,10 +230,6 @@ def get_me():
     if user:
         email = user.get("email")
         if isinstance(email, str):
-            mapping = load_domain_mapping()
-            delegated_domains = mapping.get(email, [])
-
-            # Fetch is_admin from SQLite to be accurate
             is_admin = False
             try:
                 conn = sqlite3.connect(DATABASE_FILE)
@@ -237,18 +242,17 @@ def get_me():
             except Exception:
                 pass
 
-            if email in get_oidc_admin_users() or email == get_admin_user() or email == "admin@local" or "*" in delegated_domains:
-                is_admin = True
-
-            user = {**user, "delegated_domains": delegated_domains, "is_admin": is_admin}
+            user = build_session_user(email, is_admin)
             session["user"] = user
 
     return jsonify({
         "success": True,
         "oidc_enabled": is_oidc_enabled(),
+        "permissions": list(ALL_PERMISSIONS),
         "user": {
             "email": user.get("email"),
             "is_admin": user.get("is_admin", False),
-            "delegated_domains": user.get("delegated_domains", [])
+            "delegated_domains": user.get("delegated_domains", []),
+            "domain_grants": user.get("domain_grants", {}),
         } if user else None
     })

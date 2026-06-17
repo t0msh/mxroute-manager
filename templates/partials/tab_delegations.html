@@ -19,10 +19,10 @@
                     <p id="delegation-password-hint" class="stat-card-subtitle" style="margin-top: 0.5rem;">Required for new local users. Optional for OIDC email accounts or when editing an existing user.</p>
                 </div>
                 <div class="form-group mb-4">
-                    <label>Assigned Domains</label>
-                    <p class="stat-card-subtitle mb-2">Admins have access to all managed domains. For other users, select the domains they may manage:</p>
+                    <label>Domain Access Matrix</label>
+                    <p class="stat-card-subtitle mb-2">Admins have full access. For other users, enable each domain and choose the functions they may use. Mail hosting toggles remain admin-only.</p>
                     <div id="delegation-domains-checklist"
-                        style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 1rem; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem;">
+                        style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 1rem; max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem;">
                         <div style="color: var(--color-muted); font-size: 0.9rem;">Loading available domains...
                         </div>
                     </div>
@@ -39,7 +39,7 @@
                     <thead>
                         <tr>
                             <th>User</th>
-                            <th>Delegated Domains</th>
+                            <th>Domain Permissions</th>
                             <th style="text-align: right;">Action</th>
                         </tr>
                     </thead>

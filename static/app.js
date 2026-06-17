@@ -1802,7 +1802,7 @@ async function loadDelegationsPage() {
             adminLabel.style.fontWeight = "600";
             adminLabel.innerHTML = `
                 <input type="checkbox" name="delegated-domain-cb" value="*" style="width: auto; height: auto; margin: 0;">
-                <span>⭐ Admin</span>
+                <span>Admin</span>
             `;
             checklist.appendChild(adminLabel);
             
@@ -1841,7 +1841,7 @@ async function loadDelegationsPage() {
                 // Format domains display
                 let domainsStr = "";
                 if (item.domains.includes("*")) {
-                    domainsStr = '<span style="color: var(--accent); font-weight: 600;">⭐ Admin</span>';
+                    domainsStr = '<span style="color: var(--accent); font-weight: 600;">Admin</span>';
                 } else if (item.domains.length > 0) {
                     domainsStr = item.domains.map(escapeHtml).join(", ");
                 } else {

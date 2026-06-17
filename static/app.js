@@ -1736,10 +1736,19 @@ document.getElementById("global-domain-select").addEventListener("change", async
 });
 
 // 5.8 Access Control & Delegations UI handlers
+function validateLocalUserIdentifier(identifier) {
+    if (/^[a-zA-Z0-9._-]+$/.test(identifier)) return true;
+    if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(identifier)) return true;
+    if (/^[a-zA-Z0-9._-]+@[a-zA-Z0-9-]+$/.test(identifier)) return true;
+    return false;
+}
+
 function isLocalLoginUser(identifier) {
     const isPlainUsername = /^[a-zA-Z0-9._-]+$/.test(identifier);
     if (isPlainUsername) return true;
-    return !oidcEnabled;
+    const isStrictEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(identifier);
+    if (isStrictEmail && oidcEnabled) return false;
+    return true;
 }
 
 function delegationPasswordRequired(identifier) {
@@ -1947,8 +1956,8 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
     const domains = Array.from(checkboxes).map(cb => cb.value);
     
     if (!email) return;
-    if (!/^[a-zA-Z0-9._%+-@]+$/.test(email)) {
-        showAlert("error", "Invalid user identifier. Use a username (e.g. billy) or email address.");
+    if (!validateLocalUserIdentifier(email)) {
+        showAlert("error", "Invalid user identifier. Use a username (e.g. billy), user@local, or email address.");
         return;
     }
     if (delegationPasswordRequired(email) && !password.trim()) {

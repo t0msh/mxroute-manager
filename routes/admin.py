@@ -53,7 +53,7 @@ def update_delegation():
     if not validate_local_user_identifier(email):
         return jsonify({
             "success": False,
-            "error": {"message": "Invalid user identifier. Use a username (e.g. billy) or email address."},
+            "error": {"message": "Invalid user identifier. Use a username (e.g. billy), user@local, or email address."},
         }), 400
     normalized_domains = [d.strip().lower() for d in domains if d.strip()]
     is_admin = "*" in normalized_domains
@@ -143,7 +143,7 @@ def delete_delegation(email=None):
     if not validate_local_user_identifier(email):
         return jsonify({
             "success": False,
-            "error": {"message": "Invalid user identifier. Use a username (e.g. billy) or email address."},
+            "error": {"message": "Invalid user identifier. Use a username (e.g. billy), user@local, or email address."},
         }), 400
 
     current_user = get_current_user()

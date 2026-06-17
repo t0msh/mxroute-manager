@@ -1,8 +1,17 @@
 # MXroute Manager
 
 <p align="center">
-  <img src="static/logo.svg" alt="MXroute Manager logo" width="220" />
+  <img src="static/logo-emerald.svg" alt="MXroute Manager logo" width="220" />
 </p>
+
+> [!IMPORTANT]
+> **Information!**
+>
+> This app was 90% vibe coded with Cursor. It was to solve a particular annoyance I personally had with managing the domains I have with email services on MXroute. It was a way for me to learn more about JavaScript, Python and APIs. I got carried away, the AI kept pointing out my failures, and it turned into this.
+>
+> I fully understand that nobody in their right mind is going to trust this tool to manage their production email environment. This repo is more of a show and tell, in case anyone finds it useful or got annoyed of having to remember their MXroute login to reset their parents' email password.
+>
+> **Use it at your own risk!**
 
 MXroute Manager is a self-hosted Flask application for managing MXroute domains, mailboxes, forwarders, DNS setup, and delegated access from a single UI.
 
@@ -16,6 +25,7 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 - Manage domain pointers and catch-all routing
 - Create and remove forwarders
 - Configure SpamAssassin threshold, whitelist, and blacklist
+- Enable or disable mail hosting for a domain (admin only)
 
 ### DNS and Cloudflare workflow
 - 3-step Domain & DNS setup wizard
@@ -26,18 +36,41 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 ### Access control and authentication
 - OIDC/SSO login flow
 - Local credential login fallback
-- Delegated domain-level access for non-admin users
+- Per-domain permission matrix for delegated users (`dashboard`, `emails`, `forwarders`, `spam`, `dns`)
+- Grant different functions per domain (for example, spam controls only on one domain)
+- Existing delegations keep full access after upgrades
 - Typed confirmations for destructive operations
 
 ### Settings and UX
 - In-app Settings tab for MXroute, OIDC, Cloudflare, and local admin settings
 - About box with version, repository link, license, and attributions
 - Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk)
+- Client-side API caching with stale-while-revalidate behaviour
+- Background refresh with subtle UI indicators while data updates
+- Reduced redundant API calls when switching tabs or revisiting sections
 
 ### Security and observability
 - CSRF protection for state-changing requests
 - Configurable secure cookie enforcement (`FORCE_HTTPS`)
+- Server-side permission checks on all domain-scoped API routes
 - JSON-line audit logs for key admin/user actions
+
+## Delegated access
+
+Admins configure access in the **Access Control** tab. For each user you can:
+
+1. Grant **Admin** access (full control), or
+2. Enable specific domains and choose permissions per domain:
+
+| Permission | What it allows |
+| --- | --- |
+| Dashboard | Overview stats and DNS health |
+| Email Accounts | Mailbox management |
+| Forwarders | Forwarders, catch-all, and pointers |
+| Spam Controls | Spam score, whitelist, and blacklist |
+| DNS Records | View and copy required DNS records |
+
+Delegated users only see nav tabs and actions they are permitted to use. Mail hosting toggles remain admin-only.
 
 ## Screenshots
 

@@ -61,7 +61,14 @@ def update_email_account(domain, user):
     if not validate_username(user):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
     payload = request.json or {}
-    action = "mailbox.password_update" if "password" in payload else "mailbox.update"
+    if "password" in payload:
+        action = "mailbox.password_update"
+    elif "suspended" in payload:
+        action = "mailbox.suspend" if payload.get("suspended") else "mailbox.unsuspend"
+    elif "quota" in payload or "limit" in payload:
+        action = "mailbox.quota_update"
+    else:
+        action = "mailbox.update"
     return audited_mx("PATCH", f"/domains/{domain}/email-accounts/{user}", payload, action, target=f"{user}@{domain}")
 
 

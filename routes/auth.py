@@ -207,6 +207,10 @@ def oidc_callback():
 
 @auth_bp.route('/logout')
 def logout():
+    user = get_current_user()
+    if user:
+        email = user.get("email", "unknown")
+        write_audit_log("auth.logout", email, email)
     session.pop('user', None)
     return redirect(url_for('auth.login_page'))
 

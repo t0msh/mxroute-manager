@@ -199,6 +199,8 @@ aside.sidebar {
     cursor: pointer;
     transition: all var(--transition-speed) ease;
     border: 1px solid transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .nav-item:hover {

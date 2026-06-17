@@ -29,14 +29,27 @@ def get_spam_whitelist(domain):
 @spam_bp.route('/api/domains/<domain>/spam/whitelist', methods=['POST'])
 @require_domain_access
 def create_spam_whitelist(domain):
-    # Expects JSON {"entry": "..."}
-    return mx_request("POST", f"/domains/{domain}/spam/whitelist", request.json)
+    data = request.json or {}
+    entry = data.get("entry", "")
+    return audited_mx(
+        "POST",
+        f"/domains/{domain}/spam/whitelist",
+        request.json,
+        "spam.whitelist_add",
+        target=f"{entry}@{domain}" if entry else domain,
+    )
 
 
 @spam_bp.route('/api/domains/<domain>/spam/whitelist/<path:entry>', methods=['DELETE'])
 @require_domain_access
 def delete_spam_whitelist(domain, entry):
-    return mx_request("DELETE", f"/domains/{domain}/spam/whitelist/{entry}")
+    return audited_mx(
+        "DELETE",
+        f"/domains/{domain}/spam/whitelist/{entry}",
+        None,
+        "spam.whitelist_remove",
+        target=f"{entry}@{domain}",
+    )
 
 
 @spam_bp.route('/api/domains/<domain>/spam/blacklist', methods=['GET'])
@@ -48,11 +61,24 @@ def get_spam_blacklist(domain):
 @spam_bp.route('/api/domains/<domain>/spam/blacklist', methods=['POST'])
 @require_domain_access
 def create_spam_blacklist(domain):
-    # Expects JSON {"entry": "..."}
-    return mx_request("POST", f"/domains/{domain}/spam/blacklist", request.json)
+    data = request.json or {}
+    entry = data.get("entry", "")
+    return audited_mx(
+        "POST",
+        f"/domains/{domain}/spam/blacklist",
+        request.json,
+        "spam.blacklist_add",
+        target=f"{entry}@{domain}" if entry else domain,
+    )
 
 
 @spam_bp.route('/api/domains/<domain>/spam/blacklist/<path:entry>', methods=['DELETE'])
 @require_domain_access
 def delete_spam_blacklist(domain, entry):
-    return mx_request("DELETE", f"/domains/{domain}/spam/blacklist/{entry}")
+    return audited_mx(
+        "DELETE",
+        f"/domains/{domain}/spam/blacklist/{entry}",
+        None,
+        "spam.blacklist_remove",
+        target=f"{entry}@{domain}",
+    )

@@ -321,7 +321,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
         
         // Show/hide global domain selector (not needed on Domains, Access Control, or Settings pages)
         const domainSelector = document.getElementById("global-domain-selector");
-        if (tab === "domains" || tab === "delegations" || tab === "settings") {
+        if (tab === "domains" || tab === "delegations" || tab === "settings" || tab === "logs") {
             domainSelector.style.display = "none";
         } else {
             domainSelector.style.display = "";
@@ -335,6 +335,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
             forwarders: { title: "Email Forwarders", subtitle: "Create forwarders to redirect messages to external addresses." },
             spam: { title: "Spam & Whitelist Controls", subtitle: "Configure SpamAssassin thresholds and manage list records." },
             delegations: { title: "Access Control", subtitle: "Delegate email domain management rights to specific users." },
+            logs: { title: "System Logs", subtitle: "View system actions, administrator operations, and authentication audits." },
             settings: { title: "Settings", subtitle: "Configure global system parameters, authentication methods, and user interface options." }
         };
         
@@ -350,7 +351,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
 // --- 4. Main Data Refresher ---
 async function triggerDataRefresh() {
     const activeTab = document.querySelector(".nav-item.active").getAttribute("data-tab");
-    if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains" && activeTab !== "settings") return;
+    if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains" && activeTab !== "settings" && activeTab !== "logs") return;
     
     try {
         switch (activeTab) {
@@ -390,6 +391,9 @@ async function triggerDataRefresh() {
                 break;
             case "delegations":
                 await loadDelegationsPage();
+                break;
+            case "logs":
+                await loadLogsPage();
                 break;
             case "settings":
                 await loadSettingsPage();
@@ -1963,10 +1967,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (!currentUser.is_admin) {
                     document.getElementById("nav-tab-domains").style.display = "none";
                     document.getElementById("nav-tab-delegations").style.display = "none";
+                    document.getElementById("nav-tab-logs").style.display = "none";
                     document.getElementById("sidebar-quota-container").style.display = "none";
                     document.getElementById("dash-quota-card").style.display = "none";
                 } else {
                     document.getElementById("nav-tab-delegations").style.display = "flex";
+                    document.getElementById("nav-tab-logs").style.display = "flex";
                 }
             }
         }
@@ -2146,3 +2152,164 @@ async function loadSettingsPage() {
         document.getElementById("system-settings-card").style.display = "none";
     }
 }
+
+
+// --- 5.10 System Logs Tab Panel Logic ---
+let logAutoRefreshInterval = null;
+let logsCache = [];
+
+async function loadLogsPage() {
+    if (!currentUser || !currentUser.is_admin) return;
+
+    const dateSelect = document.getElementById("logs-date-select");
+    const limitSelect = document.getElementById("logs-limit-select");
+
+    const selectedDate = dateSelect.value || "";
+    const selectedLimit = limitSelect.value || "100";
+
+    try {
+        const url = `/api/admin/logs?date=${encodeURIComponent(selectedDate)}&limit=${encodeURIComponent(selectedLimit)}`;
+        const res = await apiRequest(url);
+
+        if (res.success && res.data) {
+            logsCache = res.data.entries || [];
+            const availableDates = res.data.available_dates || [];
+            const currentDate = res.data.current_date || "";
+
+            // Populate date selection dropdown if not already populated or if list changed
+            const existingOptions = Array.from(dateSelect.options).map(o => o.value);
+            const matchesAvailable = availableDates.length === existingOptions.length && availableDates.every((v, i) => v === existingOptions[i]);
+
+            if (!matchesAvailable) {
+                dateSelect.innerHTML = "";
+                availableDates.forEach(dateVal => {
+                    const opt = document.createElement("option");
+                    opt.value = dateVal;
+                    opt.textContent = dateVal;
+                    if (dateVal === currentDate) {
+                        opt.selected = true;
+                    }
+                    dateSelect.appendChild(opt);
+                });
+            }
+
+            renderLogsTable();
+        }
+    } catch (err) {
+        console.error("Failed to load logs:", err);
+        showAlert("error", `Failed to retrieve logs: ${err.message}`);
+    }
+}
+
+function renderLogsTable() {
+    const tbody = document.getElementById("logs-list-tbody");
+    const filterQuery = document.getElementById("logs-search").value.trim().toLowerCase();
+
+    tbody.innerHTML = "";
+
+    const filteredLogs = logsCache.filter(log => {
+        if (!filterQuery) return true;
+        const detailsStr = JSON.stringify(log.details || {}).toLowerCase();
+        return (
+            (log.timestamp || "").toLowerCase().includes(filterQuery) ||
+            (log.user || "").toLowerCase().includes(filterQuery) ||
+            (log.action || "").toLowerCase().includes(filterQuery) ||
+            (log.target || "").toLowerCase().includes(filterQuery) ||
+            detailsStr.includes(filterQuery)
+        );
+    });
+
+    if (filteredLogs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--color-muted); padding: 2rem;">No matching log entries found.</td></tr>`;
+        return;
+    }
+
+    filteredLogs.forEach(log => {
+        const tr = document.createElement("tr");
+
+        // Format ISO timestamp slightly
+        let formattedTime = log.timestamp || "";
+        try {
+            const dt = new Date(log.timestamp);
+            if (!isNaN(dt)) {
+                formattedTime = dt.toISOString().replace("T", " ").substring(0, 19);
+            }
+        } catch (_) {}
+
+        tr.innerHTML = `
+            <td><code>${escapeHtml(formattedTime)}</code></td>
+            <td><strong>${escapeHtml(log.user)}</strong></td>
+            <td><span class="badge" style="font-size: 0.8rem; font-weight: 500; font-family: monospace; background: rgba(255,255,255,0.05); padding: 0.15rem 0.4rem; border-radius: 4px;">${escapeHtml(log.action)}</span></td>
+            <td><code style="word-break: break-all;">${escapeHtml(log.target)}</code></td>
+            <td><pre style="font-size: 0.75rem; margin: 0; background: rgba(0,0,0,0.2); padding: 0.4rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; font-family: monospace; color: var(--color-secondary); max-width: 500px;">${escapeHtml(JSON.stringify(log.details))}</pre></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+// Initialize log page event handlers
+function initLogsPageEvents() {
+    const dateSelect = document.getElementById("logs-date-select");
+    const limitSelect = document.getElementById("logs-limit-select");
+    const searchInput = document.getElementById("logs-search");
+    const autoRefreshCheckbox = document.getElementById("logs-auto-refresh");
+    const refreshBtn = document.getElementById("btn-refresh-logs");
+
+    if (!dateSelect || !limitSelect || !searchInput || !autoRefreshCheckbox || !refreshBtn) return;
+
+    dateSelect.addEventListener("change", loadLogsPage);
+    limitSelect.addEventListener("change", loadLogsPage);
+    searchInput.addEventListener("input", renderLogsTable);
+
+    refreshBtn.addEventListener("click", async () => {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = "⌛ Loading...";
+        try {
+            await loadLogsPage();
+        } finally {
+            refreshBtn.textContent = "🔄 Reload Logs";
+            refreshBtn.disabled = false;
+        }
+    });
+
+    autoRefreshCheckbox.addEventListener("change", () => {
+        if (autoRefreshCheckbox.checked) {
+            setupLogsAutoRefresh();
+        } else {
+            clearLogsAutoRefresh();
+        }
+    });
+
+    // Clear auto refresh interval if tab is changed
+    document.querySelectorAll(".nav-item").forEach(item => {
+        item.addEventListener("click", () => {
+            const tab = item.getAttribute("data-tab");
+            if (tab !== "logs") {
+                autoRefreshCheckbox.checked = false;
+                clearLogsAutoRefresh();
+            }
+        });
+    });
+}
+
+function setupLogsAutoRefresh() {
+    clearLogsAutoRefresh();
+    logAutoRefreshInterval = setInterval(async () => {
+        const activeTab = document.querySelector(".nav-item.active")?.getAttribute("data-tab");
+        if (activeTab === "logs") {
+            await loadLogsPage();
+        } else {
+            clearLogsAutoRefresh();
+        }
+    }, 10000);
+}
+
+function clearLogsAutoRefresh() {
+    if (logAutoRefreshInterval) {
+        clearInterval(logAutoRefreshInterval);
+        logAutoRefreshInterval = null;
+    }
+}
+
+// Register Events
+initLogsPageEvents();

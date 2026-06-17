@@ -209,3 +209,53 @@ def get_quota():
 @require_admin
 def get_quota_email():
     return mx_request("GET", "/quota/email")
+
+
+@admin_bp.route('/api/admin/logs', methods=['GET'])
+@require_admin
+def get_logs():
+    import os
+    from utils.audit_log import (
+        list_available_log_dates,
+        normalize_log_limit,
+        read_recent_log_entries,
+        resolve_log_file,
+    )
+
+    limit = normalize_log_limit(request.args.get("limit", 100))
+    available_dates = list_available_log_dates()
+    if not available_dates:
+        return jsonify({"success": True, "data": {"entries": [], "current_date": "", "available_dates": []}})
+
+    date_str = request.args.get("date")
+    try:
+        log_file, current_date = resolve_log_file(date_str or None)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": {"message": str(exc)}}), 400
+
+    if not log_file or not os.path.exists(log_file):
+        return jsonify({
+            "success": True,
+            "data": {
+                "entries": [],
+                "current_date": current_date,
+                "available_dates": available_dates,
+            },
+        })
+
+    try:
+        entries = read_recent_log_entries(log_file, limit)
+    except Exception as e:
+        from flask import current_app
+        current_app.logger.error(f"Failed to read logs from {log_file}: {e}")
+        return jsonify({"success": False, "error": {"message": f"Failed to read logs: {e}"}}), 500
+
+    return jsonify({
+        "success": True,
+        "data": {
+            "entries": entries,
+            "current_date": current_date,
+            "available_dates": available_dates,
+        },
+    })
+

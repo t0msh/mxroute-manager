@@ -362,5 +362,7 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
             skipped.append(record_type)
 
     if fixed:
-        audit("dns.fix", target=domain, records=fixed)
+        audit("dns.fix", target=domain, records=fixed, outcome="updated")
+    else:
+        audit("dns.fix", target=domain, records=[], outcome="no_changes")
     return {"fixed": fixed, "skipped": skipped, "steps": steps}

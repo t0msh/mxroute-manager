@@ -2,9 +2,10 @@ import json
 import os
 from datetime import datetime, timezone
 
+# Ensure LOG_DIR defaults to the root project's logs directory
 LOG_DIR = os.getenv(
     "LOG_DIR",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs"),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs"),
 )
 
 

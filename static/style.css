@@ -691,6 +691,34 @@ tr:hover td {
 .status-indicator.success .dot { background: var(--success); }
 .status-indicator.danger .dot { background: var(--danger); }
 
+/* Background refresh indicators */
+.refresh-indicator {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    flex-shrink: 0;
+    animation: refresh-pulse 1.2s ease-in-out infinite;
+}
+
+.refresh-indicator-inline {
+    margin-left: 0.35rem;
+    opacity: 0.75;
+}
+
+.is-refreshing > .card-title,
+.is-refreshing > .stat-card-header {
+    opacity: 0.92;
+}
+
+@keyframes refresh-pulse {
+    0%, 100% { opacity: 0.35; transform: scale(0.85); }
+    50% { opacity: 1; transform: scale(1.15); }
+}
+
 /* Alert banner */
 .alert-banner {
     position: fixed;

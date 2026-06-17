@@ -9,9 +9,10 @@ from models.db import (
     migrate_settings_secrets,
     mask_settings_for_response,
     load_domain_mapping,
+    is_oidc_enabled,
 )
 from utils.auth_helpers import require_admin, get_current_user, clear_oidc_config_cache
-from utils.validators import validate_local_user_identifier
+from utils.validators import validate_local_user_identifier, requires_local_password
 from services.mxroute import mx_request, audit
 
 admin_bp = Blueprint("admin", __name__)
@@ -56,17 +57,33 @@ def update_delegation():
         }), 400
     normalized_domains = [d.strip().lower() for d in domains if d.strip()]
     is_admin = "*" in normalized_domains
+    local_user = requires_local_password(email, is_oidc_enabled())
+    password_provided = bool(password and str(password).strip())
 
     try:
         conn = sqlite3.connect(DATABASE_FILE)
         cursor = conn.cursor()
 
         # Check if user exists
-        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
         row = cursor.fetchone()
 
+        if not row:
+            if local_user and not password_provided:
+                conn.close()
+                return jsonify({
+                    "success": False,
+                    "error": {"message": "Password is required when creating a local user."},
+                }), 400
+        elif local_user and not row[1] and not password_provided:
+            conn.close()
+            return jsonify({
+                "success": False,
+                "error": {"message": "Password is required for local users who do not have one set."},
+            }), 400
+
         from werkzeug.security import generate_password_hash
-        hashed_password = generate_password_hash(password) if password else None
+        hashed_password = generate_password_hash(password) if password_provided else None
 
         if not row:
             # Create user
@@ -78,7 +95,7 @@ def update_delegation():
         else:
             user_id = row[0]
             # Update user
-            if password:
+            if password_provided:
                 cursor.execute(
                     "UPDATE users SET password_hash = ?, is_admin = ? WHERE id = ?",
                     (hashed_password, 1 if is_admin else 0, user_id)

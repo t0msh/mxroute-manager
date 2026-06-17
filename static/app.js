@@ -3,6 +3,8 @@ let activeDomain = "";
 let activeDomainMailHosting = null;
 let accountQuota = null;
 let currentUser = null;
+let oidcEnabled = false;
+let knownDelegationUsers = new Set();
 let lastCreatedMailboxCredentials = null;
 
 function escapeHtml(value) {
@@ -1734,6 +1736,41 @@ document.getElementById("global-domain-select").addEventListener("change", async
 });
 
 // 5.8 Access Control & Delegations UI handlers
+function isLocalLoginUser(identifier) {
+    const isPlainUsername = /^[a-zA-Z0-9._-]+$/.test(identifier);
+    if (isPlainUsername) return true;
+    return !oidcEnabled;
+}
+
+function delegationPasswordRequired(identifier) {
+    if (!isLocalLoginUser(identifier)) return false;
+    return !knownDelegationUsers.has(identifier.toLowerCase());
+}
+
+function updateDelegationPasswordHint() {
+    const emailInput = document.getElementById("delegation-email");
+    const passInput = document.getElementById("delegation-password");
+    const requiredMarker = document.getElementById("delegation-password-required");
+    const hint = document.getElementById("delegation-password-hint");
+    if (!emailInput || !passInput || !requiredMarker || !hint) return;
+
+    const identifier = emailInput.value.trim().toLowerCase();
+    const required = identifier && delegationPasswordRequired(identifier);
+
+    requiredMarker.style.display = required ? "inline" : "none";
+    passInput.required = required;
+
+    if (!identifier) {
+        hint.textContent = "Required for new local users. Optional for OIDC email accounts or when editing an existing user.";
+    } else if (required) {
+        hint.textContent = "A password is required because this user signs in locally.";
+    } else if (isLocalLoginUser(identifier)) {
+        hint.textContent = "Leave blank to keep the current password for this local user.";
+    } else {
+        hint.textContent = "Optional for OIDC users who sign in through your identity provider.";
+    }
+}
+
 async function loadDelegationsPage() {
     const listBody = document.getElementById("delegations-list-tbody");
     listBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Querying access delegations...</td></tr>';
@@ -1785,9 +1822,11 @@ async function loadDelegationsPage() {
         // Fetch delegations list
         const delegationsRes = await apiRequest("/api/admin/delegations");
         listBody.innerHTML = "";
-        
+        knownDelegationUsers = new Set();
+
         if (delegationsRes.success && delegationsRes.data && delegationsRes.data.length > 0) {
             delegationsRes.data.forEach(item => {
+                knownDelegationUsers.add(item.email.toLowerCase());
                 const tr = document.createElement("tr");
                 
                 // Format domains display
@@ -1856,6 +1895,7 @@ async function loadDelegationsPage() {
         } else {
             listBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">No delegations configured yet.</td></tr>';
         }
+        updateDelegationPasswordHint();
     } catch (err) {
         listBody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load delegations: ${escapeHtml(err.message)}</td></tr>`;
         checklist.innerHTML = `<div style="color: var(--danger); font-size: 0.9rem;">Failed to load domains: ${escapeHtml(err.message)}</div>`;
@@ -1870,6 +1910,7 @@ function handleEditDelegation(email, domains) {
     checkboxes.forEach(cb => {
         cb.checked = domains.includes(cb.value);
     });
+    updateDelegationPasswordHint();
     document.getElementById("form-create-delegation").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -1908,6 +1949,10 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
     if (!email) return;
     if (!/^[a-zA-Z0-9._%+-@]+$/.test(email)) {
         showAlert("error", "Invalid user identifier. Use a username (e.g. billy) or email address.");
+        return;
+    }
+    if (delegationPasswordRequired(email) && !password.trim()) {
+        showAlert("error", "Password is required when creating a local user.");
         return;
     }
     
@@ -1956,7 +2001,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const meResult = await apiRequest("/api/me");
         if (meResult && meResult.success) {
             currentUser = meResult.user;
-            const oidcEnabled = meResult.oidc_enabled;
+            oidcEnabled = !!meResult.oidc_enabled;
             
             if (currentUser) {
                 // Update User Profile UI details
@@ -2317,3 +2362,6 @@ function clearLogsAutoRefresh() {
 
 // Register Events
 initLogsPageEvents();
+
+document.getElementById("delegation-email")?.addEventListener("input", updateDelegationPasswordHint);
+document.getElementById("delegation-password")?.addEventListener("input", updateDelegationPasswordHint);

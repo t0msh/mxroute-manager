@@ -185,6 +185,36 @@
             
         </div>
     </div>
+
+    <!-- About (All Users) -->
+    <div class="glass-card about-card">
+        <div class="card-title">
+            <span>ℹ️</span> About
+        </div>
+
+        <div class="about-box">
+            <p class="about-title">{{ app_meta.name }} <span class="about-version">v{{ app_meta.version }}</span></p>
+            <p class="stat-card-subtitle about-description">{{ app_meta.description }}</p>
+
+            <div class="about-links">
+                <a href="{{ app_meta.github_url }}" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+                <span class="about-links-sep">·</span>
+                <a href="{{ app_meta.license_url }}" target="_blank" rel="noopener noreferrer">{{ app_meta.license_name }}</a>
+            </div>
+
+            <p class="about-copyright">{{ app_meta.copyright }}</p>
+
+            <h4 class="about-attributions-title">Attributions</h4>
+            <ul class="about-attributions">
+                {% for item in app_meta.attributions %}
+                <li>
+                    <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer">{{ item.name }}</a>
+                    <span>— {{ item.description }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
 </div>
 
 <style>

@@ -13,7 +13,7 @@
         href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛠️</text></svg>">
 
     <!-- Custom Stylesheet -->
-    <link rel="stylesheet" href="/static/style.css?v=2">
+    <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
 </head>
 
 <body>
@@ -70,7 +70,7 @@
     {% include 'partials/modals.html' %}
 
     <!-- Global App Logic -->
-    <script src="/static/app.js?v=10"></script>
+    <script src="/static/app.js?v={{ app_version }}"></script>
 </body>
 
 </html>

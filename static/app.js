@@ -487,6 +487,10 @@ function renderDnsStatusBadge(health) {
     return `<span class="status-indicator warning"><span class="dot"></span> Degraded</span>`;
 }
 
+function dnsNeedsFix(health) {
+    return !!health && health.overall !== "healthy";
+}
+
 async function loadDomainsList() {
     const tbody = document.getElementById("domains-list-tbody");
     tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">Querying domains...</td></tr>';
@@ -505,7 +509,7 @@ async function loadDomainsList() {
                     <td id="domain-mail-${safeId}"><span style="color: var(--color-muted); font-size: 0.85rem;">⌛</span></td>
                     <td id="domain-dns-${safeId}"><span style="color: var(--color-muted); font-size: 0.85rem;">⌛</span></td>
                     <td style="text-align: right;">
-                        <button class="btn btn-secondary btn-sm" onclick="openDomainDnsSetup(${jsAttrString(domain)})">Fix DNS</button>
+                        <button class="btn btn-secondary btn-sm" id="domain-fix-dns-${safeId}" style="display: none;" onclick="openDomainDnsSetup(${jsAttrString(domain)})">Fix DNS</button>
                         <button class="btn btn-danger btn-sm" onclick="handleDeleteDomain(${jsAttrString(domain)})">Delete</button>
                     </td>
                 `;
@@ -517,6 +521,7 @@ async function loadDomainsList() {
                 const safeId = rows[domain];
                 const mailCell = document.getElementById(`domain-mail-${safeId}`);
                 const dnsCell = document.getElementById(`domain-dns-${safeId}`);
+                const fixDnsBtn = document.getElementById(`domain-fix-dns-${safeId}`);
                 if (!mailCell || !dnsCell) return;
 
                 const [detailsResult, healthResult] = await Promise.allSettled([
@@ -534,9 +539,14 @@ async function loadDomainsList() {
                 }
 
                 if (healthResult.status === "fulfilled" && healthResult.value.success && healthResult.value.data) {
-                    dnsCell.innerHTML = renderDnsStatusBadge(healthResult.value.data);
+                    const health = healthResult.value.data;
+                    dnsCell.innerHTML = renderDnsStatusBadge(health);
+                    if (fixDnsBtn) {
+                        fixDnsBtn.style.display = dnsNeedsFix(health) ? "inline-flex" : "none";
+                    }
                 } else {
                     dnsCell.innerHTML = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
+                    if (fixDnsBtn) fixDnsBtn.style.display = "inline-flex";
                 }
             }));
         } else {
@@ -645,8 +655,8 @@ function renderSetupDnsChecks(health) {
     const fixable = [];
     Object.entries(health.checks || {}).forEach(([key, check]) => {
         const item = document.createElement("div");
-        const statusClass = check.status === "pass" ? "pass" : check.status === "pending" ? "pending" : check.status;
-        const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "warn" ? "⚠️" : "❌";
+        const statusClass = check.status === "pass" ? "pass" : check.status === "pending" ? "pending" : check.status === "skipped" ? "skipped" : check.status;
+        const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "skipped" ? "➖" : check.status === "warn" ? "⚠️" : "❌";
         const canFix = setupCfConfigured && (check.status === "warn" || check.status === "fail");
         if (canFix) fixable.push(key);
 
@@ -1125,7 +1135,7 @@ async function loadDnsHealth(domain) {
             Object.values(health.checks || {}).forEach(check => {
                 const item = document.createElement("div");
                 item.className = `dns-health-item ${check.status}`;
-                const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "warn" ? "⚠️" : "❌";
+                const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "skipped" ? "➖" : check.status === "warn" ? "⚠️" : "❌";
                 item.innerHTML = `
                     <div class="dns-health-item-title">${icon} ${escapeHtml(check.label)}</div>
                     <div class="dns-health-item-message">${escapeHtml(check.message)}</div>

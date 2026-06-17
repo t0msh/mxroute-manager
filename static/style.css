@@ -712,6 +712,7 @@ tr:hover td {
 .dns-health-item.warn { border-color: rgba(245, 158, 11, 0.35); }
 .dns-health-item.fail { border-color: rgba(248, 113, 113, 0.35); }
 .dns-health-item.pending { border-color: rgba(96, 165, 250, 0.35); }
+.dns-health-item.skipped { border-color: rgba(148, 163, 184, 0.35); opacity: 0.85; }
 
 .setup-wizard-steps {
     display: flex;
@@ -988,5 +989,89 @@ tr:hover td {
     z-index: 10;
 }
 
+/* About box (Settings) */
+.about-card {
+    margin-top: 0;
+}
+
+.about-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.about-title {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--color-primary);
+}
+
+.about-version {
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.about-description {
+    margin: 0;
+}
+
+.about-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.about-links a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.about-links a:hover {
+    text-decoration: underline;
+}
+
+.about-links-sep {
+    color: var(--color-muted);
+}
+
+.about-copyright {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--color-muted);
+}
+
+.about-attributions-title {
+    margin: 0.5rem 0 0;
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    color: var(--color-secondary);
+}
+
+.about-attributions {
+    margin: 0;
+    padding-left: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    font-size: 0.85rem;
+    color: var(--color-secondary);
+}
+
+.about-attributions a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.about-attributions a:hover {
+    text-decoration: underline;
+}
+
+.about-attributions li span {
+    color: var(--color-muted);
+}
 
 

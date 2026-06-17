@@ -50,6 +50,42 @@ def _check_status(passed, optional=False):
     return "warn" if optional else "fail"
 
 
+MAIL_DNS_CHECK_KEYS = ("mx", "spf", "dkim", "dmarc")
+
+
+def overall_from_checks(checks, exclude_keys=None):
+    exclude = set(exclude_keys or ())
+    statuses = [
+        check["status"]
+        for key, check in checks.items()
+        if key not in exclude and check.get("status") not in ("skipped",)
+    ]
+    if any(status == "fail" for status in statuses):
+        return "unhealthy"
+    if any(status == "warn" for status in statuses):
+        return "degraded"
+    return "healthy"
+
+
+def apply_mail_hosting_context(health, mail_hosting_enabled):
+    """When mail hosting is disabled, mail DNS checks are informational only."""
+    health["mail_hosting_enabled"] = bool(mail_hosting_enabled)
+    if mail_hosting_enabled:
+        return health
+
+    checks = health.setdefault("checks", {})
+    for key in MAIL_DNS_CHECK_KEYS:
+        if key not in checks:
+            continue
+        checks[key] = {
+            **checks[key],
+            "status": "skipped",
+            "message": "Mail hosting is disabled — this record is not required",
+        }
+    health["overall"] = overall_from_checks(checks)
+    return health
+
+
 def dkim_record_parts(dkim_data, domain):
     """Resolve MXroute's relative DKIM host (e.g. x._domainkey) to a public DNS FQDN."""
     domain = domain.lower().rstrip(".")
@@ -164,16 +200,8 @@ def check_dns_health(domain, expected_dns, verification_record=None, dmarc_expec
             "message": "Verification TXT present" if verify_pass else "Verification TXT missing",
         }
 
-    statuses = [check["status"] for check in checks.values()]
-    if any(status == "fail" for status in statuses):
-        overall = "unhealthy"
-    elif any(status == "warn" for status in statuses):
-        overall = "degraded"
-    else:
-        overall = "healthy"
-
     return {
         "domain": domain,
-        "overall": overall,
+        "overall": overall_from_checks(checks),
         "checks": checks,
     }

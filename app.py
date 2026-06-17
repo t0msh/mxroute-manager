@@ -11,11 +11,20 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from dotenv import load_dotenv
 
 from audit_log import write_audit_log
-from dns_health import check_dns_health, _normalize_txt, dkim_record_parts
+from dns_health import check_dns_health, _normalize_txt, dkim_record_parts, apply_mail_hosting_context
+from app_meta import APP_VERSION, get_about_info
 
 load_dotenv()
 
 app = Flask(__name__)
+
+
+@app.context_processor
+def inject_app_meta():
+    return {
+        "app_version": APP_VERSION,
+        "app_meta": get_about_info(),
+    }
 
 # Flask Session security key and session cookies hardening
 _secret_key = os.getenv("SECRET_KEY")
@@ -616,6 +625,13 @@ def get_mxroute_dns_data(domain):
     return data
 
 
+def get_domain_mail_hosting(domain):
+    res, status = mx_request_raw("GET", f"/domains/{domain}")
+    if status != 200:
+        return True
+    return bool(res.get("data", {}).get("mail_hosting", True))
+
+
 def build_setup_health(domain):
     """DNS health for the setup wizard; supports domains not yet on MXroute."""
     domain = domain.lower().strip()
@@ -669,6 +685,9 @@ def build_setup_health(domain):
             health["overall"] = "degraded"
         else:
             health["overall"] = "healthy"
+
+    if on_mxroute:
+        health = apply_mail_hosting_context(health, get_domain_mail_hosting(domain))
 
     health["on_mxroute"] = on_mxroute
     health["cf_configured"] = cf_is_configured()
@@ -1331,6 +1350,12 @@ def update_settings():
 def home():
     return render_template('index.html')
 
+
+@app.route('/api/about')
+def get_about():
+    return jsonify({"success": True, "data": get_about_info()})
+
+
 # --- CLOUDFLARE INTEGRATION API ---
 
 @app.route('/api/cloudflare/status', methods=['GET'])
@@ -1675,6 +1700,7 @@ def get_dns_health(domain):
         verification_record=verification_record,
         dmarc_expected=get_dmarc_record(),
     )
+    health = apply_mail_hosting_context(health, get_domain_mail_hosting(domain))
 
     _, mx_status = mx_request_raw("GET", "/domains")
     health["mxroute_reachable"] = mx_status == 200

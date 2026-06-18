@@ -17,7 +17,8 @@ Copy `.env.example` to `.env` as a starting point.
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `SECRET_KEY` | Recommended | — | Flask session signing key. Generate a long random string for production. |
-| `FORCE_HTTPS` | No | `false` | Set `true` when serving over HTTPS so session cookies use the `Secure` flag. |
+| `FORCE_HTTPS` | No | `false` | Set `true` when serving over HTTPS so session cookies use the `Secure` flag and HSTS is sent. |
+| `TRUSTED_PROXY_COUNT` | No | `1` | Number of trusted reverse proxies in front of the app. Controls how many `X-Forwarded-*` hops are honored for the real client IP (used by login and password-reset rate limiting). Set to `0` if the app is exposed directly with no proxy. |
 
 ## Authentication
 
@@ -37,6 +38,8 @@ Copy `.env.example` to `.env` as a starting point.
 \*Required for local login when OIDC is disabled, or as a break-glass admin account when OIDC is enabled.
 
 Most OIDC and MXroute fields can also be edited in **Settings** (except env-only secrets).
+
+> **Note:** Settings saved in the UI are cached per worker process. When running multiple Gunicorn workers, a saved change is applied immediately in the worker that handled the save and propagates to other workers as their caches refresh; restart the app if you need every worker to pick up a change instantly.
 
 ## Cloudflare
 
@@ -64,7 +67,7 @@ Optional self-service reset from the login page. Configure in **Settings → Mai
 | `RESET_SMTP_HOST` | If enabled | — | SMTP server hostname |
 | `RESET_SMTP_PORT` | No | `587` | SMTP port |
 | `RESET_SMTP_USER` | If enabled | — | SMTP username |
-| `RESET_SMTP_PASSWORD` | If enabled | — | SMTP password (env or saved in Settings) |
+| `RESET_SMTP_PASSWORD` | If enabled | — | SMTP password (**set in `.env` on the server**). If you previously saved this in Settings, add it to `.env` after upgrading — the UI no longer stores SMTP passwords. Until `.env` is set, a legacy value in the database is still used if present. |
 | `RESET_SMTP_FROM` | If enabled | — | From address for reset emails |
 | `RESET_SMTP_USE_TLS` | No | `true` | Use STARTTLS (`true` / `false`) |
 

@@ -1,12 +1,10 @@
 import json
-import sqlite3
 from flask import Blueprint, request, jsonify
 
 from models.db import (
-    DATABASE_FILE,
+    get_conn,
     SETTINGS_UI_KEYS,
     set_admin_password_hash,
-    set_reset_smtp_password,
     get_admin_user,
     migrate_settings_secrets,
     mask_settings_for_response,
@@ -113,67 +111,64 @@ def update_delegation():
             }), 400
 
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
+        with get_conn() as conn:
+            cursor = conn.cursor()
 
-        cursor.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
-        row = cursor.fetchone()
+            cursor.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
+            row = cursor.fetchone()
 
-        if not row:
-            if local_user and not password_provided:
-                conn.close()
+            if not row:
+                if local_user and not password_provided:
+                    return jsonify({
+                        "success": False,
+                        "error": {"message": "Password is required when creating a local user."},
+                    }), 400
+            elif local_user and not row[1] and not password_provided:
                 return jsonify({
                     "success": False,
-                    "error": {"message": "Password is required when creating a local user."},
+                    "error": {"message": "Password is required for local users who do not have one set."},
                 }), 400
-        elif local_user and not row[1] and not password_provided:
-            conn.close()
-            return jsonify({
-                "success": False,
-                "error": {"message": "Password is required for local users who do not have one set."},
-            }), 400
 
-        hashed_password = generate_password_hash(password) if password_provided else None
+            hashed_password = generate_password_hash(password) if password_provided else None
 
-        if not row:
-            cursor.execute(
-                "INSERT INTO users (email, password_hash, is_admin, contact_email) VALUES (?, ?, ?, ?)",
-                (email, hashed_password, 1 if is_admin else 0, contact_email if update_contact_email else None)
-            )
-            user_id = cursor.lastrowid
-        else:
-            user_id = row[0]
-            if password_provided and update_contact_email:
+            if not row:
                 cursor.execute(
-                    "UPDATE users SET password_hash = ?, is_admin = ?, contact_email = ? WHERE id = ?",
-                    (hashed_password, 1 if is_admin else 0, contact_email, user_id)
+                    "INSERT INTO users (email, password_hash, is_admin, contact_email) VALUES (?, ?, ?, ?)",
+                    (email, hashed_password, 1 if is_admin else 0, contact_email if update_contact_email else None)
                 )
-            elif password_provided:
-                cursor.execute(
-                    "UPDATE users SET password_hash = ?, is_admin = ? WHERE id = ?",
-                    (hashed_password, 1 if is_admin else 0, user_id)
-                )
-            elif update_contact_email:
-                cursor.execute(
-                    "UPDATE users SET is_admin = ?, contact_email = ? WHERE id = ?",
-                    (1 if is_admin else 0, contact_email, user_id)
-                )
+                user_id = cursor.lastrowid
             else:
-                cursor.execute(
-                    "UPDATE users SET is_admin = ? WHERE id = ?",
-                    (1 if is_admin else 0, user_id)
-                )
+                user_id = row[0]
+                if password_provided and update_contact_email:
+                    cursor.execute(
+                        "UPDATE users SET password_hash = ?, is_admin = ?, contact_email = ? WHERE id = ?",
+                        (hashed_password, 1 if is_admin else 0, contact_email, user_id)
+                    )
+                elif password_provided:
+                    cursor.execute(
+                        "UPDATE users SET password_hash = ?, is_admin = ? WHERE id = ?",
+                        (hashed_password, 1 if is_admin else 0, user_id)
+                    )
+                elif update_contact_email:
+                    cursor.execute(
+                        "UPDATE users SET is_admin = ?, contact_email = ? WHERE id = ?",
+                        (1 if is_admin else 0, contact_email, user_id)
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET is_admin = ? WHERE id = ?",
+                        (1 if is_admin else 0, user_id)
+                    )
 
-        cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
-        if not is_admin:
-            for grant in grants:
-                cursor.execute(
-                    "INSERT INTO delegations (user_id, domain, permissions) VALUES (?, ?, ?)",
-                    (user_id, grant["domain"], json.dumps(grant["permissions"])),
-                )
+            cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
+            if not is_admin:
+                for grant in grants:
+                    cursor.execute(
+                        "INSERT INTO delegations (user_id, domain, permissions) VALUES (?, ?, ?)",
+                        (user_id, grant["domain"], json.dumps(grant["permissions"])),
+                    )
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         audit(
             "delegation.update",
             target=email,
@@ -185,7 +180,7 @@ def update_delegation():
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error updating user delegations in SQLite: {e}")
-        return jsonify({"success": False, "error": {"message": f"Failed to save configuration: {e}"}}), 500
+        return jsonify({"success": False, "error": {"message": "Failed to save configuration."}}), 500
 
 
 @admin_bp.route('/api/admin/delegations', methods=['DELETE'])
@@ -213,25 +208,24 @@ def delete_delegation(email=None):
         return jsonify({"success": False, "error": {"message": "Conflict: You cannot revoke/delete your own account."}}), 409
 
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
+        with get_conn() as conn:
+            cursor = conn.cursor()
 
-        # Delete user delegations & user record
-        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
-        row = cursor.fetchone()
-        if row:
+            # Delete user delegations & user record
+            cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"success": False, "error": {"message": "User not found"}}), 404
             user_id = row[0]
             cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
             cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
             conn.commit()
-            conn.close()
-            audit("delegation.revoke", target=email)
-            return jsonify({"success": True})
-        return jsonify({"success": False, "error": {"message": "User not found"}}), 404
+        audit("delegation.revoke", target=email)
+        return jsonify({"success": True})
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error deleting user delegations from SQLite: {e}")
-        return jsonify({"success": False, "error": {"message": f"Failed to delete configuration: {e}"}}), 500
+        return jsonify({"success": False, "error": {"message": "Failed to delete configuration."}}), 500
 
 
 # --- SYSTEM SETTINGS API (ADMIN ONLY) ---
@@ -250,37 +244,30 @@ def get_settings():
 def update_settings():
     data = request.json or {}
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        updated_keys = []
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            updated_keys = []
 
-        for key in SETTINGS_UI_KEYS:
-            if key in data:
-                val = str(data[key]).strip()
-                cursor.execute(
-                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-                    (key, val)
-                )
-                updated_keys.append(key)
+            for key in SETTINGS_UI_KEYS:
+                if key in data:
+                    val = str(data[key]).strip()
+                    cursor.execute(
+                        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                        (key, val)
+                    )
+                    updated_keys.append(key)
 
-        conn.commit()
+            conn.commit()
 
-        if "ADMIN_PASSWORD" in data:
-            new_password = str(data["ADMIN_PASSWORD"])
-            if new_password.strip():
-                admin_email = str(data.get("ADMIN_USER", get_admin_user())).strip().lower()
-                set_admin_password_hash(new_password.strip(), admin_email=admin_email)
-                updated_keys.append("ADMIN_PASSWORD")
+            if "ADMIN_PASSWORD" in data:
+                new_password = str(data["ADMIN_PASSWORD"])
+                if new_password.strip():
+                    admin_email = str(data.get("ADMIN_USER", get_admin_user())).strip().lower()
+                    set_admin_password_hash(new_password.strip(), admin_email=admin_email)
+                    updated_keys.append("ADMIN_PASSWORD")
 
-        if "RESET_SMTP_PASSWORD" in data:
-            new_smtp_password = str(data["RESET_SMTP_PASSWORD"])
-            if new_smtp_password.strip():
-                set_reset_smtp_password(new_smtp_password.strip())
-                updated_keys.append("RESET_SMTP_PASSWORD")
-
-        migrate_settings_secrets(cursor)
-        conn.commit()
-        conn.close()
+            migrate_settings_secrets(cursor)
+            conn.commit()
 
         # Clear cached settings + OIDC config so changes take effect immediately
         invalidate_settings_cache()
@@ -291,7 +278,7 @@ def update_settings():
     except Exception as e:
         from flask import current_app
         current_app.logger.error(f"Error saving system settings: {e}")
-        return jsonify({"success": False, "error": {"message": f"Failed to save settings: {e}"}}), 500
+        return jsonify({"success": False, "error": {"message": "Failed to save settings."}}), 500
 
 
 @admin_bp.route('/api/admin/settings/test-smtp', methods=['POST'])

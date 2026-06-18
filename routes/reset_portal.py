@@ -32,6 +32,18 @@ from utils.themes import normalize_theme, DEFAULT_THEME
 
 reset_portal_bp = Blueprint("reset_portal", __name__)
 
+# Logos may be SVG, which can embed scripts. Serving them under a sandbox CSP
+# neutralizes any embedded script even if the file is opened directly, while still
+# rendering fine inside an <img> tag.
+_LOGO_SANDBOX_CSP = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+
+
+def _serve_logo(logo_path, mimetype, max_age):
+    response = send_file(logo_path, mimetype=mimetype, max_age=max_age)
+    response.headers["Content-Security-Policy"] = _LOGO_SANDBOX_CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
 
 def _safe_status(check_fn, *args, **kwargs):
     try:
@@ -228,7 +240,7 @@ def preview_reset_portal_logo(domain):
         abort(404)
     ext = portal["logo_filename"].rsplit(".", 1)[-1].lower()
     mimetype = ALLOWED_LOGO_EXTENSIONS.get(ext, "application/octet-stream")
-    return send_file(logo_path, mimetype=mimetype, max_age=60)
+    return _serve_logo(logo_path, mimetype, max_age=60)
 
 
 @reset_portal_bp.route("/api/public/reset-portal/logo", methods=["GET"])
@@ -241,4 +253,4 @@ def public_reset_portal_logo():
         abort(404)
     ext = portal["logo_filename"].rsplit(".", 1)[-1].lower()
     mimetype = ALLOWED_LOGO_EXTENSIONS.get(ext, "application/octet-stream")
-    return send_file(logo_path, mimetype=mimetype, max_age=3600)
+    return _serve_logo(logo_path, mimetype, max_age=3600)

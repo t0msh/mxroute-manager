@@ -33,9 +33,8 @@ _WINDOW_SECONDS = 3600
 
 
 def _client_ip():
-    forwarded = request.headers.get("X-Forwarded-For", "")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # request.remote_addr is set from X-Forwarded-For by ProxyFix using the
+    # configured trusted-proxy hop count, so it cannot be spoofed by clients.
     return request.remote_addr or "unknown"
 
 

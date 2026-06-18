@@ -2978,10 +2978,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 payload.ADMIN_PASSWORD = newAdminPassword;
             }
 
-            const newSmtpPassword = document.getElementById("setting-reset-smtp-password").value;
-            if (newSmtpPassword.trim()) {
-                payload.RESET_SMTP_PASSWORD = newSmtpPassword;
-            }
             
             try {
                 const contactSaved = await saveAdminContactEmail();
@@ -2995,7 +2991,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (res.success) {
                     showAlert("success", "System settings successfully updated!");
                     document.getElementById("setting-admin-password").value = "";
-                    document.getElementById("setting-reset-smtp-password").value = "";
                     await loadSettingsPage();
                 } else {
                     showAlert("error", res.error.message || "Failed to update system settings.");
@@ -3103,10 +3098,6 @@ function collectSmtpTestPayload() {
         RESET_SMTP_FROM: document.getElementById("setting-reset-smtp-from").value.trim(),
         RESET_SMTP_USE_TLS: document.getElementById("setting-reset-smtp-use-tls").value,
     };
-    const smtpPassword = document.getElementById("setting-reset-smtp-password").value;
-    if (smtpPassword.trim()) {
-        payload.RESET_SMTP_PASSWORD = smtpPassword;
-    }
     return payload;
 }
 
@@ -3173,11 +3164,10 @@ async function loadSettingsPage() {
                 document.getElementById("setting-reset-smtp-user").value = settings.RESET_SMTP_USER || "";
                 document.getElementById("setting-reset-smtp-from").value = settings.RESET_SMTP_FROM || "";
                 document.getElementById("setting-reset-smtp-use-tls").value = settings.RESET_SMTP_USE_TLS || "true";
-                document.getElementById("setting-reset-smtp-password").value = "";
                 renderSecretStatus(
                     "setting-reset-smtp-password-status",
                     settings.RESET_SMTP_PASSWORD_configured,
-                    "Password saved"
+                    "Password set via .env"
                 );
 
                 const contactInput = document.getElementById("setting-admin-contact-email");

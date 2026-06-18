@@ -1,6 +1,7 @@
 import os
 import secrets
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, g, abort
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dotenv import load_dotenv
 
@@ -23,6 +24,42 @@ from services.reset_portal import is_portal_allowed_path, get_portal_branding_co
 load_dotenv()
 
 app = Flask(__name__)
+
+
+def _trusted_proxy_count():
+    """Number of trusted reverse proxies in front of the app (0 disables ProxyFix)."""
+    try:
+        return max(0, int(os.getenv("TRUSTED_PROXY_COUNT", "1")))
+    except (TypeError, ValueError):
+        return 1
+
+
+# Honor X-Forwarded-* from a known number of trusted proxies so request.remote_addr
+# (and scheme/host) reflect the real client. Without this, X-Forwarded-For is
+# attacker-controlled and would let clients spoof rate-limit keys.
+_proxy_hops = _trusted_proxy_count()
+if _proxy_hops > 0:
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=_proxy_hops, x_proto=_proxy_hops, x_host=_proxy_hops
+    )
+
+
+# Baseline Content-Security-Policy. Inline scripts/styles and inline event handlers
+# are still used in templates, so 'unsafe-inline' is required for now; the rest of
+# the policy still blocks plugins, framing, and unexpected origins. Google Fonts is
+# allowlisted because static/style.css imports it.
+CONTENT_SECURITY_POLICY = "; ".join([
+    "default-src 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'self'",
+    "img-src 'self' data:",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "script-src 'self' 'unsafe-inline'",
+    "connect-src 'self'",
+    "form-action 'self'",
+])
 
 # Register Blueprints
 app.register_blueprint(auth_bp)
@@ -135,6 +172,12 @@ def set_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    # setdefault lets specific endpoints (e.g. the SVG logo) apply a stricter policy.
+    response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+    if use_secure_cookies():
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
     return response
 
 

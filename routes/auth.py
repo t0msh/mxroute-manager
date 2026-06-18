@@ -1,12 +1,11 @@
 import secrets
-import sqlite3
 import requests
 from urllib.parse import urlencode
 from werkzeug.security import check_password_hash
 from flask import Blueprint, request, session, redirect, url_for, render_template, jsonify, current_app
 
 from models.db import (
-    DATABASE_FILE,
+    get_conn,
     get_admin_user,
     verify_admin_password,
     is_oidc_enabled,
@@ -26,8 +25,30 @@ from models.db import (
 from utils.auth_helpers import get_oidc_config, get_current_user
 from utils.audit_log import write_audit_log
 from utils.validators import is_email_identifier
+from utils.rate_limit import SlidingWindowRateLimiter
 
 auth_bp = Blueprint("auth", __name__)
+
+# Brute-force protection for the local login form. Failed attempts are counted
+# per client IP and per username over a rolling window; a successful login clears
+# the counters for that attempt.
+_LOGIN_WINDOW_SECONDS = 15 * 60
+_LOGIN_IP_LIMIT = 10
+_LOGIN_USER_LIMIT = 5
+_login_limiter = SlidingWindowRateLimiter(_LOGIN_WINDOW_SECONDS)
+
+
+def _login_rate_keys(username):
+    ip = request.remote_addr or "unknown"
+    ip_key = f"ip:{ip}"
+    user_key = f"user:{username}" if username else None
+    return ip, ip_key, user_key
+
+
+def _clear_login_attempts(ip_key, user_key):
+    _login_limiter.clear(ip_key)
+    if user_key is not None:
+        _login_limiter.clear(user_key)
 
 
 def build_session_user(email, is_admin=False):
@@ -39,7 +60,6 @@ def build_session_user(email, is_admin=False):
         is_admin
         or email in get_oidc_admin_users()
         or email == get_admin_user()
-        or email == "admin@local"
         or "*" in delegated_domains
     )
     return {
@@ -48,6 +68,13 @@ def build_session_user(email, is_admin=False):
         "delegated_domains": delegated_domains,
         "domain_grants": domain_grants,
     }
+
+
+def _start_user_session(user):
+    """Establish an authenticated session, rotating session + CSRF state on login."""
+    session.clear()
+    session["user"] = user
+    session["csrf_token"] = secrets.token_urlsafe(32)
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
@@ -60,29 +87,44 @@ def login_page():
         username = request.form.get('username', '').strip().lower()
         password = request.form.get('password', '')
 
+        ip, ip_key, user_key = _login_rate_keys(username)
+        blocked = _login_limiter.is_blocked(ip_key, _LOGIN_IP_LIMIT) or (
+            user_key is not None and _login_limiter.is_blocked(user_key, _LOGIN_USER_LIMIT)
+        )
+        if blocked:
+            write_audit_log(
+                "auth.login_rate_limited", username or "unknown", username or "unknown", {"ip": ip}
+            )
+            error = "Too many login attempts. Please wait a few minutes and try again."
+            return render_template('login.html', error=error), 429
+
         # Check SQLite database first
         user_row = None
         try:
-            conn = sqlite3.connect(DATABASE_FILE)
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, email, password_hash, is_admin FROM users WHERE email = ?", (username,))
-            user_row = cursor.fetchone()
-            conn.close()
+            with get_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, email, password_hash, is_admin FROM users WHERE email = ?", (username,))
+                user_row = cursor.fetchone()
         except Exception as e:
             current_app.logger.error(f"Error checking user in SQLite: {e}")
 
         if user_row and user_row[2]:  # password_hash exists
             if check_password_hash(user_row[2], password):
-                session["user"] = build_session_user(user_row[1], bool(user_row[3]))
+                _clear_login_attempts(ip_key, user_key)
+                _start_user_session(build_session_user(user_row[1], bool(user_row[3])))
                 write_audit_log("auth.login", user_row[1], user_row[1])
                 return redirect(url_for('home'))
 
         # Fallback to local admin config check (hashed password only)
         if username == get_admin_user() and verify_admin_password(password):
-            session["user"] = build_session_user(username, True)
+            _clear_login_attempts(ip_key, user_key)
+            _start_user_session(build_session_user(username, True))
             write_audit_log("auth.login", username, username)
             return redirect(url_for('home'))
 
+        _login_limiter.register(ip_key)
+        if user_key is not None:
+            _login_limiter.register(user_key)
         write_audit_log("auth.login_failed", username, username, {"reason": "invalid_credentials"})
         error = "Invalid credentials. Please try again."
 
@@ -96,7 +138,11 @@ def login_redirect():
     try:
         config = get_oidc_config()
     except Exception as e:
-        return f"Error: OIDC provider configuration failed: {e}", 500
+        current_app.logger.error(f"OIDC provider configuration failed: {e}")
+        return render_template(
+            'login.html',
+            error="Single sign-on is temporarily unavailable. Please try again later.",
+        ), 500
 
     auth_endpoint = config.get("authorization_endpoint")
     if not auth_endpoint:
@@ -176,46 +222,51 @@ def oidc_callback():
             user_groups = []
         is_admin = (email in get_oidc_admin_users()) or (get_oidc_admin_group() in user_groups)
 
-        user_row = None
+        # Fail closed: any DB error here must block login rather than fall
+        # through to a granted session.
         try:
-            conn = sqlite3.connect(DATABASE_FILE)
-            cursor = conn.cursor()
+            with get_conn() as conn:
+                cursor = conn.cursor()
 
-            cursor.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,))
-            user_row = cursor.fetchone()
+                cursor.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,))
+                user_row = cursor.fetchone()
 
-            if is_admin:
-                if not user_row:
-                    cursor.execute(
-                        "INSERT INTO users (email, is_admin) VALUES (?, 1)",
-                        (email,)
-                    )
+                if is_admin:
+                    if not user_row:
+                        cursor.execute(
+                            "INSERT INTO users (email, is_admin) VALUES (?, 1)",
+                            (email,)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE users SET is_admin = 1 WHERE email = ?",
+                            (email,)
+                        )
+                    conn.commit()
                 else:
-                    cursor.execute(
-                        "UPDATE users SET is_admin = 1 WHERE email = ?",
-                        (email,)
-                    )
-                conn.commit()
-            else:
-                # If they are not an administrator, check if they exist in the database (delegated user)
-                if not user_row:
-                    conn.close()
-                    return render_template('login.html', error="You do not have access to this tool. Please contact an administrator.")
-
-            conn.close()
+                    # If they are not an administrator, check if they exist in the database (delegated user)
+                    if not user_row:
+                        return render_template('login.html', error="You do not have access to this tool. Please contact an administrator.")
         except Exception as db_err:
             current_app.logger.error(f"Failed to query/insert OIDC user in database: {db_err}")
+            return render_template(
+                'login.html',
+                error="Sign-in is temporarily unavailable. Please try again later.",
+            ), 503
 
-        session["user"] = build_session_user(
+        _start_user_session(build_session_user(
             email,
-            is_admin or (user_row and bool(user_row[1])),
-        )
+            is_admin or bool(user_row and user_row[1]),
+        ))
 
         write_audit_log("auth.login", email, email, {"method": "oidc"})
         return redirect(url_for('home'))
     except Exception as e:
         current_app.logger.error(f"OIDC flow callback failure: {e}")
-        return f"Authentication failed: {e}", 500
+        return render_template(
+            'login.html',
+            error="Authentication failed. Please try again or contact an administrator.",
+        ), 500
 
 
 @auth_bp.route('/logout')
@@ -236,15 +287,14 @@ def get_me():
         if isinstance(email, str):
             is_admin = False
             try:
-                conn = sqlite3.connect(DATABASE_FILE)
-                cursor = conn.cursor()
-                cursor.execute("SELECT is_admin FROM users WHERE email = ?", (email.lower(),))
-                row = cursor.fetchone()
+                with get_conn() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT is_admin FROM users WHERE email = ?", (email.lower(),))
+                    row = cursor.fetchone()
                 if row:
                     is_admin = bool(row[0])
-                conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                current_app.logger.warning(f"Failed to refresh admin flag for {email}: {e}")
 
             user = build_session_user(email, is_admin)
             session["user"] = user

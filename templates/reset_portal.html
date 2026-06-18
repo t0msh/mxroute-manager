@@ -130,6 +130,9 @@
             <div id="reset-unavailable-notice" class="reset-notice" style="display: none;">
                 Self-service password reset is not currently available. Contact your administrator.
             </div>
+            <div id="reset-smtp-notice" class="reset-notice" style="display: none;">
+                Email delivery for password resets is not fully configured. Contact your administrator.
+            </div>
             <div id="reset-success-notice" class="reset-success" style="display: none;"></div>
 
             <form id="form-request-reset" style="display: flex; flex-direction: column; gap: 1.25rem;">
@@ -153,14 +156,24 @@
                 const response = await fetch('/api/public/password-reset/status');
                 const result = await response.json();
                 const available = result?.data?.available;
+                const enabled = result?.data?.enabled;
+                const configured = result?.data?.configured;
                 const notice = document.getElementById('reset-unavailable-notice');
+                const smtpNotice = document.getElementById('reset-smtp-notice');
                 const form = document.getElementById('form-request-reset');
                 const submitBtn = document.getElementById('btn-request-reset');
                 if (!available) {
-                    notice.style.display = 'block';
+                    if (enabled && !configured) {
+                        smtpNotice.style.display = 'block';
+                        notice.style.display = 'none';
+                    } else {
+                        notice.style.display = 'block';
+                        smtpNotice.style.display = 'none';
+                    }
                     form.style.display = 'none';
                 } else {
                     notice.style.display = 'none';
+                    smtpNotice.style.display = 'none';
                     form.style.display = 'flex';
                     submitBtn.disabled = false;
                 }

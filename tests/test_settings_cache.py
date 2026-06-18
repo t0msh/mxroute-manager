@@ -46,3 +46,48 @@ def test_env_only_secrets_bypass_db_and_cache(isolated_settings_db, monkeypatch)
     monkeypatch.setenv("MX_API_KEY", "env-secret")
     _set(isolated_settings_db, "MX_API_KEY", "db-secret")
     assert db_module.get_config_value("MX_API_KEY") == "env-secret"
+
+
+def test_reset_smtp_password_reads_env_first(isolated_settings_db, monkeypatch):
+    monkeypatch.setenv("RESET_SMTP_PASSWORD", "from-env")
+    _set(isolated_settings_db, "RESET_SMTP_PASSWORD", "from-db")
+    assert db_module.get_reset_smtp_password() == "from-env"
+
+
+def test_reset_smtp_password_falls_back_to_legacy_db(isolated_settings_db, monkeypatch):
+    monkeypatch.delenv("RESET_SMTP_PASSWORD", raising=False)
+    _set(isolated_settings_db, "RESET_SMTP_PASSWORD", "legacy-db-password")
+    assert db_module.get_reset_smtp_password() == "legacy-db-password"
+    assert db_module.is_secret_configured("RESET_SMTP_PASSWORD") is True
+
+
+def test_migrate_settings_secrets_keeps_legacy_smtp_password_without_env(isolated_settings_db, monkeypatch):
+    monkeypatch.delenv("RESET_SMTP_PASSWORD", raising=False)
+    _set(isolated_settings_db, "RESET_SMTP_PASSWORD", "legacy-db-password")
+
+    with db_module.get_conn() as conn:
+        db_module.migrate_settings_secrets(conn.cursor())
+        conn.commit()
+
+    with db_module.get_conn() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",)
+        ).fetchone()
+    assert row is not None
+    assert row[0] == "legacy-db-password"
+
+
+def test_migrate_settings_secrets_removes_legacy_smtp_password_when_env_set(isolated_settings_db, monkeypatch):
+    monkeypatch.setenv("RESET_SMTP_PASSWORD", "from-env")
+    _set(isolated_settings_db, "RESET_SMTP_PASSWORD", "legacy-db-password")
+
+    with db_module.get_conn() as conn:
+        db_module.migrate_settings_secrets(conn.cursor())
+        conn.commit()
+
+    with db_module.get_conn() as conn:
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",)
+        ).fetchone()
+    assert row is None
+    assert db_module.get_reset_smtp_password() == "from-env"

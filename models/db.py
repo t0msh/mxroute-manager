@@ -3,9 +3,13 @@ import json
 import sqlite3
 import secrets
 import hashlib
+import logging
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
 from werkzeug.security import check_password_hash, generate_password_hash
+
+logger = logging.getLogger(__name__)
 
 DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mxroute-manager.db"))
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "domain_mapping.json")
@@ -19,9 +23,10 @@ ENV_ONLY_SECRET_KEYS = frozenset({
     "CF_ORIGIN_CA_KEY",
     "OIDC_CLIENT_SECRET",
     "NPM_SECRET",
+    "RESET_SMTP_PASSWORD",
 })
 MASKED_SECRET_KEYS = ENV_ONLY_SECRET_KEYS | frozenset({
-    "ADMIN_PASSWORD", "SECRET_KEY", "RESET_SMTP_PASSWORD",
+    "ADMIN_PASSWORD", "SECRET_KEY",
 })
 ADMIN_PASSWORD_HASH_KEY = "ADMIN_PASSWORD_HASH"
 RESET_TOKEN_TTL_HOURS = 1
@@ -38,6 +43,16 @@ SETTINGS_RESPONSE_KEYS = SETTINGS_UI_KEYS + sorted(MASKED_SECRET_KEYS)
 
 def get_env_config(key, default=None):
     return os.getenv(key, default)
+
+
+@contextmanager
+def get_conn():
+    """Yield a SQLite connection that is always closed, even on exceptions."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 # ponytail: single-process in-memory cache for DB-backed settings. Settings change
@@ -61,16 +76,15 @@ def get_config_value(key, default=None):
 
     stored = None
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        conn.close()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+            row = cursor.fetchone()
         if row is not None:
             stored = row[0]
         _settings_cache[key] = stored
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to read setting %s: %s", key, e)
 
     if stored is not None:
         return stored
@@ -79,15 +93,14 @@ def get_config_value(key, default=None):
 
 def get_admin_password_hash():
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,))
-        row = cursor.fetchone()
-        conn.close()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,))
+            row = cursor.fetchone()
         if row and row[0]:
             return row[0]
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to read admin password hash: %s", e)
     return None
 
 
@@ -101,27 +114,26 @@ def verify_admin_password(password):
 def set_admin_password_hash(password, admin_email=None):
     password_hash = generate_password_hash(password)
     admin_email = (admin_email or get_admin_user()).lower().strip()
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        (ADMIN_PASSWORD_HASH_KEY, password_hash),
-    )
-    cursor.execute("DELETE FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
-    cursor.execute("SELECT id FROM users WHERE email = ?", (admin_email,))
-    row = cursor.fetchone()
-    if row:
+    with get_conn() as conn:
+        cursor = conn.cursor()
         cursor.execute(
-            "UPDATE users SET password_hash = ?, is_admin = 1 WHERE id = ?",
-            (password_hash, row[0]),
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (ADMIN_PASSWORD_HASH_KEY, password_hash),
         )
-    else:
-        cursor.execute(
-            "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
-            (admin_email, password_hash),
-        )
-    conn.commit()
-    conn.close()
+        cursor.execute("DELETE FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
+        cursor.execute("SELECT id FROM users WHERE email = ?", (admin_email,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                "UPDATE users SET password_hash = ?, is_admin = 1 WHERE id = ?",
+                (password_hash, row[0]),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
+                (admin_email, password_hash),
+            )
+        conn.commit()
     invalidate_settings_cache()
 
 
@@ -133,6 +145,10 @@ def _looks_like_password_hash(value):
 
 def migrate_settings_secrets(cursor):
     for key in ENV_ONLY_SECRET_KEYS:
+        # Keep legacy RESET_SMTP_PASSWORD in SQLite until .env is populated so
+        # existing installs are not broken on upgrade.
+        if key == "RESET_SMTP_PASSWORD" and not get_env_config("RESET_SMTP_PASSWORD"):
+            continue
         cursor.execute("DELETE FROM settings WHERE key = ?", (key,))
 
     cursor.execute("SELECT value FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
@@ -254,33 +270,27 @@ def get_reset_smtp_user():
     return (get_config_value("RESET_SMTP_USER") or "").strip()
 
 
+def _get_legacy_reset_smtp_password():
+    """Read SMTP password saved before env-only migration (not written anymore)."""
+    try:
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",))
+            row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+    except Exception as e:
+        logger.warning("Failed to read legacy RESET_SMTP_PASSWORD from settings: %s", e)
+    return None
+
+
 def get_reset_smtp_password():
     env_password = get_env_config("RESET_SMTP_PASSWORD")
     if env_password:
         return env_password
-    try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",))
-        row = cursor.fetchone()
-        conn.close()
-        if row and row[0]:
-            return row[0]
-    except Exception:
-        pass
-    return None
-
-
-def set_reset_smtp_password(password):
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-        ("RESET_SMTP_PASSWORD", password),
-    )
-    conn.commit()
-    conn.close()
-    invalidate_settings_cache()
+    # ponytail: legacy DB fallback until RESET_SMTP_PASSWORD is set in .env.
+    # migrate_settings_secrets keeps the DB row while env is unset.
+    return _get_legacy_reset_smtp_password()
 
 
 def get_reset_smtp_from():
@@ -319,16 +329,16 @@ def get_recovery_email(mailbox_email):
     if not mailbox_email:
         return None
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT recovery_email FROM mailbox_recovery WHERE mailbox_email = ?",
-            (mailbox_email,),
-        )
-        row = cursor.fetchone()
-        conn.close()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT recovery_email FROM mailbox_recovery WHERE mailbox_email = ?",
+                (mailbox_email,),
+            )
+            row = cursor.fetchone()
         return row[0] if row else None
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to read recovery email for %s: %s", mailbox_email, e)
         return None
 
 
@@ -338,17 +348,17 @@ def get_recovery_map(mailbox_emails):
     if not emails:
         return {}
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        placeholders = ",".join("?" for _ in emails)
-        cursor.execute(
-            f"SELECT mailbox_email, recovery_email FROM mailbox_recovery WHERE mailbox_email IN ({placeholders})",
-            emails,
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            placeholders = ",".join("?" for _ in emails)
+            cursor.execute(
+                f"SELECT mailbox_email, recovery_email FROM mailbox_recovery WHERE mailbox_email IN ({placeholders})",
+                emails,
+            )
+            rows = cursor.fetchall()
         return {row[0]: row[1] for row in rows}
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to read recovery map: %s", e)
         return {}
 
 
@@ -357,20 +367,19 @@ def set_recovery_email(mailbox_email, recovery_email):
     recovery_email = (recovery_email or "").strip().lower()
     if not mailbox_email or not recovery_email:
         return False
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(mailbox_email) DO UPDATE SET
-            recovery_email = excluded.recovery_email,
-            updated_at = excluded.updated_at
-        """,
-        (mailbox_email, recovery_email, _utc_now_iso()),
-    )
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(mailbox_email) DO UPDATE SET
+                recovery_email = excluded.recovery_email,
+                updated_at = excluded.updated_at
+            """,
+            (mailbox_email, recovery_email, _utc_now_iso()),
+        )
+        conn.commit()
     return True
 
 
@@ -378,12 +387,11 @@ def delete_recovery_email(mailbox_email):
     mailbox_email = (mailbox_email or "").strip().lower()
     if not mailbox_email:
         return
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM mailbox_recovery WHERE mailbox_email = ?", (mailbox_email,))
-    cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM mailbox_recovery WHERE mailbox_email = ?", (mailbox_email,))
+        cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
+        conn.commit()
 
 
 def _purge_expired_reset_tokens(cursor):
@@ -401,19 +409,18 @@ def create_reset_token(mailbox_email):
     expires_at = (
         datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_TTL_HOURS)
     ).replace(microsecond=0).isoformat()
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    _purge_expired_reset_tokens(cursor)
-    cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
-    cursor.execute(
-        """
-        INSERT INTO password_reset_tokens (token_hash, mailbox_email, expires_at, used_at, created_at)
-        VALUES (?, ?, ?, NULL, ?)
-        """,
-        (token_hash, mailbox_email, expires_at, _utc_now_iso()),
-    )
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        _purge_expired_reset_tokens(cursor)
+        cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
+        cursor.execute(
+            """
+            INSERT INTO password_reset_tokens (token_hash, mailbox_email, expires_at, used_at, created_at)
+            VALUES (?, ?, ?, NULL, ?)
+            """,
+            (token_hash, mailbox_email, expires_at, _utc_now_iso()),
+        )
+        conn.commit()
     return raw_token
 
 
@@ -422,42 +429,39 @@ def consume_reset_token(raw_token):
         return None
     token_hash = _hash_reset_token(raw_token.strip())
     now = _utc_now_iso()
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT id, mailbox_email FROM password_reset_tokens
-        WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?
-        """,
-        (token_hash, now),
-    )
-    row = cursor.fetchone()
-    if not row:
-        conn.close()
-        return None
-    token_id, mailbox_email = row
-    cursor.execute(
-        "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?",
-        (now, token_id),
-    )
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, mailbox_email FROM password_reset_tokens
+            WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?
+            """,
+            (token_hash, now),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        token_id, mailbox_email = row
+        cursor.execute(
+            "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?",
+            (now, token_id),
+        )
+        conn.commit()
     return mailbox_email
 
 
 def load_domain_mapping():
     mapping = {}
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT u.email, u.is_admin, d.domain 
-            FROM users u 
-            LEFT JOIN delegations d ON u.id = d.user_id
-        """)
-        rows = cursor.fetchall()
-        conn.close()
-        
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.email, u.is_admin, d.domain 
+                FROM users u 
+                LEFT JOIN delegations d ON u.id = d.user_id
+            """)
+            rows = cursor.fetchall()
+
         for email, is_admin, domain in rows:
             email = email.lower()
             if email not in mapping:
@@ -466,8 +470,8 @@ def load_domain_mapping():
                 mapping[email].append("*")
             if domain and domain.lower() not in mapping[email]:
                 mapping[email].append(domain.lower())
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to load domain mapping: %s", e)
     return mapping
 
 
@@ -494,15 +498,14 @@ def load_user_grants():
     """Return {email: {domain: [permissions]}} for non-admin domain grants."""
     grants = {}
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT u.email, u.is_admin, d.domain, d.permissions
-            FROM users u
-            LEFT JOIN delegations d ON u.id = d.user_id
-        """)
-        rows = cursor.fetchall()
-        conn.close()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT u.email, u.is_admin, d.domain, d.permissions
+                FROM users u
+                LEFT JOIN delegations d ON u.id = d.user_id
+            """)
+            rows = cursor.fetchall()
 
         for email, is_admin, domain, permissions in rows:
             email = email.lower()
@@ -514,8 +517,8 @@ def load_user_grants():
             if email not in grants:
                 grants[email] = {}
             grants[email][domain] = _normalize_permissions(permissions)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning("Failed to load user grants: %s", e)
     return grants
 
 
@@ -549,17 +552,17 @@ def load_delegations_detail():
 def get_users_contact_map():
     """Return {login_identifier: contact_email} for all users."""
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT email, contact_email FROM users")
-        rows = cursor.fetchall()
-        conn.close()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT email, contact_email FROM users")
+            rows = cursor.fetchall()
         return {
             (email or "").lower(): (contact or "").strip().lower() or None
             for email, contact in rows
             if email
         }
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load user contact map: %s", e)
         return {}
 
 
@@ -589,27 +592,26 @@ def set_user_contact_email(login_identifier, contact_email, is_admin=None):
     if not login_identifier:
         return False
     contact_email = (contact_email or "").strip().lower() or None
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM users WHERE email = ?", (login_identifier,))
-    row = cursor.fetchone()
-    if row:
-        cursor.execute(
-            "UPDATE users SET contact_email = ? WHERE id = ?",
-            (contact_email, row[0]),
-        )
-    else:
-        admin_flag = 0
-        if is_admin is not None:
-            admin_flag = 1 if is_admin else 0
-        elif login_identifier == get_admin_user():
-            admin_flag = 1
-        cursor.execute(
-            "INSERT INTO users (email, contact_email, is_admin) VALUES (?, ?, ?)",
-            (login_identifier, contact_email, admin_flag),
-        )
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE email = ?", (login_identifier,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                "UPDATE users SET contact_email = ? WHERE id = ?",
+                (contact_email, row[0]),
+            )
+        else:
+            admin_flag = 0
+            if is_admin is not None:
+                admin_flag = 1 if is_admin else 0
+            elif login_identifier == get_admin_user():
+                admin_flag = 1
+            cursor.execute(
+                "INSERT INTO users (email, contact_email, is_admin) VALUES (?, ?, ?)",
+                (login_identifier, contact_email, admin_flag),
+            )
+        conn.commit()
     return True
 
 
@@ -621,35 +623,34 @@ def get_or_create_secret_key():
 
     # 2. Check SQLite settings table
     try:
-        conn = sqlite3.connect(DATABASE_FILE)
-        cursor = conn.cursor()
-        # Ensure the settings table exists before querying
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS settings (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            );
-        """)
-        conn.commit()
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            # Ensure the settings table exists before querying
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+            """)
+            conn.commit()
 
-        cursor.execute("SELECT value FROM settings WHERE key = ?", ("SECRET_KEY",))
-        row = cursor.fetchone()
-        if row and row[0]:
-            conn.close()
-            return row[0]
+            cursor.execute("SELECT value FROM settings WHERE key = ?", ("SECRET_KEY",))
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
 
-        # 3. Generate a persistent fallback secret key and write it to settings table
-        random_key = secrets.token_hex(24)
-        cursor.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-            ("SECRET_KEY", random_key),
-        )
-        conn.commit()
-        conn.close()
+            # 3. Generate a persistent fallback secret key and write it to settings table
+            random_key = secrets.token_hex(24)
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                ("SECRET_KEY", random_key),
+            )
+            conn.commit()
         invalidate_settings_cache()
         return random_key
-    except Exception:
+    except Exception as e:
         # Emergency last-resort fallback
+        logger.warning("Failed to read/persist SECRET_KEY, using ephemeral key: %s", e)
         return os.urandom(24).hex()
 
 
@@ -683,17 +684,16 @@ def _row_to_reset_portal(row):
 
 def get_reset_portal(domain):
     domain = domain.lower().strip()
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
-        FROM domain_reset_portals WHERE domain = ?
-        """,
-        (domain,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
+            FROM domain_reset_portals WHERE domain = ?
+            """,
+            (domain,),
+        )
+        row = cursor.fetchone()
     return _row_to_reset_portal(row)
 
 
@@ -701,32 +701,30 @@ def get_reset_portal_by_host(host):
     host = host.lower().strip().rstrip(".")
     if not host:
         return None
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
-        FROM domain_reset_portals
-        WHERE portal_host = ? AND enabled = 1
-        """,
-        (host,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
+            FROM domain_reset_portals
+            WHERE portal_host = ? AND enabled = 1
+            """,
+            (host,),
+        )
+        row = cursor.fetchone()
     return _row_to_reset_portal(row)
 
 
 def list_reset_portals():
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
-        FROM domain_reset_portals ORDER BY domain
-        """
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
+            FROM domain_reset_portals ORDER BY domain
+            """
+        )
+        rows = cursor.fetchall()
     return [_row_to_reset_portal(row) for row in rows]
 
 
@@ -749,38 +747,36 @@ def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None, po
 
     portal_host = build_portal_host(subdomain_prefix, domain) if subdomain_prefix else ""
 
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO domain_reset_portals
-            (domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme)
-        VALUES (?, ?, ?, ?, ?, '', ?)
-        ON CONFLICT(domain) DO UPDATE SET
-            enabled = excluded.enabled,
-            subdomain_prefix = excluded.subdomain_prefix,
-            portal_host = excluded.portal_host,
-            portal_title = excluded.portal_title,
-            portal_theme = excluded.portal_theme
-        """,
-        (domain, 1 if enabled else 0, subdomain_prefix, portal_host, portal_title, theme),
-    )
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO domain_reset_portals
+                (domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme)
+            VALUES (?, ?, ?, ?, ?, '', ?)
+            ON CONFLICT(domain) DO UPDATE SET
+                enabled = excluded.enabled,
+                subdomain_prefix = excluded.subdomain_prefix,
+                portal_host = excluded.portal_host,
+                portal_title = excluded.portal_title,
+                portal_theme = excluded.portal_theme
+            """,
+            (domain, 1 if enabled else 0, subdomain_prefix, portal_host, portal_title, theme),
+        )
+        conn.commit()
     return True, ""
 
 
 def set_reset_portal_logo(domain, logo_filename):
     domain = domain.lower().strip()
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE domain_reset_portals SET logo_filename = ? WHERE domain = ?",
-        (logo_filename, domain),
-    )
-    updated = cursor.rowcount > 0
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE domain_reset_portals SET logo_filename = ? WHERE domain = ?",
+            (logo_filename, domain),
+        )
+        updated = cursor.rowcount > 0
+        conn.commit()
     return updated
 
 
@@ -791,14 +787,13 @@ def clear_reset_portal_logo(domain):
     logo_path = os.path.join(get_branding_dir(), domain, portal["logo_filename"])
     if os.path.isfile(logo_path):
         os.remove(logo_path)
-    conn = sqlite3.connect(DATABASE_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE domain_reset_portals SET logo_filename = '' WHERE domain = ?",
-        (domain.lower().strip(),),
-    )
-    conn.commit()
-    conn.close()
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE domain_reset_portals SET logo_filename = '' WHERE domain = ?",
+            (domain.lower().strip(),),
+        )
+        conn.commit()
     return True
 
 

@@ -27,13 +27,8 @@ def smtp_config_from_settings():
 def smtp_config_from_overrides(data):
     saved = smtp_config_from_settings()
     overrides = data or {}
-    password = overrides.get("RESET_SMTP_PASSWORD")
-    if password is not None and not str(password).strip():
-        password = saved["password"]
-    elif password is None:
-        password = saved["password"]
-    else:
-        password = str(password)
+    # RESET_SMTP_PASSWORD is env-only and never accepted from the request body.
+    password = saved["password"]
 
     port_raw = overrides.get("RESET_SMTP_PORT", saved["port"])
     try:

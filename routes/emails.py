@@ -5,8 +5,8 @@ from models.db import (
     get_recovery_map,
     set_recovery_email,
 )
-from utils.validators import validate_domain, validate_username, validate_recovery_email
-from utils.auth_helpers import require_permission, require_any_permission, require_compat_domain_access
+from utils.validators import validate_username, validate_recovery_email
+from utils.auth_helpers import require_permission, require_any_permission
 from services.mxroute import mx_request, audited_mx, audit
 
 emails_bp = Blueprint("emails", __name__)
@@ -77,29 +77,6 @@ def create_email_api(domain):
     return response, status
 
 
-@emails_bp.route('/create-email', methods=['POST'])  # backward compat (expects Form)
-def create_email_compat():
-    domain = request.form.get('domain')
-    if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
-
-    email_username = request.form.get('user')
-    if not validate_username(email_username):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-
-    denied = require_compat_domain_access(domain, "emails")
-    if denied:
-        return denied
-
-    password = request.form.get('password')
-    payload = {
-        "username": email_username,
-        "password": password,
-        "quota": 0
-    }
-    return audited_mx("POST", f"/domains/{domain}/email-accounts", payload, "mailbox.create", target=f"{email_username}@{domain}")
-
-
 @emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['GET'])
 @require_permission("emails")
 def get_email_account(domain, user):
@@ -121,25 +98,6 @@ def update_email_account(domain, user):
     else:
         action = "mailbox.update"
     return audited_mx("PATCH", f"/domains/{domain}/email-accounts/{user}", payload, action, target=f"{user}@{domain}")
-
-
-@emails_bp.route('/update-password', methods=['POST'])  # backward compat (expects Form)
-def update_password_compat():
-    domain = request.form.get('domain')
-    if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
-
-    email_username = request.form.get('user')
-    if not validate_username(email_username):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-
-    denied = require_compat_domain_access(domain, "emails")
-    if denied:
-        return denied
-
-    password = request.form.get('password')
-    payload = {"password": password}
-    return audited_mx("PATCH", f"/domains/{domain}/email-accounts/{email_username}", payload, "mailbox.password_update", target=f"{email_username}@{domain}")
 
 
 @emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['DELETE'])
@@ -179,30 +137,6 @@ def update_recovery_email(domain, user):
     set_recovery_email(mailbox_email, recovery_email)
     audit("mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email)
     return jsonify({"success": True, "data": {"recovery_email": recovery_email}})
-
-
-@emails_bp.route('/delete-email', methods=['POST'])  # backward compat (expects Form)
-def delete_email_compat():
-    domain = request.form.get('domain')
-    if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
-
-    email_username = request.form.get('user')
-    if not validate_username(email_username):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-
-    denied = require_compat_domain_access(domain, "emails")
-    if denied:
-        return denied
-
-    response, status = audited_mx(
-        "DELETE",
-        f"/domains/{domain}/email-accounts/{email_username}",
-        None,
-        "mailbox.delete",
-        target=f"{email_username}@{domain}",
-    )
-    return _delete_recovery_after_mx_delete(response, status, email_username, domain)
 
 
 def _delete_recovery_after_mx_delete(response, status, username, domain):

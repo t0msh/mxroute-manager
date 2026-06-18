@@ -59,7 +59,7 @@ def is_user_admin(user):
         return False
     email_val = user.get("email")
     email = email_val.lower() if isinstance(email_val, str) else ""
-    if email in get_oidc_admin_users() or email == get_admin_user() or email == "admin@local":
+    if email in get_oidc_admin_users() or email == get_admin_user():
         return True
     mapping = load_domain_mapping()
     if "*" in mapping.get(email, []):
@@ -123,16 +123,6 @@ def _forbidden_permission_message(permission):
         "success": False,
         "error": {"message": f"Forbidden: Missing '{permission}' permission for this domain"},
     }), 403
-
-
-def require_compat_domain_access(domain, permission="emails"):
-    """Enforce domain + permission access on backward-compat form routes."""
-    user = get_current_user()
-    if not user or not has_permission(user, domain, permission):
-        if user and has_domain_access(user, domain):
-            return _forbidden_permission_message(permission)
-        return _forbidden_domain_message(domain)
-    return None
 
 
 def require_admin(f):

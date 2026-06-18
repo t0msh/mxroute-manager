@@ -62,7 +62,7 @@ ATTRIBUTIONS = [
 
 
 def get_build_info():
-    """Git stamp from deploy.sh (empty when running locally without a deploy)."""
+    """Git stamp from build_info.py (empty when not populated)."""
     try:
         from build_info import BUILD_BRANCH, BUILD_DESCRIBE, BUILD_SHA
     except ImportError:
@@ -82,7 +82,7 @@ def get_commit_url(sha: str = "") -> str:
 
 
 def get_version_label() -> str:
-    """Short UI label: v0.9.2 or v0.9.2 · dev@47d575a when stamped at deploy."""
+    """Short UI label: v0.9.2 or v0.9.2 · dev@47d575a when build_info is populated."""
     label = f"v{APP_VERSION}"
     build = get_build_info()
     sha, branch = build["sha"], build["branch"]

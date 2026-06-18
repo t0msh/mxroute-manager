@@ -32,7 +32,7 @@ When several features landed since the last release, use **one** minor bump for 
 5. Push `main` and the tag: `git push origin main && git push origin v0.9.2`.
 6. Do **not** add version strings elsewhere; keep one source of truth.
 
-`deploy.sh` stamps `build_info.py` (git branch/SHA/describe) for test deploys. The UI shows e.g. `v0.9.2 · dev@47d575a` without changing `APP_VERSION`.
+Optionally populate `build_info.py` (git branch/SHA/describe) before packaging non-`main` builds. The UI shows e.g. `v0.9.2 · dev@47d575a` without changing `APP_VERSION`.
 
 ## What not to do
 

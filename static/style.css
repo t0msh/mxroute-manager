@@ -810,6 +810,93 @@ tr:hover td {
     color: #eff6ff;
 }
 
+/* Inline status in cards — not the fixed toast */
+.status-banner {
+    position: static;
+    transform: none;
+    max-width: none;
+    padding: 0.85rem 1rem;
+    border-radius: 10px;
+    border-left: 4px solid var(--accent);
+    box-shadow: none;
+    display: block;
+}
+
+.status-banner.success {
+    background: rgba(6, 78, 59, 0.35);
+    border-color: var(--success);
+    color: #e6fcf5;
+}
+
+.status-banner.error {
+    background: rgba(136, 19, 55, 0.35);
+    border-color: var(--danger);
+    color: #fff5f5;
+}
+
+.status-banner.warning {
+    background: rgba(120, 53, 15, 0.45);
+    border-color: #f59e0b;
+    color: #fffbeb;
+}
+
+.status-banner.info {
+    background: rgba(30, 58, 138, 0.35);
+    border-color: #60a5fa;
+    color: #eff6ff;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 30px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.2s ease;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(92, 221, 141, 0.35);
+    border-color: var(--success);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(22px);
+}
+
+.toggle-switch input:focus-visible + .toggle-slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 .status-indicator.warning .dot { background: #f59e0b; }
 
 .dns-health-summary {

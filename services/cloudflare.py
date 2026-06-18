@@ -123,18 +123,24 @@ def build_setup_health(domain):
     return health
 
 
-def ensure_cf_zone(domain, steps=None):
-    cf_account = get_config_value("CF_ACCOUNT_ID")
-    if steps is not None:
-        steps.append("Querying Cloudflare for existing Zone...")
+def find_cf_zone_id(domain):
+    domain = domain.lower().strip()
     zone_search = cf_request("GET", f"/zones?name={domain}")
     if zone_search.get("success") and zone_search.get("result"):
-        zone_id = zone_search["result"][0]["id"]
+        return zone_search["result"][0]["id"]
+    return None
+
+
+def ensure_cf_zone(domain, steps=None):
+    cf_account = get_config_value("CF_ACCOUNT_ID")
+    zone_id = find_cf_zone_id(domain)
+    if zone_id:
         if steps is not None:
             steps.append(f"Found existing Cloudflare Zone (ID: {zone_id})")
         return zone_id
 
     if steps is not None:
+        steps.append("Querying Cloudflare for existing Zone...")
         steps.append("Creating new Cloudflare Zone...")
     zone_create = cf_request("POST", "/zones", {
         "name": domain,
@@ -204,6 +210,247 @@ def cf_upsert_txt(zone_id, cf_name, fqdn, content, existing_records, existing_tx
     if steps is not None:
         steps.append(log_messages["added"])
     return "added"
+
+
+def cf_upsert_cname(zone_id, cf_name, fqdn, target, existing_records, steps, proxied=True):
+    fqdn = fqdn.lower().rstrip(".")
+    target = target.lower().rstrip(".")
+    at_name = [
+        rec for rec in existing_records
+        if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == fqdn
+    ]
+
+    for rec in at_name:
+        current_target = rec.get("content", "").lower().rstrip(".")
+        if current_target == target and bool(rec.get("proxied")) == bool(proxied):
+            if steps is not None:
+                steps.append(f"CNAME {fqdn} already points to {target}")
+            return "skipped"
+
+    payload = {
+        "type": "CNAME",
+        "name": cf_name,
+        "content": target,
+        "ttl": 3600,
+        "proxied": bool(proxied),
+    }
+
+    if at_name:
+        result = cf_request("PUT", f"/zones/{zone_id}/dns_records/{at_name[0]['id']}", payload)
+        if not result.get("success"):
+            err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+            raise ValueError(f"Failed to update CNAME at {fqdn}: {err_msg}")
+        for extra in at_name[1:]:
+            cf_request("DELETE", f"/zones/{zone_id}/dns_records/{extra['id']}")
+        if steps is not None:
+            steps.append(f"Updated CNAME {fqdn} → {target}")
+        return "updated"
+
+    result = cf_request("POST", f"/zones/{zone_id}/dns_records", payload)
+    if not result.get("success"):
+        err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+        raise ValueError(f"Failed to add CNAME at {fqdn}: {err_msg}")
+    if steps is not None:
+        steps.append(f"Added CNAME {fqdn} → {target}")
+    return "added"
+
+
+def deploy_reset_portal_cname(domain, prefix):
+    from models.db import get_reset_portal_cname_target, build_portal_host
+
+    target = get_reset_portal_cname_target()
+    if not target:
+        raise ValueError("RESET_PORTAL_CNAME_TARGET is not configured")
+
+    prefix = (prefix or "").strip().lower()
+    if not prefix:
+        raise ValueError("Subdomain prefix is required")
+
+    domain = domain.lower().strip()
+    steps = []
+    zone_id = ensure_cf_zone(domain, steps)
+    _, _, existing_records = fetch_cf_dns_sets(zone_id)
+    fqdn = build_portal_host(prefix, domain)
+    result = cf_upsert_cname(zone_id, prefix, fqdn, target, existing_records, steps, proxied=True)
+    audit("reset_portal.dns_deploy", target=domain, host=fqdn, outcome=result)
+    return {"host": fqdn, "target": target, "outcome": result, "steps": steps}
+
+
+def remove_reset_portal_cname(domain, portal_host, steps=None):
+    zone_id = find_cf_zone_id(domain)
+    if not zone_id:
+        if steps is not None:
+            steps.append(f"No Cloudflare zone for {domain}; CNAME not removed.")
+        return {"outcome": "skipped", "host": portal_host}
+
+    portal_host = portal_host.lower().rstrip(".")
+    _, _, records = fetch_cf_dns_sets(zone_id)
+    matches = [
+        rec for rec in records
+        if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == portal_host
+    ]
+    if not matches:
+        if steps is not None:
+            steps.append(f"No Cloudflare CNAME found for {portal_host}.")
+        return {"outcome": "skipped", "host": portal_host}
+
+    for rec in matches:
+        cf_request("DELETE", f"/zones/{zone_id}/dns_records/{rec['id']}")
+    if steps is not None:
+        steps.append(f"Removed Cloudflare CNAME {portal_host}")
+    audit("reset_portal.dns_remove", target=domain, host=portal_host, outcome="removed")
+    return {"outcome": "removed", "host": portal_host}
+
+
+def _public_dns_resolves(host):
+    import dns.exception
+    import dns.resolver
+
+    resolver = dns.resolver.Resolver()
+    resolver.lifetime = 5.0
+    for rrtype in ("A", "AAAA", "CNAME"):
+        try:
+            resolver.resolve(host, rrtype)
+            return True
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
+            continue
+        except Exception:
+            continue
+    return False
+
+
+def _check_reset_portal_dns_cloudflare(host, domain, expected_target):
+    if not cf_is_configured():
+        return None
+
+    zone_id = find_cf_zone_id(domain)
+    if not zone_id:
+        return None
+
+    try:
+        _, _, records = fetch_cf_dns_sets(zone_id)
+    except Exception:
+        return None
+
+    host = host.lower().rstrip(".")
+    expected_target = expected_target.lower().rstrip(".")
+    matches = [
+        rec for rec in records
+        if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == host
+    ]
+    if not matches:
+        return {
+            "status": "fail",
+            "message": f"No CNAME record for {host} in Cloudflare.",
+            "host": host,
+            "expected_target": expected_target,
+            "source": "cloudflare",
+        }
+
+    rec = matches[0]
+    target = rec.get("content", "").lower().rstrip(".")
+    proxied = bool(rec.get("proxied"))
+    if target != expected_target:
+        return {
+            "status": "warn",
+            "message": f"Cloudflare CNAME {host} points to {target} (expected {expected_target}).",
+            "host": host,
+            "targets": [target],
+            "expected_target": expected_target,
+            "proxied": proxied,
+            "source": "cloudflare",
+        }
+
+    message = f"Cloudflare CNAME {host} → {expected_target}"
+    if proxied:
+        message += " (proxied)"
+    result = {
+        "status": "pass",
+        "message": message + ".",
+        "host": host,
+        "targets": [target],
+        "proxied": proxied,
+        "source": "cloudflare",
+    }
+    if not _public_dns_resolves(host):
+        result["status"] = "warn"
+        result["message"] = (
+            f"{message}, but public DNS does not resolve {host} yet. "
+            "Ensure the domain nameservers point to Cloudflare."
+        )
+    return result
+
+
+def check_reset_portal_dns(portal):
+    import dns.exception
+    import dns.resolver
+
+    from models.db import get_reset_portal_cname_target, build_portal_host
+
+    if not portal or not portal.get("enabled") or not portal.get("subdomain_prefix"):
+        return {"status": "disabled", "message": "Portal is not enabled."}
+
+    host = portal.get("portal_host") or build_portal_host(portal["subdomain_prefix"], portal["domain"])
+    expected_target = get_reset_portal_cname_target()
+    if not expected_target:
+        return {"status": "unknown", "message": "RESET_PORTAL_CNAME_TARGET is not configured."}
+
+    cf_result = _check_reset_portal_dns_cloudflare(host, portal["domain"], expected_target)
+    if cf_result is not None:
+        return cf_result
+
+    try:
+        resolver = dns.resolver.Resolver()
+        resolver.lifetime = 5.0
+        answers = resolver.resolve(host, "CNAME")
+        targets = [str(record.target).lower().rstrip(".") for record in answers]
+    except dns.resolver.NoResolverConfiguration:
+        return {"status": "unknown", "message": "DNS resolver is not configured on this host.", "host": host}
+    except (dns.resolver.NXDOMAIN, dns.resolver.NoNameservers, dns.exception.Timeout):
+        if _public_dns_resolves(host):
+            return {
+                "status": "pass",
+                "message": f"{host} resolves publicly (likely proxied through Cloudflare).",
+                "host": host,
+                "source": "public",
+            }
+        return {
+            "status": "fail",
+            "message": f"{host} does not resolve in public DNS yet.",
+            "host": host,
+            "expected_target": expected_target,
+        }
+    except dns.resolver.NoAnswer:
+        if _public_dns_resolves(host):
+            return {
+                "status": "pass",
+                "message": f"{host} resolves publicly (likely proxied through Cloudflare).",
+                "host": host,
+                "source": "public",
+            }
+        return {
+            "status": "fail",
+            "message": f"No DNS records found for {host} yet.",
+            "host": host,
+            "expected_target": expected_target,
+        }
+    except Exception:
+        return {"status": "unknown", "message": f"Could not resolve DNS for {host}.", "host": host}
+
+    if expected_target in targets:
+        return {
+            "status": "pass",
+            "message": f"CNAME {host} points to {expected_target}.",
+            "host": host,
+            "targets": targets,
+        }
+    return {
+        "status": "warn",
+        "message": f"CNAME {host} points to {', '.join(targets)} (expected {expected_target}).",
+        "host": host,
+        "targets": targets,
+        "expected_target": expected_target,
+    }
 
 
 def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verification_record, existing_mx, existing_txt, existing_records, steps=None):

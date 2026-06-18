@@ -71,15 +71,12 @@ function applyDashboardSectionVisibility() {
     const statsGrid = document.querySelector("#tab-dashboard .stats-grid");
     const quotaCard = document.getElementById("dash-quota-card");
     const dnsHealthCard = document.getElementById("dns-health-card");
-    const dnsRecordsCard = document.getElementById("dns-records-card");
     const mailToggle = document.getElementById("btn-toggle-mail-hosting");
     const hasDashboard = userHasPermission("dashboard", activeDomain);
-    const hasDns = userHasPermission("dns", activeDomain);
 
     if (statsGrid) statsGrid.style.display = hasDashboard ? "" : "none";
     if (quotaCard) quotaCard.style.display = currentUser?.is_admin && hasDashboard ? "" : "none";
     if (dnsHealthCard) dnsHealthCard.style.display = hasDashboard ? "" : "none";
-    if (dnsRecordsCard) dnsRecordsCard.style.display = (hasDashboard || hasDns) ? "" : "none";
     if (mailToggle) mailToggle.style.display = currentUser?.is_admin ? "" : "none";
 }
 
@@ -163,7 +160,24 @@ function shuffleString(str) {
     return chars.join("");
 }
 
-// Helper to get cookie by name
+// Parse fetch body as JSON; surface HTML/empty gateway responses clearly.
+async function parseJsonResponse(response) {
+    const text = await response.text();
+    if (!text) {
+        throw new Error(`Empty response from server (HTTP ${response.status}).`);
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        const preview = text.replace(/\s+/g, " ").trim().slice(0, 120);
+        throw new Error(
+            response.ok
+                ? "Server returned a non-JSON response."
+                : `Server error (HTTP ${response.status}): ${preview || "no body"}`
+        );
+    }
+}
+
 function getCookie(name) {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -356,9 +370,6 @@ function hasLoadedContent(el) {
     if (el.dataset.loaded === "true") return true;
     if (el.id === "domains-list-tbody") return !!el.querySelector("tr[data-domain]");
     if (el.id === "dns-health-checks") return el.children.length > 0;
-    if (el.id === "dns-mx-container") {
-        return !!el.querySelector(".copyable-code") || el.textContent.trim() !== "Loading DNS configuration...";
-    }
     return el.textContent.trim() !== "" && el.textContent.trim() !== "--";
 }
 
@@ -661,9 +672,6 @@ async function triggerDataRefresh(options = {}) {
                     tasks.push(loadDomainDetails(activeDomain, { force }));
                     tasks.push(loadDnsHealth(activeDomain, { force }));
                 }
-                if (userHasAnyPermission(["dashboard", "dns"], activeDomain)) {
-                    tasks.push(loadDNSInfo(activeDomain, { force }));
-                }
                 applyDashboardSectionVisibility();
                 await Promise.all(tasks);
                 break;
@@ -911,8 +919,8 @@ function renderDomainsTableRows(domains) {
         tr.dataset.domain = domain;
         tr.innerHTML = `
             <td><strong>${escapeHtml(domain)}</strong></td>
-            <td id="domain-mail-${safeId}">${cached?.mailHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">⌛</span>`}</td>
-            <td id="domain-dns-${safeId}">${cached?.dnsHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">⌛</span>`}</td>
+            <td id="domain-mail-${safeId}">${cached?.mailHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`}</td>
+            <td id="domain-dns-${safeId}">${cached?.dnsHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`}</td>
             <td style="text-align: right;">
                 <button class="btn btn-secondary btn-sm" id="domain-fix-dns-${safeId}" style="display: ${cached?.fixDnsVisible ? "inline-flex" : "none"};" onclick="openDomainDnsSetup(${jsAttrString(domain)})">Fix DNS</button>
                 <button class="btn btn-danger btn-sm" onclick="handleDeleteDomain(${jsAttrString(domain)})">Delete</button>
@@ -920,6 +928,31 @@ function renderDomainsTableRows(domains) {
         `;
         tbody.appendChild(tr);
     });
+}
+
+async function refreshDomainsListStatus() {
+    const tbody = document.getElementById("domains-list-tbody");
+    const domains = [...tbody.querySelectorAll("tr[data-domain]")].map(row => row.dataset.domain);
+    if (!domains.length) {
+        showAlert("warning", "No domains to refresh.");
+        return;
+    }
+    const btn = document.getElementById("btn-refresh-domains-status");
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = "⌛ Refreshing...";
+    }
+    try {
+        await Promise.allSettled(domains.map(domain => refreshDomainRowDetails(domain, { force: true })));
+        showAlert("success", "Domain mail and DNS status refreshed.");
+    } catch (err) {
+        showAlert("error", err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "🔄 Refresh status";
+        }
+    }
 }
 
 async function loadDomainsList({ force = false } = {}) {
@@ -943,7 +976,6 @@ async function loadDomainsList({ force = false } = {}) {
                     const sameList = existing.length === updated.data.length
                         && updated.data.every(d => existing.includes(d));
                     if (!sameList) renderDomainsTableRows(updated.data);
-                    updated.data.forEach(domain => refreshDomainRowDetails(domain, { force: true }));
                 }
             },
         });
@@ -962,8 +994,6 @@ async function loadDomainsList({ force = false } = {}) {
         if (!sameList) {
             renderDomainsTableRows(domains);
         }
-
-        await Promise.allSettled(domains.map(domain => refreshDomainRowDetails(domain, { force })));
     } catch (err) {
         if (firstLoad || !hasRows) {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: 500;">Failed to load domains: ${escapeHtml(err.message)}</td></tr>`;
@@ -1090,6 +1120,257 @@ async function populateSetupDomainSelect() {
     } catch {
         select.innerHTML = '<option value="">Error loading domains</option>';
     }
+}
+
+// --- Password Reset Portal ---
+let resetPortalDomain = "";
+let resetPortalLoadedPrefix = "";
+
+async function populateResetPortalDomainSelect() {
+    const select = document.getElementById("reset-portal-domain-select");
+    if (!select) return;
+    select.innerHTML = '<option value="">Loading domains...</option>';
+    try {
+        const result = await cachedFetch("/api/domains");
+        select.innerHTML = '<option value="">Select a domain...</option>';
+        if (result.success && result.data?.length) {
+            result.data.forEach(domain => {
+                const option = document.createElement("option");
+                option.value = domain;
+                option.textContent = domain;
+                select.appendChild(option);
+            });
+            if (resetPortalDomain) {
+                select.value = resetPortalDomain;
+            }
+        } else {
+            select.innerHTML = '<option value="">No domains on MXroute yet</option>';
+        }
+    } catch {
+        select.innerHTML = '<option value="">Error loading domains</option>';
+    }
+}
+
+function updateResetPortalUrlPreview() {
+    const preview = document.getElementById("reset-portal-url-preview");
+    const prefixInput = document.getElementById("reset-portal-prefix");
+    if (!preview || !prefixInput) return;
+    const prefix = prefixInput.value.trim().toLowerCase() || "reset";
+    const domain = resetPortalDomain || "example.com";
+    preview.textContent = `https://${prefix}.${domain}`;
+}
+
+function renderResetPortalForm(data) {
+    const form = document.getElementById("reset-portal-form");
+    if (!form) return;
+    form.style.display = resetPortalDomain ? "block" : "none";
+    if (!data) return;
+
+    document.getElementById("reset-portal-enabled").checked = !!data.enabled;
+    document.getElementById("reset-portal-prefix").value = data.subdomain_prefix || "";
+    document.getElementById("reset-portal-title").value = data.portal_title || "";
+    resetPortalLoadedPrefix = data.subdomain_prefix || "";
+
+    const logoPreview = document.getElementById("reset-portal-logo-preview");
+    const deleteLogoBtn = document.getElementById("btn-reset-portal-logo-delete");
+    if (data.has_logo && resetPortalDomain) {
+        logoPreview.src = `/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/logo-preview?t=${Date.now()}`;
+        logoPreview.style.display = "block";
+        if (deleteLogoBtn) deleteLogoBtn.style.display = "inline-flex";
+    } else {
+        logoPreview.removeAttribute("src");
+        logoPreview.style.display = "none";
+        if (deleteLogoBtn) deleteLogoBtn.style.display = "none";
+    }
+
+    const dnsStatus = document.getElementById("reset-portal-dns-status");
+    const httpsStatus = document.getElementById("reset-portal-https-status");
+    const deployMissing = document.getElementById("reset-portal-deploy-missing");
+    const deployBtn = document.getElementById("btn-reset-portal-deploy-dns");
+
+    if (deployMissing) {
+        const missing = data.deploy_missing || [];
+        deployMissing.style.display = missing.length ? "block" : "none";
+        const list = document.getElementById("reset-portal-deploy-missing-list");
+        if (list) list.textContent = missing.join(", ");
+    }
+    if (deployBtn) {
+        deployBtn.style.display = data.deploy_configured ? "inline-flex" : "none";
+        deployBtn.disabled = !data.enabled || !data.subdomain_prefix;
+    }
+
+    if (dnsStatus && data.dns) {
+        dnsStatus.style.display = "block";
+        const status = data.dns.status;
+        dnsStatus.className = `status-banner mb-4 ${status === "pass" ? "success" : status === "fail" ? "error" : status === "pending" ? "warning" : "info"}`;
+        dnsStatus.textContent = data.dns.message || "";
+    } else if (dnsStatus) {
+        dnsStatus.style.display = "none";
+    }
+
+    if (httpsStatus && data.https) {
+        httpsStatus.style.display = "block";
+        const status = data.https.status;
+        httpsStatus.className = `status-banner mb-4 ${status === "pass" ? "success" : status === "fail" ? "error" : status === "pending" ? "warning" : "info"}`;
+        httpsStatus.textContent = data.https.message || "";
+    } else if (httpsStatus) {
+        httpsStatus.style.display = "none";
+    }
+
+    updateResetPortalUrlPreview();
+}
+
+async function loadResetPortalSettings(domain) {
+    resetPortalDomain = (domain || "").toLowerCase().trim();
+    if (!resetPortalDomain) {
+        renderResetPortalForm(null);
+        return;
+    }
+    try {
+        const result = await apiRequest(`/api/domains/${resetPortalDomain}/reset-portal`);
+        renderResetPortalForm(result.data);
+    } catch (err) {
+        showAlert("error", err.message);
+    }
+}
+
+function initResetPortal() {
+    const select = document.getElementById("reset-portal-domain-select");
+    if (!select) return;
+
+    populateResetPortalDomainSelect();
+
+    select.addEventListener("change", () => {
+        loadResetPortalSettings(select.value);
+    });
+
+    document.getElementById("reset-portal-prefix")?.addEventListener("input", () => {
+        updateResetPortalUrlPreview();
+        const warning = document.getElementById("reset-portal-prefix-warning");
+        const prefix = document.getElementById("reset-portal-prefix")?.value.trim().toLowerCase() || "";
+        if (warning) {
+            warning.style.display = resetPortalLoadedPrefix && prefix && prefix !== resetPortalLoadedPrefix
+                ? "block"
+                : "none";
+        }
+    });
+
+    document.getElementById("btn-reset-portal-save")?.addEventListener("click", async () => {
+        if (!resetPortalDomain) {
+            showAlert("warning", "Select a domain first.");
+            return;
+        }
+        const enabled = document.getElementById("reset-portal-enabled").checked;
+        const subdomain_prefix = document.getElementById("reset-portal-prefix").value.trim().toLowerCase();
+        const portal_title = document.getElementById("reset-portal-title").value.trim();
+        if (enabled && !subdomain_prefix) {
+            showAlert("warning", "Subdomain prefix is required when the portal is enabled.");
+            return;
+        }
+        try {
+            const result = await apiRequest(
+                `/api/domains/${resetPortalDomain}/reset-portal`,
+                "PATCH",
+                { enabled, subdomain_prefix, portal_title }
+            );
+            showAlert("success", "Reset portal settings saved.");
+            if (result.data?.teardown_steps?.length) {
+                showAlert("info", result.data.teardown_steps.join(" · "));
+            }
+            renderResetPortalForm(result.data);
+        } catch (err) {
+            showAlert("error", err.message);
+        }
+    });
+
+    document.getElementById("reset-portal-logo")?.addEventListener("change", async (event) => {
+        if (!resetPortalDomain) return;
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append("logo", file);
+        try {
+            const response = await fetch(`/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/logo`, {
+                method: "POST",
+                headers: { "X-CSRF-Token": getCookie("csrf_token") || "" },
+                body: formData,
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                throw new Error(result.error?.message || "Logo upload failed.");
+            }
+            showAlert("success", "Logo uploaded.");
+            renderResetPortalForm(result.data);
+        } catch (err) {
+            showAlert("error", err.message);
+        } finally {
+            event.target.value = "";
+        }
+    });
+
+    document.getElementById("btn-reset-portal-logo-delete")?.addEventListener("click", async () => {
+        if (!resetPortalDomain) return;
+        try {
+            const result = await apiRequest(
+                `/api/domains/${resetPortalDomain}/reset-portal/logo`,
+                "DELETE"
+            );
+            showAlert("success", "Logo removed.");
+            renderResetPortalForm(result.data);
+        } catch (err) {
+            showAlert("error", err.message);
+        }
+    });
+
+    document.getElementById("btn-reset-portal-deploy-dns")?.addEventListener("click", async () => {
+        if (!resetPortalDomain) return;
+        const btn = document.getElementById("btn-reset-portal-deploy-dns");
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Deploying...";
+        }
+        try {
+            const controller = new AbortController();
+            const deployTimeout = window.setTimeout(() => controller.abort(), 180000);
+            const response = await fetch(
+                `/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/deploy-dns`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-Token": getCookie("csrf_token") || "",
+                    },
+                    body: JSON.stringify({}),
+                    signal: controller.signal,
+                }
+            );
+            window.clearTimeout(deployTimeout);
+            const result = await parseJsonResponse(response);
+            if (!response.ok || !result.success) {
+                throw new Error(result.error?.message || "Deploy failed.");
+            }
+            const https = result.data?.https;
+            if (https?.status === "pass") {
+                showAlert("success", "Reset portal deployed and HTTPS is live.");
+            } else {
+                showAlert(
+                    "success",
+                    "DNS and NPM configured. HTTPS may take a few minutes — refresh this page to recheck."
+                );
+            }
+            await loadResetPortalSettings(resetPortalDomain);
+        } catch (err) {
+            const message = err.name === "AbortError"
+                ? "Deploy timed out after 3 minutes. Check NPM and try again."
+                : err.message;
+            showAlert("error", message);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = "Deploy Portal (DNS + NPM)";
+            }
+        }
+    });
 }
 
 function renderSetupDnsChecks(health) {
@@ -1507,64 +1788,6 @@ document.getElementById("form-catch-all").addEventListener("submit", async (e) =
         showAlert("error", err.message);
     }
 });
-
-// 5.6 DNS Configuration Info
-function renderDNSInfo(result) {
-    const mxContainer = document.getElementById("dns-mx-container");
-    const spfEl = document.getElementById("dns-spf");
-    const dkimEl = document.getElementById("dns-dkim");
-    const dmarcEl = document.getElementById("dns-dmarc");
-
-    if (!result?.success || !result.data) return;
-
-    const data = result.data;
-
-    if (data.mx_records && data.mx_records.length > 0) {
-        mxContainer.innerHTML = "";
-        data.mx_records.forEach((mx, index) => {
-            const rowId = `mx-rec-${index}`;
-            const mxRow = document.createElement("div");
-            mxRow.className = "copyable-code mb-2";
-            mxRow.innerHTML = `
-                <span><strong>Priority ${escapeHtml(mx.priority)}:</strong> <span id="${rowId}">${escapeHtml(mx.hostname)}</span></span>
-                <button class="copy-btn" onclick="copyText('${rowId}')">Copy</button>
-            `;
-            mxContainer.appendChild(mxRow);
-        });
-    } else {
-        mxContainer.innerHTML = `<div style="color: var(--color-muted);">No MX records reported by API.</div>`;
-    }
-
-    spfEl.textContent = data.spf ? data.spf.value : "v=spf1 include:mxroute.com -all";
-    dkimEl.textContent = data.dkim ? data.dkim.value : "No DKIM key available";
-    if (dmarcEl) {
-        dmarcEl.textContent = data.dmarc ? data.dmarc.value : "v=DMARC1; p=none; sp=none; adkim=r; aspf=r;";
-    }
-    mxContainer.dataset.loaded = "true";
-}
-
-async function loadDNSInfo(domain, { force = false } = {}) {
-    if (!domain) return;
-    const card = document.getElementById("dns-records-card");
-    const mxContainer = document.getElementById("dns-mx-container");
-    const firstLoad = !hasLoadedContent(mxContainer);
-
-    try {
-        const url = `/api/domains/${domain}/dns`;
-        const result = await cachedFetch(url, {
-            force,
-            onRefreshStart: () => setElementRefreshing(card, true),
-            onRefreshEnd: () => setElementRefreshing(card, false),
-            onUpdated: renderDNSInfo,
-        });
-        renderDNSInfo(result);
-    } catch (err) {
-        if (firstLoad) {
-            mxContainer.innerHTML = `<div style="color: var(--danger);">Failed to pull DNS info from MXroute.</div>`;
-            document.getElementById("dns-dkim").textContent = "Error loading DKIM key";
-        }
-    }
-}
 
 function updateDnsHealthHeader(health) {
     const statusEl = document.getElementById("dns-health-status");
@@ -2252,8 +2475,11 @@ async function initDomainDropdowns() {
             }
             select.value = activeDomain;
             
-            // Load initial page data (cached when still fresh)
-            await triggerDataRefresh();
+            // Load initial page data without blocking the portal domain dropdown.
+            await Promise.all([
+                triggerDataRefresh(),
+                populateResetPortalDomainSelect(),
+            ]);
         } else {
             const option = document.createElement("option");
             option.value = "";
@@ -2674,6 +2900,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    const refreshDomainsStatusBtn = document.getElementById("btn-refresh-domains-status");
+    if (refreshDomainsStatusBtn) {
+        refreshDomainsStatusBtn.addEventListener("click", () => refreshDomainsListStatus());
+    }
+
     // 1. Fetch current user context
     try {
         const meResult = await apiRequest("/api/me");
@@ -2703,6 +2934,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // 3. Populate domains dropdown
     await initDomainDropdowns();
+    initResetPortal();
     
     // 4. Check Cloudflare integration status (if admin)
     if (!currentUser || currentUser.is_admin) {
@@ -2858,11 +3090,11 @@ function setTheme(theme, save = true) {
     }
 }
 
-function renderSecretStatus(elementId, configured, envLabel = "environment") {
+function renderSecretStatus(elementId, configured, successText = "Configured via environment") {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = configured
-        ? `<span class="status-indicator success"><span class="dot"></span> Configured via ${escapeHtml(envLabel)}</span>`
+        ? `<span class="status-indicator success"><span class="dot"></span> ${escapeHtml(successText)}</span>`
         : `<span class="status-indicator danger"><span class="dot"></span> Not configured</span>`;
 }
 
@@ -2952,11 +3184,6 @@ async function loadSettingsPage() {
                 
                 document.getElementById("setting-admin-user").value = settings.ADMIN_USER || "admin";
                 document.getElementById("setting-admin-password").value = "";
-                renderSecretStatus(
-                    "setting-admin-password-status",
-                    settings.ADMIN_PASSWORD_configured,
-                    "secure hash"
-                );
 
                 document.getElementById("setting-mailbox-reset-enabled").value = settings.MAILBOX_RESET_ENABLED || "false";
                 document.getElementById("setting-reset-smtp-host").value = settings.RESET_SMTP_HOST || "";
@@ -2968,7 +3195,7 @@ async function loadSettingsPage() {
                 renderSecretStatus(
                     "setting-reset-smtp-password-status",
                     settings.RESET_SMTP_PASSWORD_configured,
-                    "configured"
+                    "Password saved"
                 );
 
                 const contactInput = document.getElementById("setting-admin-contact-email");

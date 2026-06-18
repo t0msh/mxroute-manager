@@ -68,44 +68,4 @@
         </div>
         <div id="dns-health-checks" class="dns-health-grid"></div>
     </div>
-
-    <!-- DNS Config Info -->
-    <div class="glass-card" id="dns-records-card">
-        <h3 class="card-title">🔑 Required DNS Records</h3>
-        <p class="stat-card-subtitle mb-4">Configure these DNS records at your domain registrar to ensure mail
-            delivers successfully.</p>
-
-        <div class="form-group mb-4">
-            <label>MX Records (Mail Servers)</label>
-            <div id="dns-mx-container">
-                <div style="color: var(--color-muted); font-size: 0.9rem;">Loading DNS configuration...</div>
-            </div>
-        </div>
-
-        <div class="grid-2">
-            <div class="form-group">
-                <label>SPF Record (TXT)</label>
-                <div class="copyable-code">
-                    <span id="dns-spf">v=spf1 include:mxroute.com -all</span>
-                    <button class="copy-btn" onclick="copyText('dns-spf')">Copy</button>
-                </div>
-            </div>
-            <div class="form-group">
-                <label>DKIM Key (TXT - Selector: x)</label>
-                <div class="copyable-code">
-                    <span id="dns-dkim"
-                        style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Loading...</span>
-                    <button class="copy-btn" onclick="copyText('dns-dkim')">Copy</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="form-group mt-4">
-            <label>DMARC Record (TXT — Host: _dmarc)</label>
-            <div class="copyable-code">
-                <span id="dns-dmarc">v=DMARC1; p=none; sp=none; adkim=r; aspf=r;</span>
-                <button class="copy-btn" onclick="copyText('dns-dmarc')">Copy</button>
-            </div>
-        </div>
-    </div>
 </div>

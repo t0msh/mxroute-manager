@@ -2,7 +2,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from flask import Blueprint, request, jsonify, render_template, url_for
+from flask import Blueprint, request, jsonify, render_template, url_for, g
 
 from models.db import (
     create_reset_token,
@@ -10,9 +10,11 @@ from models.db import (
     get_recovery_email,
     is_mailbox_reset_enabled,
     parse_mailbox_email,
+    build_reset_portal_url,
 )
 from services.mail import is_password_reset_available, is_smtp_configured, send_password_reset_email
 from services.mxroute import mx_request_raw
+from services.reset_portal import get_portal_branding_context
 from utils.audit_log import write_audit_log
 from utils.validators import is_email_identifier, validate_mailbox_password
 
@@ -52,6 +54,13 @@ def _audit_public(action, target="", **details):
     write_audit_log(action, "public", target, details or None)
 
 
+def _mailbox_allowed_for_portal(mailbox_domain):
+    portal_domain = getattr(g, "reset_portal_domain", None)
+    if not portal_domain:
+        return True
+    return mailbox_domain == portal_domain
+
+
 @password_reset_bp.route("/api/public/password-reset/status", methods=["GET"])
 def password_reset_status():
     return jsonify({
@@ -79,6 +88,9 @@ def password_reset_request():
     if not username:
         return jsonify({"success": True, "message": GENERIC_SUCCESS})
 
+    if not _mailbox_allowed_for_portal(domain):
+        return jsonify({"success": True, "message": GENERIC_SUCCESS})
+
     client_ip = _client_ip()
     if not _rate_limit_ok(f"ip:{client_ip}", _IP_LIMIT):
         return jsonify({"success": True, "message": GENERIC_SUCCESS})
@@ -90,11 +102,13 @@ def password_reset_request():
         return jsonify({"success": True, "message": GENERIC_SUCCESS})
 
     raw_token = create_reset_token(mailbox_email)
-    reset_url = url_for(
-        "password_reset.reset_password_page",
-        token=raw_token,
-        _external=True,
-    )
+    reset_url = build_reset_portal_url(domain, raw_token)
+    if not reset_url:
+        reset_url = url_for(
+            "password_reset.reset_password_page",
+            token=raw_token,
+            _external=True,
+        )
 
     try:
         send_password_reset_email(recovery_email, mailbox_email, reset_url)
@@ -108,10 +122,12 @@ def password_reset_request():
 @password_reset_bp.route("/reset-password", methods=["GET"])
 def reset_password_page():
     token = (request.args.get("token") or "").strip()
+    branding = get_portal_branding_context(getattr(g, "reset_portal", None))
     return render_template(
         "reset_password.html",
         token=token,
         reset_available=is_password_reset_available(),
+        **branding,
     )
 
 
@@ -148,6 +164,12 @@ def password_reset_confirm():
 
     username, domain = parse_mailbox_email(mailbox_email)
     if not username:
+        return jsonify({
+            "success": False,
+            "error": {"message": "Invalid or expired reset link."},
+        }), 400
+
+    if not _mailbox_allowed_for_portal(domain):
         return jsonify({
             "success": False,
             "error": {"message": "Invalid or expired reset link."},

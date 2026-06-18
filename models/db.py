@@ -16,7 +16,9 @@ DEFAULT_PERMISSIONS = list(ALL_PERMISSIONS)
 ENV_ONLY_SECRET_KEYS = frozenset({
     "MX_API_KEY",
     "CF_API_TOKEN",
+    "CF_ORIGIN_CA_KEY",
     "OIDC_CLIENT_SECRET",
+    "NPM_SECRET",
 })
 MASKED_SECRET_KEYS = ENV_ONLY_SECRET_KEYS | frozenset({
     "ADMIN_PASSWORD", "SECRET_KEY", "RESET_SMTP_PASSWORD",
@@ -651,6 +653,165 @@ def get_or_create_secret_key():
         return os.urandom(24).hex()
 
 
+def build_portal_host(subdomain_prefix, domain):
+    return f"{subdomain_prefix.strip().lower()}.{domain.strip().lower()}"
+
+
+def get_branding_dir():
+    return os.path.join(os.path.dirname(os.path.abspath(DATABASE_FILE)), "branding")
+
+
+def get_reset_portal_cname_target():
+    return (get_env_config("RESET_PORTAL_CNAME_TARGET") or "").strip().lower().rstrip(".")
+
+
+def _row_to_reset_portal(row):
+    if not row:
+        return None
+    return {
+        "domain": row[0],
+        "enabled": bool(row[1]),
+        "subdomain_prefix": row[2] or "",
+        "portal_host": row[3] or "",
+        "portal_title": row[4] or "",
+        "logo_filename": row[5] or "",
+    }
+
+
+def get_reset_portal(domain):
+    domain = domain.lower().strip()
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename
+        FROM domain_reset_portals WHERE domain = ?
+        """,
+        (domain,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return _row_to_reset_portal(row)
+
+
+def get_reset_portal_by_host(host):
+    host = host.lower().strip().rstrip(".")
+    if not host:
+        return None
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename
+        FROM domain_reset_portals
+        WHERE portal_host = ? AND enabled = 1
+        """,
+        (host,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return _row_to_reset_portal(row)
+
+
+def list_reset_portals():
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename
+        FROM domain_reset_portals ORDER BY domain
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [_row_to_reset_portal(row) for row in rows]
+
+
+def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None):
+    from utils.validators import validate_subdomain_prefix
+
+    domain = domain.lower().strip()
+    enabled = bool(enabled)
+    subdomain_prefix = (subdomain_prefix or "").strip().lower()
+    portal_title = (portal_title or "").strip()
+
+    if enabled and not subdomain_prefix:
+        return False, "Subdomain prefix is required when the portal is enabled."
+    if subdomain_prefix:
+        ok, message = validate_subdomain_prefix(subdomain_prefix)
+        if not ok:
+            return False, message
+
+    portal_host = build_portal_host(subdomain_prefix, domain) if subdomain_prefix else ""
+
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO domain_reset_portals
+            (domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename)
+        VALUES (?, ?, ?, ?, ?, '')
+        ON CONFLICT(domain) DO UPDATE SET
+            enabled = excluded.enabled,
+            subdomain_prefix = excluded.subdomain_prefix,
+            portal_host = excluded.portal_host,
+            portal_title = excluded.portal_title
+        """,
+        (domain, 1 if enabled else 0, subdomain_prefix, portal_host, portal_title),
+    )
+    conn.commit()
+    conn.close()
+    return True, ""
+
+
+def set_reset_portal_logo(domain, logo_filename):
+    domain = domain.lower().strip()
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE domain_reset_portals SET logo_filename = ? WHERE domain = ?",
+        (logo_filename, domain),
+    )
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def clear_reset_portal_logo(domain):
+    portal = get_reset_portal(domain)
+    if not portal or not portal.get("logo_filename"):
+        return False
+    logo_path = os.path.join(get_branding_dir(), domain, portal["logo_filename"])
+    if os.path.isfile(logo_path):
+        os.remove(logo_path)
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE domain_reset_portals SET logo_filename = '' WHERE domain = ?",
+        (domain.lower().strip(),),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_active_reset_portal_for_mailbox_domain(domain):
+    portal = get_reset_portal(domain)
+    if portal and portal.get("enabled") and portal.get("subdomain_prefix"):
+        return portal
+    return None
+
+
+def build_reset_portal_url(domain, token):
+    portal = get_active_reset_portal_for_mailbox_domain(domain)
+    if not portal:
+        return None
+    scheme = "https" if use_secure_cookies() else "http"
+    host = portal["portal_host"]
+    return f"{scheme}://{host}/reset-password?token={token}"
+
+
 def init_db(logger=None):
     try:
         conn = sqlite3.connect(DATABASE_FILE)
@@ -712,6 +873,21 @@ def init_db(logger=None):
                 used_at TEXT,
                 created_at TEXT NOT NULL
             );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS domain_reset_portals (
+                domain TEXT PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                subdomain_prefix TEXT NOT NULL DEFAULT '',
+                portal_host TEXT NOT NULL DEFAULT '',
+                portal_title TEXT NOT NULL DEFAULT '',
+                logo_filename TEXT NOT NULL DEFAULT ''
+            );
+        """)
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_domain_reset_portals_host
+            ON domain_reset_portals(portal_host)
+            WHERE portal_host != '' AND enabled = 1
         """)
         conn.commit()
 

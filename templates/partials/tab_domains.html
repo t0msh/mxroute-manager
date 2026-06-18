@@ -105,9 +105,78 @@
         </div>
     </div>
 
+    <!-- Password Reset Portal -->
+    <div class="glass-card" id="reset-portal-card">
+        <h3 class="card-title">🔐 Password Reset Portal</h3>
+        <p class="stat-card-subtitle mb-4">Expose a branded mailbox password reset page on a subdomain of the selected domain.</p>
+
+        <div class="telemetry-item mb-4">
+            <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">Domain</div>
+            <select id="reset-portal-domain-select" style="width: 100%; margin-top: 0.75rem;">
+                <option value="">Loading domains...</option>
+            </select>
+        </div>
+
+        <div id="reset-portal-form" style="display: none;">
+            <div class="form-group mb-4">
+                <div class="flex-row align-center justify-between" style="gap: 1rem; flex-wrap: wrap;">
+                    <div>
+                        <div style="font-weight: 600; color: var(--accent); margin-bottom: 0.25rem;">Enable branded reset portal</div>
+                        <p class="stat-card-subtitle" style="margin: 0;">Disabling removes the Cloudflare CNAME and NPM proxy host.</p>
+                    </div>
+                    <label class="toggle-switch" title="Enable branded reset portal">
+                        <input type="checkbox" id="reset-portal-enabled">
+                        <span class="toggle-slider" aria-hidden="true"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group mb-4">
+                <label for="reset-portal-prefix">Subdomain prefix</label>
+                <input type="text" id="reset-portal-prefix" placeholder="reset" style="width: 100%;" autocomplete="off">
+                <p class="stat-card-subtitle" style="margin-top: 0.5rem;">Portal URL preview: <code id="reset-portal-url-preview">https://reset.example.com</code></p>
+            </div>
+
+            <div class="form-group mb-4">
+                <label for="reset-portal-title">Portal title (optional)</label>
+                <input type="text" id="reset-portal-title" placeholder="Your Organization" style="width: 100%;">
+            </div>
+
+            <div class="form-group mb-4">
+                <label for="reset-portal-logo">Logo image</label>
+                <div class="flex-row align-center" style="gap: 1rem; flex-wrap: wrap;">
+                    <img id="reset-portal-logo-preview" alt="" style="display: none; max-width: 180px; max-height: 64px; object-fit: contain; border-radius: 8px; background: rgba(0,0,0,0.2); padding: 0.5rem;">
+                    <div class="flex-row" style="gap: 0.5rem; flex-wrap: wrap;">
+                        <input type="file" id="reset-portal-logo" accept="image/png,image/jpeg,image/webp,image/svg+xml" style="max-width: 100%;">
+                        <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-portal-logo-delete" style="display: none;">Remove logo</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reset-portal-dns-status" class="status-banner info mb-4" style="display: none;"></div>
+            <div id="reset-portal-https-status" class="status-banner info mb-4" style="display: none;"></div>
+            <div id="reset-portal-deploy-missing" class="status-banner info mb-4" style="display: none;">
+                One-click deploy requires environment configuration. Missing:
+                <code id="reset-portal-deploy-missing-list"></code>
+            </div>
+
+            <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary" id="btn-reset-portal-save">Save Portal Settings</button>
+                <button type="button" class="btn btn-secondary" id="btn-reset-portal-deploy-dns" style="display: none;">Deploy Portal (DNS + NPM)</button>
+            </div>
+            <p id="reset-portal-prefix-warning" class="stat-card-subtitle" style="display: none; margin-top: 1rem; color: var(--warning, #fbbf24);">
+                Changing the subdomain prefix requires redeploying DNS and may leave an old CNAME record to remove manually.
+            </p>
+        </div>
+    </div>
+
     <!-- List Domains -->
     <div class="glass-card" id="domains-list-card">
-        <h3 class="card-title">📋 Active Account Domains</h3>
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <span>📋 Active Account Domains</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">🔄 Refresh status</button>
+        </div>
+        <p class="stat-card-subtitle mb-4" id="domains-list-status-hint">Mail and DNS columns use cached results. Click Refresh status to recheck all domains.</p>
         <div class="table-container">
             <table>
                 <thead>

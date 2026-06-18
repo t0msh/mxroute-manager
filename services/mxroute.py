@@ -45,7 +45,10 @@ def mx_request(method, path, payload=None):
 
 
 def audit(action, target="", **details):
-    user = get_current_user()
+    try:
+        user = get_current_user()
+    except RuntimeError:
+        user = None
     email = (user or {}).get("email", "system")
     write_audit_log(action, email, target, details or None)
 

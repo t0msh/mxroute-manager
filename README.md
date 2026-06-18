@@ -1,5 +1,7 @@
 # MXroute Manager
 
+[![Tests](https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml/badge.svg)](https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml)
+
 <p align="center">
   <img src="static/logo-emerald.svg" alt="MXroute Manager logo" width="220" />
 </p>

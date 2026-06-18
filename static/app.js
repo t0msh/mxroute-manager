@@ -6,7 +6,7 @@ let currentUser = null;
 let oidcEnabled = false;
 let knownDelegationUsers = new Set();
 let lastCreatedMailboxCredentials = null;
-let delegationPermissionCatalog = ["dashboard", "emails", "forwarders", "spam", "dns"];
+let delegationPermissionCatalog = [...window.Mxm.permissions.DELEGATION_PERMISSION_CATALOG];
 
 const DELEGATION_PERMISSION_LABELS = {
     dashboard: "Dashboard",
@@ -16,45 +16,20 @@ const DELEGATION_PERMISSION_LABELS = {
     dns: "DNS Records",
 };
 
-const TAB_REQUIRED_PERMISSION = {
-    dashboard: "dashboard",
-    emails: "emails",
-    forwarders: "forwarders",
-    spam: "spam",
-};
-
 function userHasPermission(permission, domain = activeDomain) {
-    if (!currentUser) return false;
-    if (currentUser.is_admin) return true;
-    const grants = currentUser.domain_grants || {};
-    const domainKey = (domain || "").toLowerCase();
-    return (grants[domainKey] || []).includes(permission);
+    return window.Mxm.permissions.userHasPermission(currentUser, permission, domain);
 }
 
 function userHasAnyPermission(permissions, domain = activeDomain) {
-    return permissions.some(permission => userHasPermission(permission, domain));
+    return window.Mxm.permissions.userHasAnyPermission(currentUser, permissions, domain);
 }
 
 function getUserPermissionUnion() {
-    if (!currentUser || currentUser.is_admin) {
-        return new Set(delegationPermissionCatalog);
-    }
-    const union = new Set();
-    Object.values(currentUser.domain_grants || {}).forEach(perms => {
-        perms.forEach(permission => union.add(permission));
-    });
-    return union;
+    return window.Mxm.permissions.getUserPermissionUnion(currentUser, delegationPermissionCatalog);
 }
 
 function tabVisibleForUser(tab) {
-    if (!currentUser || currentUser.is_admin) return true;
-    if (tab === "dashboard") {
-        const union = getUserPermissionUnion();
-        return union.has("dashboard") || union.has("dns");
-    }
-    const required = TAB_REQUIRED_PERMISSION[tab];
-    if (!required) return true;
-    return getUserPermissionUnion().has(required);
+    return window.Mxm.permissions.tabVisibleForUser(currentUser, tab, delegationPermissionCatalog);
 }
 
 function activeTabAllowedForDomain() {
@@ -63,7 +38,7 @@ function activeTabAllowedForDomain() {
     if (activeTab === "dashboard") {
         return userHasAnyPermission(["dashboard", "dns"], activeDomain);
     }
-    const required = TAB_REQUIRED_PERMISSION[activeTab];
+    const required = window.Mxm.permissions.TAB_REQUIRED_PERMISSION[activeTab];
     return !required || userHasPermission(required, activeDomain);
 }
 
@@ -132,17 +107,11 @@ function activateFirstAllowedTab() {
 }
 
 function escapeHtml(value) {
-    return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+    return window.Mxm.utils.escapeHtml(value);
 }
 
-// JSON string safe for double-quoted HTML onclick attributes.
 function jsAttrString(value) {
-    return escapeHtml(JSON.stringify(String(value ?? "")));
+    return window.Mxm.utils.jsAttrString(value);
 }
 
 function secureRandomInt(max) {
@@ -225,32 +194,16 @@ async function apiRequest(url, method = "GET", body = null) {
 }
 
 // --- Data cache (stale-while-revalidate) ---
-const CACHE_TTL_MS = {
-    domains: 2 * 60 * 1000,
-    domainDetail: 60 * 1000,
-    dnsRecords: 5 * 60 * 1000,
-    dnsHealth: 3 * 60 * 1000,
-    quota: 90 * 1000,
-    list: 60 * 1000,
-};
-
 const apiCache = new Map();
 const domainRowCache = new Map();
 const backgroundRefreshes = new Map();
 
 function getCacheTtl(url) {
-    if (url === "/api/domains") return CACHE_TTL_MS.domains;
-    if (url === "/api/quota") return CACHE_TTL_MS.quota;
-    if (/\/dns\/health/.test(url) || /\/dns\/setup-health/.test(url)) return CACHE_TTL_MS.dnsHealth;
-    if (/\/dns$/.test(url.split("?")[0])) return CACHE_TTL_MS.dnsRecords;
-    if (/^\/api\/domains\/[^/]+$/.test(url.split("?")[0])) return CACHE_TTL_MS.domainDetail;
-    return CACHE_TTL_MS.list;
+    return window.Mxm.cache.getCacheTtl(url);
 }
 
 function isCacheFresh(url) {
-    const entry = apiCache.get(url);
-    if (!entry) return false;
-    return Date.now() - entry.fetchedAt < getCacheTtl(url);
+    return window.Mxm.cache.isCacheFresh(apiCache.get(url), getCacheTtl(url));
 }
 
 function invalidateApiCache(urlPrefix) {
@@ -516,13 +469,7 @@ async function copyMailboxCredentials() {
 }
 
 function formatMailboxCredentialsText(creds) {
-    return [
-        `Username (Email): ${creds.email}`,
-        `Password: ${creds.password}`,
-        `IMAP Hostname: ${creds.imapHost} (Port 993, SSL/TLS)`,
-        `SMTP Hostname: ${creds.smtpHost} (Port 465, SSL/TLS)`,
-        `Webmail Link: ${creds.webmailUrl}`,
-    ].join("\n");
+    return window.Mxm.utils.formatMailboxCredentialsText(creds);
 }
 
 function showMailboxCredentials(creds) {
@@ -793,39 +740,12 @@ async function loadAccountQuota({ force = false } = {}) {
 }
 
 // 5.2 Domains List
-const DNS_CHECK_SHORT = {
-    mx: "MX",
-    spf: "SPF",
-    dkim: "DKIM",
-    dmarc: "DMARC",
-    verification: "Verify",
-};
-
 function renderDnsStatusBadge(health) {
-    if (!health || !health.checks) {
-        return `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
-    }
-    const failing = Object.entries(health.checks)
-        .filter(([, check]) => check.status === "warn" || check.status === "fail")
-        .map(([key]) => DNS_CHECK_SHORT[key] || key);
-    const pending = Object.entries(health.checks)
-        .filter(([, check]) => check.status === "pending")
-        .map(([key]) => DNS_CHECK_SHORT[key] || key);
-
-    if (health.overall === "healthy") {
-        return `<span class="status-indicator success"><span class="dot"></span> All OK</span>`;
-    }
-    if (failing.length > 0) {
-        return `<span class="status-indicator ${health.overall === "unhealthy" ? "danger" : "warning"}"><span class="dot"></span> ${escapeHtml(failing.join(" · "))}</span>`;
-    }
-    if (pending.length > 0) {
-        return `<span class="status-indicator warning"><span class="dot"></span> Pending</span>`;
-    }
-    return `<span class="status-indicator warning"><span class="dot"></span> Degraded</span>`;
+    return window.Mxm.utils.renderDnsStatusBadge(health);
 }
 
 function dnsNeedsFix(health) {
-    return !!health && health.overall !== "healthy";
+    return window.Mxm.utils.dnsNeedsFix(health);
 }
 
 function applyDomainRowDetails(domain, detailsResult, healthResult) {

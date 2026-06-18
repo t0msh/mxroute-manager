@@ -53,12 +53,31 @@ cp .env.example .env   # edit as above
 python app.py
 ```
 
+### Running tests
+
+Tests run automatically in [GitHub Actions](.github/workflows/test.yml) on push and PR.
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest
+```
+
+Coverage if you want it:
+
+```bash
+pytest --cov=services --cov=models --cov=utils --cov-report=term-missing
+```
+
+No live MXroute/Cloudflare/NPM keys needed — tests use a temp SQLite file and mocked APIs. `pytest` also runs JS unit tests in `static/js/` (needs Node 18+). How it all fits together: [docs/testing.md](docs/testing.md).
+
 ## Documentation
 
 | Guide | Description |
 | --- | --- |
 | [docs/configuration.md](docs/configuration.md) | Environment variables and Settings |
 | [docs/reverse-proxy.md](docs/reverse-proxy.md) | TLS and branded reset portals (**Nginx Proxy Manager**) |
+| [docs/testing.md](docs/testing.md) | How tests work and how to add more |
 
 ## Features
 

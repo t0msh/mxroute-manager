@@ -2,23 +2,16 @@
 import io
 import os
 import sqlite3
-import sys
-import tempfile
 
-_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-_tmp.close()
-os.environ["DATABASE_FILE"] = _tmp.name
-os.environ["RESET_PORTAL_CNAME_TARGET"] = "manager.example.com"
+import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from models import db  # noqa: E402
-from app import app  # noqa: E402
-from utils.validators import validate_subdomain_prefix  # noqa: E402
+from utils.validators import validate_subdomain_prefix
+from tests.helpers import csrf_token_from_response
 
 
-def setup_function():
-    conn = sqlite3.connect(_tmp.name)
+@pytest.fixture(autouse=True)
+def clear_reset_portals():
+    conn = sqlite3.connect(os.environ["DATABASE_FILE"])
     conn.execute("DELETE FROM domain_reset_portals")
     conn.commit()
     conn.close()
@@ -41,33 +34,31 @@ def test_subdomain_prefix_validation():
     assert ok is False
 
 
-def test_reset_portal_crud_and_host_lookup():
-    db.init_db()
-    ok, message = db.upsert_reset_portal("example.com", True, "reset", "Example Org")
+def test_reset_portal_crud_and_host_lookup(fresh_db):
+    ok, message = fresh_db.upsert_reset_portal("example.com", True, "reset", "Example Org")
     assert ok is True
     assert message == ""
 
-    portal = db.get_reset_portal("example.com")
+    portal = fresh_db.get_reset_portal("example.com")
     assert portal["enabled"] is True
     assert portal["subdomain_prefix"] == "reset"
     assert portal["portal_host"] == "reset.example.com"
     assert portal["portal_title"] == "Example Org"
 
-    by_host = db.get_reset_portal_by_host("reset.example.com")
+    by_host = fresh_db.get_reset_portal_by_host("reset.example.com")
     assert by_host["domain"] == "example.com"
 
-    db.upsert_reset_portal("other.com", True, "password", "")
-    assert db.get_reset_portal_by_host("password.other.com")["domain"] == "other.com"
-    assert db.get_reset_portal_by_host("reset.example.com")["domain"] == "example.com"
+    fresh_db.upsert_reset_portal("other.com", True, "password", "")
+    assert fresh_db.get_reset_portal_by_host("password.other.com")["domain"] == "other.com"
+    assert fresh_db.get_reset_portal_by_host("reset.example.com")["domain"] == "example.com"
 
 
-def test_build_reset_portal_url():
-    db.init_db()
-    db.upsert_reset_portal("example.com", True, "reset", "")
+def test_build_reset_portal_url(fresh_db):
+    fresh_db.upsert_reset_portal("example.com", True, "reset", "")
     prev = os.environ.get("FORCE_HTTPS")
     os.environ["FORCE_HTTPS"] = "true"
     try:
-        url = db.build_reset_portal_url("example.com", "secret-token")
+        url = fresh_db.build_reset_portal_url("example.com", "secret-token")
     finally:
         if prev is None:
             os.environ.pop("FORCE_HTTPS", None)
@@ -75,14 +66,12 @@ def test_build_reset_portal_url():
             os.environ["FORCE_HTTPS"] = prev
     assert url == "https://reset.example.com/reset-password?token=secret-token"
 
-    db.upsert_reset_portal("example.com", False, "reset", "")
-    assert db.build_reset_portal_url("example.com", "secret-token") is None
+    fresh_db.upsert_reset_portal("example.com", False, "reset", "")
+    assert fresh_db.build_reset_portal_url("example.com", "secret-token") is None
 
 
-def test_portal_host_blocks_admin_paths():
-    db.init_db()
-    db.upsert_reset_portal("example.com", True, "reset", "Example")
-    client = app.test_client()
+def test_portal_host_blocks_admin_paths(fresh_db, client):
+    fresh_db.upsert_reset_portal("example.com", True, "reset", "Example")
 
     response = client.get("/", headers={"Host": "reset.example.com"})
     assert response.status_code == 200
@@ -92,22 +81,10 @@ def test_portal_host_blocks_admin_paths():
     assert response.status_code == 404
 
 
-def _csrf_token_from_response(client, path="/", host="reset.example.com"):
-    response = client.get(path, headers={"Host": host})
-    cookie_header = response.headers.get("Set-Cookie", "")
-    for part in cookie_header.split(";"):
-        part = part.strip()
-        if part.startswith("csrf_token="):
-            return part.split("=", 1)[1]
-    return None
+def test_portal_request_rejects_other_domain_mailbox(fresh_db, client):
+    fresh_db.upsert_reset_portal("example.com", True, "reset", "")
 
-
-def test_portal_request_rejects_other_domain_mailbox():
-    db.init_db()
-    db.upsert_reset_portal("example.com", True, "reset", "")
-    client = app.test_client()
-
-    csrf_token = _csrf_token_from_response(client)
+    csrf_token = csrf_token_from_response(client)
     assert csrf_token
 
     response = client.post(
@@ -122,26 +99,22 @@ def test_portal_request_rejects_other_domain_mailbox():
     assert response.get_json()["success"] is True
 
 
-def test_logo_upload_validation():
-    db.init_db()
-    db.upsert_reset_portal("example.com", True, "reset", "")
+def test_logo_upload_validation(fresh_db, client, db_connection):
+    fresh_db.upsert_reset_portal("example.com", True, "reset", "")
 
-    conn = sqlite3.connect(_tmp.name)
-    conn.execute(
+    db_connection.execute(
         "INSERT OR IGNORE INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
-        ("admin@local", "not-used",),
+        ("admin@local", "not-used"),
     )
-    conn.execute(
+    db_connection.execute(
         """
         INSERT OR IGNORE INTO delegations (user_id, domain, permissions)
         SELECT id, 'example.com', '["dns"]' FROM users WHERE email = 'admin@local'
         """
     )
-    conn.commit()
-    conn.close()
+    db_connection.commit()
 
-    client = app.test_client()
-    csrf_token = _csrf_token_from_response(client, path="/login", host="localhost")
+    csrf_token = csrf_token_from_response(client, path="/login", host="localhost")
     assert csrf_token
     with client.session_transaction() as sess:
         sess["user"] = {
@@ -169,5 +142,5 @@ def test_logo_upload_validation():
         content_type="multipart/form-data",
     )
     assert response.status_code == 200
-    portal = db.get_reset_portal("example.com")
+    portal = fresh_db.get_reset_portal("example.com")
     assert portal["logo_filename"] == "logo.png"

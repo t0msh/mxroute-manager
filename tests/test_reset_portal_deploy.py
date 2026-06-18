@@ -1,26 +1,9 @@
 """Tests for NPM + full reset portal deploy orchestration."""
-import os
-import sys
-import tempfile
 from unittest.mock import patch
 
-_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-_tmp.close()
-os.environ["DATABASE_FILE"] = _tmp.name
-os.environ["RESET_PORTAL_CNAME_TARGET"] = "mxtools.t0m.sh"
-os.environ["NPM_API_URL"] = "https://npm.example.com"
-os.environ["NPM_IDENTITY"] = "admin@example.com"
-os.environ["NPM_SECRET"] = "secret"
-os.environ["NPM_FORWARD_HOST"] = "192.168.68.150"
-os.environ["NPM_FORWARD_PORT"] = "5000"
-os.environ["CF_API_TOKEN"] = "cf-token"
-os.environ["CF_ACCOUNT_ID"] = "cf-account"
-
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from models import db  # noqa: E402
-from services.npm import npm_is_configured  # noqa: E402
-from services.reset_portal_deploy import (  # noqa: E402
+from models import db
+from services.npm import npm_is_configured
+from services.reset_portal_deploy import (
     missing_deploy_config,
     reset_portal_deploy_is_configured,
     deploy_reset_portal,
@@ -62,13 +45,11 @@ def test_teardown_reset_portal():
     rm_cert.assert_called_once_with("reset.cleaver.click", result["steps"])
 
 
-def test_deploy_reset_portal_orchestration():
-    db.init_db()
-    db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")
+def test_deploy_reset_portal_orchestration(fresh_db):
+    fresh_db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")
 
     dns_result = {"host": "reset.cleaver.click", "target": "mxtools.t0m.sh", "outcome": "added", "steps": ["dns step"]}
     npm_result = {"certificate_mode": "letsencrypt_dns", "proxy_host_id": 2, "proxy_host_outcome": "created"}
-    https_health = {"status": "pass", "message": "Portal is live"}
 
     with patch("services.reset_portal_deploy.deploy_reset_portal_cname", return_value=dns_result), \
          patch("services.reset_portal_deploy.deploy_reset_portal_proxy_letsencrypt", return_value=npm_result), \

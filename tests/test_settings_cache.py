@@ -1,55 +1,48 @@
-"""Self-check for the DB-backed settings cache in models.db.
-
-Run directly: `python tests/test_settings_cache.py`. No framework required.
-Verifies: values are cached, writes are not seen until the cache is invalidated,
-env fallback for missing keys, and that ENV_ONLY secrets bypass the cache/DB.
-"""
+"""Tests for the DB-backed settings cache in models.db."""
 import os
 import sqlite3
-import sys
-import tempfile
 
-# Point the module at a throwaway DB before importing it.
-_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-_tmp.close()
-os.environ["DATABASE_FILE"] = _tmp.name
+import pytest
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from models import db  # noqa: E402
+from models import db as db_module
 
 
-def _set(key, value):
-    conn = sqlite3.connect(_tmp.name)
+@pytest.fixture
+def isolated_settings_db(tmp_path, monkeypatch):
+    """Dedicated DB so cache staleness tests do not affect other tests."""
+    path = str(tmp_path / "settings.db")
+    monkeypatch.setenv("DATABASE_FILE", path)
+    monkeypatch.setattr(db_module, "DATABASE_FILE", path)
+    db_module.invalidate_settings_cache()
+    db_module.init_db()
+    yield path
+    db_module.invalidate_settings_cache()
+
+
+def _set(path, key, value):
+    conn = sqlite3.connect(path)
     conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
     conn.close()
 
 
-def main():
-    db.init_db()
+def test_settings_cache_serves_stale_until_invalidated(isolated_settings_db):
+    path = isolated_settings_db
 
-    # Cached read returns the stored value, then keeps returning it after a
-    # direct DB write (proving the value is served from cache).
-    _set("MX_SERVER", "host1")
-    assert db.get_config_value("MX_SERVER") == "host1"
-    _set("MX_SERVER", "host2")
-    assert db.get_config_value("MX_SERVER") == "host1", "expected stale cache hit"
+    _set(path, "MX_SERVER", "host1")
+    assert db_module.get_config_value("MX_SERVER") == "host1"
+    _set(path, "MX_SERVER", "host2")
+    assert db_module.get_config_value("MX_SERVER") == "host1", "expected stale cache hit"
 
-    # After invalidation the new value is observed.
-    db.invalidate_settings_cache()
-    assert db.get_config_value("MX_SERVER") == "host2", "cache not refreshed after invalidate"
-
-    # Missing keys fall back to the provided default (and to env when set).
-    assert db.get_config_value("DOES_NOT_EXIST", "fallback") == "fallback"
-
-    # ENV_ONLY secrets never touch the settings table/cache.
-    os.environ["MX_API_KEY"] = "env-secret"
-    _set("MX_API_KEY", "db-secret")
-    assert db.get_config_value("MX_API_KEY") == "env-secret", "ENV_ONLY key must come from env"
-
-    os.unlink(_tmp.name)
-    print("settings cache self-check passed")
+    db_module.invalidate_settings_cache()
+    assert db_module.get_config_value("MX_SERVER") == "host2"
 
 
-if __name__ == "__main__":
-    main()
+def test_settings_cache_falls_back_to_default(isolated_settings_db):
+    assert db_module.get_config_value("DOES_NOT_EXIST", "fallback") == "fallback"
+
+
+def test_env_only_secrets_bypass_db_and_cache(isolated_settings_db, monkeypatch):
+    monkeypatch.setenv("MX_API_KEY", "env-secret")
+    _set(isolated_settings_db, "MX_API_KEY", "db-secret")
+    assert db_module.get_config_value("MX_API_KEY") == "env-secret"

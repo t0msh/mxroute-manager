@@ -69,9 +69,10 @@
     <!-- Modals -->
     {% include 'partials/modals.html' %}
 
-    <!-- Global App Logic -->
-    <script src="/static/brand.js?v={{ app_version }}"></script>
-    <script src="/static/app.js?v={{ app_version }}"></script>
+    <!-- Global App Logic (module loads shared helpers onto window.Mxm before app.js) -->
+    <script type="module" src="/static/js/browser-entry.js?v={{ app_version }}"></script>
+    <script defer src="/static/brand.js?v={{ app_version }}"></script>
+    <script defer src="/static/app.js?v={{ app_version }}"></script>
 </body>
 
 </html>

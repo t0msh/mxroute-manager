@@ -23,10 +23,10 @@ pytest
 
 That single command also runs **JavaScript unit tests** (`static/js/*.test.js` via Node's built-in `node --test`). You need Node 18+ on your machine; CI installs it automatically.
 
-JS only:
+JS only (explicit test files — portable across Node versions):
 
 ```bash
-node --test static/js/
+node --test static/js/*.test.js
 ```
 
 Coverage report (same as CI):

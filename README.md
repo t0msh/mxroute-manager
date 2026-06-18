@@ -29,7 +29,7 @@ cp .env.example .env
 Edit `.env` — minimum:
 
 ```env
-MX_SERVER=blizzard.mxrouting.net
+MX_SERVER=your_mxroute_email_server
 MX_USER=your_mxroute_username
 MX_API_KEY=your_mxroute_api_key
 ADMIN_PASSWORD=choose_a_strong_password

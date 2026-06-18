@@ -8,7 +8,7 @@ Copy `.env.example` to `.env` as a starting point.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `MX_SERVER` | Yes | — | MXroute server hostname (e.g. `blizzard.mxrouting.net`) |
+| `MX_SERVER` | Yes | — | MXroute server hostname (e.g. `your_mxroute_email_server`) |
 | `MX_USER` | Yes | — | MXroute account username |
 | `MX_API_KEY` | Yes | — | MXroute API key |
 

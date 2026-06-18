@@ -178,8 +178,26 @@ def test_cf_setup_fails_without_mx_dns_data(fresh_db, client, admin_token):
     assert "mxroute dns" in response.get_json()["error"]["message"].lower()
 
 
-def test_setup_health_requires_admin(fresh_db, client, dns_delegate_token):
-    response = client.get(f"/api/domains/{DOMAIN}/dns/setup-health")
+def test_setup_health_requires_dns_permission(fresh_db, client, dns_delegate_token, db_connection):
+    health = {
+        "domain": DOMAIN,
+        "overall": "degraded",
+        "on_mxroute": True,
+        "cf_configured": True,
+        "checks": {"verification": {"status": "pass"}},
+    }
+    with patch("routes.cloudflare.build_setup_health", return_value=health):
+        response = client.get(f"/api/domains/{DOMAIN}/dns/setup-health")
+    assert response.status_code == 200
+
+    insert_user_with_grants(
+        db_connection,
+        "emails@local",
+        grants=[{"domain": DOMAIN, "permissions": ["emails"]}],
+    )
+    prime_authenticated_session(client, "emails@local")
+    with patch("routes.cloudflare.build_setup_health", return_value=health):
+        response = client.get(f"/api/domains/{DOMAIN}/dns/setup-health")
     assert response.status_code == 403
 
 
@@ -215,6 +233,19 @@ def test_dns_fix_deploys_selected_records(fresh_db, client, admin_token):
     assert response.status_code == 200
     mock_fix.assert_called_once_with(DOMAIN, ["verification", "mx"])
     assert response.get_json()["data"]["fixed"] == ["verification", "mx"]
+
+
+def test_dns_fix_allowed_for_dns_delegate(fresh_db, client, dns_delegate_token):
+    fix_result = {"fixed": ["mx"], "skipped": [], "steps": ["done"]}
+    with patch("routes.cloudflare.cf_is_configured", return_value=True), \
+         patch("routes.cloudflare.deploy_missing_dns_to_cf", return_value=fix_result):
+        response = client.post(
+            f"/api/domains/{DOMAIN}/dns/fix",
+            headers=auth_post_headers(dns_delegate_token),
+            json={"records": ["mx"]},
+        )
+    assert response.status_code == 200
+    assert response.get_json()["data"]["fixed"] == ["mx"]
 
 
 def test_dns_fix_requires_cloudflare(fresh_db, client, admin_token):

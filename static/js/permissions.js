@@ -10,6 +10,7 @@ export const DELEGATION_PERMISSION_CATALOG = [
 
 export const TAB_REQUIRED_PERMISSION = {
     dashboard: "dashboard",
+    domains: "dns",
     emails: "emails",
     forwarders: "forwarders",
     spam: "spam",

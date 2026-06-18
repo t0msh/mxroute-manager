@@ -34,7 +34,7 @@ def create_domain():
 
 
 @domains_bp.route('/api/domains/<domain>', methods=['GET'])
-@require_any_permission("dashboard", "emails", "forwarders", "spam")
+@require_any_permission("dashboard", "emails", "forwarders", "spam", "dns")
 def get_domain_details(domain):
     return mx_request("GET", f"/domains/{domain}")
 

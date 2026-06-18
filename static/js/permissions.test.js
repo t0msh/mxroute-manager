@@ -81,4 +81,13 @@ describe("tabVisibleForUser", () => {
         };
         assert.equal(tabVisibleForUser(user, "settings", catalog), true);
     });
+
+    it("shows domains tab when user has dns permission", () => {
+        const user = {
+            is_admin: false,
+            domain_grants: { "x.test": ["dns"] },
+        };
+        assert.equal(tabVisibleForUser(user, "domains", catalog), true);
+        assert.equal(tabVisibleForUser(user, "emails", catalog), false);
+    });
 });

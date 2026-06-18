@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 
 from utils.validators import validate_domain
-from utils.auth_helpers import require_admin, require_any_permission
+from utils.auth_helpers import require_admin, require_any_permission, require_permission
 from models.db import get_config_value, get_dmarc_record
 from services.cloudflare import (
     cf_is_configured,
@@ -89,7 +89,7 @@ def cloudflare_setup():
 
 
 @cloudflare_bp.route('/api/domains/<domain>/dns/setup-health', methods=['GET'])
-@require_admin
+@require_permission("dns")
 def get_dns_setup_health(domain):
     if not validate_domain(domain):
         return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
@@ -100,7 +100,7 @@ def get_dns_setup_health(domain):
 
 
 @cloudflare_bp.route('/api/domains/<domain>/dns/fix', methods=['POST'])
-@require_admin
+@require_permission("dns")
 def fix_domain_dns(domain):
     if not validate_domain(domain):
         return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400

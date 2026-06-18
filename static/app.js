@@ -64,6 +64,14 @@ function applyDashboardSectionVisibility() {
     if (mailToggle) mailToggle.style.display = currentUser?.is_admin ? "" : "none";
 }
 
+function applyDomainsSectionVisibility() {
+    const isAdmin = !!currentUser?.is_admin;
+    const newModeOption = document.querySelector('input[name="setup-domain-mode"][value="new"]')?.closest(".setup-mode-option");
+    if (newModeOption) newModeOption.style.display = isAdmin ? "" : "none";
+    const step3 = document.querySelector(".setup-wizard-step[data-step=\"3\"]");
+    if (step3) step3.style.display = isAdmin ? "" : "none";
+}
+
 function applyUserPermissionsUI() {
     if (!currentUser) return;
 
@@ -88,18 +96,18 @@ function applyUserPermissionsUI() {
         return;
     }
 
-    document.getElementById("nav-tab-domains").style.display = "none";
     document.getElementById("nav-tab-delegations").style.display = "none";
     document.getElementById("nav-tab-logs").style.display = "none";
     document.getElementById("sidebar-quota-container").style.display = "none";
     document.getElementById("dash-quota-card").style.display = "none";
 
     Object.entries(navTabs).forEach(([tab, el]) => {
-        if (!el || tab === "domains" || tab === "delegations" || tab === "logs") return;
+        if (!el || tab === "delegations" || tab === "logs") return;
         el.style.display = tabVisibleForUser(tab) ? "" : "none";
     });
 
     applyDashboardSectionVisibility();
+    applyDomainsSectionVisibility();
     activateFirstAllowedTab();
 }
 
@@ -107,7 +115,7 @@ function activateFirstAllowedTab() {
     const activeTab = document.querySelector(".nav-item.active")?.getAttribute("data-tab");
     if (activeTab && tabVisibleForUser(activeTab) && activeTabAllowedForDomain()) return;
 
-    const fallbackOrder = ["dashboard", "emails", "forwarders", "spam", "settings"];
+    const fallbackOrder = ["dashboard", "domains", "emails", "forwarders", "spam", "settings"];
     const nextTab = fallbackOrder.find(tab => tabVisibleForUser(tab));
     if (!nextTab) return;
 
@@ -633,6 +641,7 @@ async function triggerDataRefresh(options = {}) {
                 break;
             }
             case "domains":
+                applyDomainsSectionVisibility();
                 await loadDomainsList({ force });
                 break;
             case "emails":
@@ -852,7 +861,7 @@ function renderDomainsTableRows(domains) {
             <td id="domain-dns-${safeId}">${cached?.dnsHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`}</td>
             <td style="text-align: right;">
                 <button class="btn btn-secondary btn-sm" id="domain-fix-dns-${safeId}" style="display: ${cached?.fixDnsVisible ? "inline-flex" : "none"};" onclick="openDomainDnsSetup(${jsAttrString(domain)})">Fix DNS</button>
-                <button class="btn btn-danger btn-sm" onclick="handleDeleteDomain(${jsAttrString(domain)})">Delete</button>
+                ${currentUser?.is_admin ? `<button class="btn btn-danger btn-sm" onclick="handleDeleteDomain(${jsAttrString(domain)})">Delete</button>` : ""}
             </td>
         `;
         tbody.appendChild(tr);
@@ -1376,7 +1385,7 @@ function renderSetupDnsChecks(health) {
     const hasIssues = Object.values(health.checks || {}).some(c => c.status === "warn" || c.status === "fail");
 
     if (step2MxrouteBtn) {
-        step2MxrouteBtn.style.display = !health.on_mxroute ? "inline-flex" : "none";
+        step2MxrouteBtn.style.display = !health.on_mxroute && currentUser?.is_admin ? "inline-flex" : "none";
     }
     if (step2DoneBtn) {
         step2DoneBtn.style.display = health.on_mxroute && !hasIssues && !hasPendingMail ? "inline-flex" : "none";
@@ -1399,6 +1408,11 @@ async function loadSetupDnsHealth() {
         const result = await apiRequest(`/api/domains/${setupWizardDomain}/dns/setup-health`);
         if (!result.success || !result.data) {
             throw new Error(result.error?.message || "Health check failed");
+        }
+        if (result.data?.cf_configured !== undefined) {
+            setupCfConfigured = !!result.data.cf_configured;
+            const cfMissing = document.getElementById("setup-cf-missing");
+            if (cfMissing) cfMissing.style.display = setupCfConfigured ? "none" : "block";
         }
         renderSetupDnsChecks(result.data);
     } catch (err) {
@@ -2896,21 +2910,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     await initDomainDropdowns();
     initResetPortal();
     
-    // 4. Check Cloudflare integration status (if admin)
-    if (!currentUser || currentUser.is_admin) {
+    // 4. Domain DNS wizard (admin or users with dns permission)
+    const canManageDns = currentUser?.is_admin || getUserPermissionUnion().has("dns");
+    if (canManageDns) {
         initSetupWizard();
-        try {
-            const cfStatus = await apiRequest("/api/cloudflare/status");
-            setupCfConfigured = !!(cfStatus && cfStatus.configured);
-            const cfMissing = document.getElementById("setup-cf-missing");
-            if (cfMissing) {
-                cfMissing.style.display = setupCfConfigured ? "none" : "block";
+        applyDomainsSectionVisibility();
+        if (currentUser?.is_admin) {
+            try {
+                const cfStatus = await apiRequest("/api/cloudflare/status");
+                setupCfConfigured = !!(cfStatus && cfStatus.configured);
+                const cfMissing = document.getElementById("setup-cf-missing");
+                if (cfMissing) {
+                    cfMissing.style.display = setupCfConfigured ? "none" : "block";
+                }
+                if (setupWizardStep === 2 && setupCurrentHealth) {
+                    renderSetupDnsChecks(setupCurrentHealth);
+                }
+            } catch (e) {
+                console.warn("Could not retrieve Cloudflare integration status:", e);
             }
-            if (setupWizardStep === 2 && setupCurrentHealth) {
-                renderSetupDnsChecks(setupCurrentHealth);
-            }
-        } catch (e) {
-            console.warn("Could not retrieve Cloudflare integration status:", e);
         }
     }
 

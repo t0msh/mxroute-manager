@@ -143,11 +143,7 @@ function escapeHtml(value) {
         .replace(/'/g, "&#39;");
 }
 
-function jsString(value) {
-    return JSON.stringify(String(value ?? ""));
-}
-
-// JSON string safe for double-quoted HTML onclick attributes (jsString breaks nested quotes).
+// JSON string safe for double-quoted HTML onclick attributes.
 function jsAttrString(value) {
     return escapeHtml(JSON.stringify(String(value ?? "")));
 }
@@ -251,8 +247,9 @@ function invalidateApiCache(urlPrefix) {
 }
 
 function invalidateDomainCache(domain) {
+    // Domains are validated to simple hostnames, so URL building never encodes them
+    // differently; a single raw prefix covers every per-domain cache key.
     invalidateApiCache(`/api/domains/${domain}`);
-    invalidateApiCache(`/api/domains/${encodeURIComponent(domain)}`);
     domainRowCache.delete(domain);
 }
 
@@ -287,6 +284,26 @@ function setCellRefreshing(cellEl, refreshing) {
         }
     } else if (indicator) {
         indicator.remove();
+    }
+}
+
+// Shared skeleton for table loaders: loading placeholder -> cachedFetch (with
+// refresh indicator + background revalidation) -> render -> error row. Each caller
+// supplies its own firstLoad heuristic, render fn, and placeholder/error markup.
+async function fetchCachedList({ url, tbody, card, force, firstLoad, render, loadingHtml, errorHtml }) {
+    if (firstLoad) tbody.innerHTML = loadingHtml;
+    try {
+        const result = await cachedFetch(url, {
+            force,
+            onRefreshStart: () => setElementRefreshing(card, true),
+            onRefreshEnd: () => setElementRefreshing(card, false),
+            onUpdated: render,
+        });
+        render(result);
+    } catch (err) {
+        if (firstLoad) {
+            tbody.innerHTML = typeof errorHtml === "function" ? errorHtml(err) : errorHtml;
+        }
     }
 }
 
@@ -346,6 +363,7 @@ function hasLoadedContent(el) {
 }
 
 // Show Toast Alerts
+let alertDismissTimer = null;
 function showAlert(type, message) {
     const banner = document.getElementById("alert-banner");
     const icon = document.getElementById("alert-banner-icon");
@@ -358,12 +376,20 @@ function showAlert(type, message) {
     
     banner.classList.add("show");
     
+    if (alertDismissTimer) {
+        clearTimeout(alertDismissTimer);
+        alertDismissTimer = null;
+    }
     if (type === "success" || type === "info") {
-        setTimeout(dismissAlert, 5000);
+        alertDismissTimer = setTimeout(dismissAlert, 5000);
     }
 }
 
 function dismissAlert() {
+    if (alertDismissTimer) {
+        clearTimeout(alertDismissTimer);
+        alertDismissTimer = null;
+    }
     document.getElementById("alert-banner").classList.remove("show");
 }
 
@@ -599,8 +625,11 @@ document.querySelectorAll(".nav-item").forEach(item => {
             settings: { title: "Settings", subtitle: "Configure global system parameters, authentication methods, and user interface options." }
         };
         
-        document.getElementById("page-title").textContent = titleMap[tab].title;
-        document.getElementById("page-subtitle").textContent = titleMap[tab].subtitle;
+        const titleInfo = titleMap[tab];
+        if (titleInfo) {
+            document.getElementById("page-title").textContent = titleInfo.title;
+            document.getElementById("page-subtitle").textContent = titleInfo.subtitle;
+        }
         
         // Reload page specific data (uses cache when still fresh)
         if (!activeTabAllowedForDomain()) {
@@ -616,7 +645,9 @@ document.querySelectorAll(".nav-item").forEach(item => {
 // --- 4. Main Data Refresher ---
 async function triggerDataRefresh(options = {}) {
     const { force = false } = options;
-    const activeTab = document.querySelector(".nav-item.active").getAttribute("data-tab");
+    const activeNav = document.querySelector(".nav-item.active");
+    if (!activeNav) return;
+    const activeTab = activeNav.getAttribute("data-tab");
     if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains" && activeTab !== "settings" && activeTab !== "logs") return;
     
     try {
@@ -827,7 +858,7 @@ async function refreshDomainRowDetails(domain, { force = false } = {}) {
     if (!mailCell || !dnsCell) return;
 
     const detailsUrl = `/api/domains/${domain}`;
-    const healthUrl = `/api/domains/${encodeURIComponent(domain)}/dns/setup-health`;
+    const healthUrl = `/api/domains/${domain}/dns/setup-health`;
     const rowCached = domainRowCache.get(domain);
 
     if (rowCached) {
@@ -1126,7 +1157,7 @@ async function loadSetupDnsHealth() {
     }
 
     try {
-        const result = await apiRequest(`/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/setup-health`);
+        const result = await apiRequest(`/api/domains/${setupWizardDomain}/dns/setup-health`);
         if (!result.success || !result.data) {
             throw new Error(result.error?.message || "Health check failed");
         }
@@ -1157,7 +1188,7 @@ async function handleFixDnsRecord(recordType) {
     if (!setupWizardDomain) return;
     try {
         const result = await apiRequest(
-            `/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/fix`,
+            `/api/domains/${setupWizardDomain}/dns/fix`,
             "POST",
             { records: [recordType] }
         );
@@ -1183,7 +1214,7 @@ async function handleFixAllDns() {
     if (btn) btn.disabled = true;
     try {
         const result = await apiRequest(
-            `/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/fix`,
+            `/api/domains/${setupWizardDomain}/dns/fix`,
             "POST",
             {}
         );
@@ -1230,7 +1261,7 @@ async function updateSetupStep3State() {
     if (label) label.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
 
     try {
-        const result = await apiRequest(`/api/domains/${encodeURIComponent(setupWizardDomain)}/dns/setup-health`);
+        const result = await apiRequest(`/api/domains/${setupWizardDomain}/dns/setup-health`);
         const onMxroute = result.data?.on_mxroute;
         if (statusEl) {
             statusEl.innerHTML = onMxroute
@@ -1361,24 +1392,12 @@ async function loadPointersList(domain, { force = false } = {}) {
         }
     };
 
-    if (firstLoad) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Loading pointers...</td></tr>';
-    }
-
-    try {
-        const url = `/api/domains/${domain}/pointers`;
-        const result = await cachedFetch(url, {
-            force,
-            onRefreshStart: () => setElementRefreshing(card, true),
-            onRefreshEnd: () => setElementRefreshing(card, false),
-            onUpdated: renderPointers,
-        });
-        renderPointers(result);
-    } catch (err) {
-        if (firstLoad) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load pointers</td></tr>`;
-        }
-    }
+    await fetchCachedList({
+        url: `/api/domains/${domain}/pointers`,
+        tbody, card, force, firstLoad, render: renderPointers,
+        loadingHtml: '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Loading pointers...</td></tr>',
+        errorHtml: '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load pointers</td></tr>',
+    });
 }
 
 // Add Pointer Modal Open
@@ -1482,6 +1501,7 @@ document.getElementById("form-catch-all").addEventListener("submit", async (e) =
     
     try {
         await apiRequest(`/api/domains/${activeDomain}/catch-all`, "PATCH", { type, address: type === "address" ? address : null });
+        invalidateApiCache(`/api/domains/${activeDomain}/catch-all`);
         showAlert("success", "Catch-All configuration updated.");
     } catch (err) {
         showAlert("error", err.message);
@@ -1610,7 +1630,7 @@ async function loadDnsHealth(domain, { force = false } = {}) {
     const headerStatus = document.getElementById("dns-health-status");
     const checksEl = document.getElementById("dns-health-checks");
     const firstLoad = !hasLoadedContent(checksEl);
-    const url = `/api/domains/${encodeURIComponent(domain)}/dns/health`;
+    const url = `/api/domains/${domain}/dns/health`;
 
     const onRefresh = (refreshing) => {
         setElementRefreshing(card, refreshing);
@@ -1702,24 +1722,13 @@ async function loadEmailsList(domain, { force = false } = {}) {
     const card = tbody?.closest(".glass-card");
     const firstLoad = !tbody.querySelector("tr[data-username]") && tbody.dataset.loaded !== "true";
 
-    if (firstLoad) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">Querying mailboxes...</td></tr>';
-    }
-
-    try {
-        const url = `/api/domains/${domain}/email-accounts`;
-        const result = await cachedFetch(url, {
-            force,
-            onRefreshStart: () => setElementRefreshing(card, true),
-            onRefreshEnd: () => setElementRefreshing(card, false),
-            onUpdated: (updated) => renderEmailsList(updated, domain),
-        });
-        renderEmailsList(result, domain);
-    } catch (err) {
-        if (firstLoad) {
-            tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${escapeHtml(err.message)}</td></tr>`;
-        }
-    }
+    await fetchCachedList({
+        url: `/api/domains/${domain}/email-accounts`,
+        tbody, card, force, firstLoad,
+        render: (result) => renderEmailsList(result, domain),
+        loadingHtml: '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">Querying mailboxes...</td></tr>',
+        errorHtml: (err) => `<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${escapeHtml(err.message)}</td></tr>`,
+    });
 }
 
 // Check if domain has mail hosting enabled and update the UI overlay
@@ -1823,6 +1832,7 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
     } catch (err) {
         showAlert("error", err.message);
     } finally {
+        submitBtn.disabled = false;
         submitBtn.textContent = "Provision Mailbox";
     }
 });
@@ -1987,24 +1997,13 @@ async function loadForwardersList(domain, { force = false } = {}) {
     const card = tbody?.closest(".glass-card");
     const firstLoad = !tbody.querySelector("tr[data-alias]") && tbody.dataset.loaded !== "true";
 
-    if (firstLoad) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Loading forwarders...</td></tr>';
-    }
-
-    try {
-        const url = `/api/domains/${domain}/forwarders`;
-        const result = await cachedFetch(url, {
-            force,
-            onRefreshStart: () => setElementRefreshing(card, true),
-            onRefreshEnd: () => setElementRefreshing(card, false),
-            onUpdated: (updated) => renderForwardersList(updated, domain),
-        });
-        renderForwardersList(result, domain);
-    } catch (err) {
-        if (firstLoad) {
-            tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load forwarders: ${escapeHtml(err.message)}</td></tr>`;
-        }
-    }
+    await fetchCachedList({
+        url: `/api/domains/${domain}/forwarders`,
+        tbody, card, force, firstLoad,
+        render: (result) => renderForwardersList(result, domain),
+        loadingHtml: '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Loading forwarders...</td></tr>',
+        errorHtml: (err) => `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load forwarders: ${escapeHtml(err.message)}</td></tr>`,
+    });
 }
 
 // Create Forwarder Submit
@@ -2078,8 +2077,8 @@ async function loadSpamSettings(domain, { force = false } = {}) {
     }
 
     await Promise.all([
-        loadSpamWhitelist(domain, { force }),
-        loadSpamBlacklist(domain, { force }),
+        loadSpamList(domain, "whitelist", { force }),
+        loadSpamList(domain, "blacklist", { force }),
     ]);
 }
 
@@ -2095,19 +2094,20 @@ document.getElementById("form-spam-settings").addEventListener("submit", async (
     
     try {
         await apiRequest(`/api/domains/${activeDomain}/spam/settings`, "PATCH", { high_score: highScore });
+        invalidateApiCache(`/api/domains/${activeDomain}/spam/settings`);
         showAlert("success", "Spam score threshold updated.");
     } catch (err) {
         showAlert("error", err.message);
     }
 });
 
-// Whitelist loader
-async function loadSpamWhitelist(domain, { force = false } = {}) {
-    const tbody = document.getElementById("whitelist-tbody");
+// Spam whitelist/blacklist loader (type is "whitelist" or "blacklist")
+async function loadSpamList(domain, type, { force = false } = {}) {
+    const tbody = document.getElementById(`${type}-tbody`);
     const card = tbody?.closest(".glass-card");
     const firstLoad = !tbody.dataset.loaded;
 
-    const renderWhitelist = (result) => {
+    const render = (result) => {
         tbody.innerHTML = "";
         if (result?.success && result.data?.length > 0) {
             result.data.forEach(entry => {
@@ -2115,114 +2115,42 @@ async function loadSpamWhitelist(domain, { force = false } = {}) {
                 tr.innerHTML = `
                     <td><strong>${escapeHtml(entry)}</strong></td>
                     <td style="text-align: right;">
-                        <button class="btn btn-danger btn-sm btn-icon" onclick="handleRemoveSpamList('whitelist', ${jsAttrString(entry)})">×</button>
+                        <button class="btn btn-danger btn-sm btn-icon" onclick="handleRemoveSpamList('${type}', ${jsAttrString(entry)})">×</button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">No whitelist entries</td></tr>';
+            tbody.innerHTML = `<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">No ${type} entries</td></tr>`;
         }
         tbody.dataset.loaded = "true";
     };
 
-    if (firstLoad) {
-        tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">Loading whitelist...</td></tr>';
-    }
-
-    try {
-        const url = `/api/domains/${domain}/spam/whitelist`;
-        const result = await cachedFetch(url, {
-            force,
-            onRefreshStart: () => setElementRefreshing(card, true),
-            onRefreshEnd: () => setElementRefreshing(card, false),
-            onUpdated: renderWhitelist,
-        });
-        renderWhitelist(result);
-    } catch (err) {
-        if (firstLoad) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--danger);">Error loading whitelist</td></tr>';
-        }
-    }
+    await fetchCachedList({
+        url: `/api/domains/${domain}/spam/${type}`,
+        tbody, card, force, firstLoad, render,
+        loadingHtml: `<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">Loading ${type}...</td></tr>`,
+        errorHtml: `<tr><td colspan="2" style="text-align: center; color: var(--danger);">Error loading ${type}</td></tr>`,
+    });
 }
 
-// Add Whitelist Entry Submit
-document.getElementById("form-whitelist-add").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const entryInput = document.getElementById("whitelist-entry");
-    const entry = entryInput.value.trim();
-    if (!entry) return;
-    
-    try {
-        await apiRequest(`/api/domains/${activeDomain}/spam/whitelist`, "POST", { entry });
-        showAlert("success", `Added "${entry}" to whitelist.`);
-        entryInput.value = "";
-        await loadSpamWhitelist(activeDomain, { force: true });
-    } catch (err) {
-        showAlert("error", err.message);
-    }
-});
+// Add whitelist/blacklist entry submit
+["whitelist", "blacklist"].forEach(type => {
+    document.getElementById(`form-${type}-add`).addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const entryInput = document.getElementById(`${type}-entry`);
+        const entry = entryInput.value.trim();
+        if (!entry) return;
 
-// Blacklist loader
-async function loadSpamBlacklist(domain, { force = false } = {}) {
-    const tbody = document.getElementById("blacklist-tbody");
-    const card = tbody?.closest(".glass-card");
-    const firstLoad = !tbody.dataset.loaded;
-
-    const renderBlacklist = (result) => {
-        tbody.innerHTML = "";
-        if (result?.success && result.data?.length > 0) {
-            result.data.forEach(entry => {
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td><strong>${escapeHtml(entry)}</strong></td>
-                    <td style="text-align: right;">
-                        <button class="btn btn-danger btn-sm btn-icon" onclick="handleRemoveSpamList('blacklist', ${jsAttrString(entry)})">×</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        } else {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">No blacklist entries</td></tr>';
+        try {
+            await apiRequest(`/api/domains/${activeDomain}/spam/${type}`, "POST", { entry });
+            showAlert("success", `Added "${entry}" to ${type}.`);
+            entryInput.value = "";
+            await loadSpamList(activeDomain, type, { force: true });
+        } catch (err) {
+            showAlert("error", err.message);
         }
-        tbody.dataset.loaded = "true";
-    };
-
-    if (firstLoad) {
-        tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">Loading blacklist...</td></tr>';
-    }
-
-    try {
-        const url = `/api/domains/${domain}/spam/blacklist`;
-        const result = await cachedFetch(url, {
-            force,
-            onRefreshStart: () => setElementRefreshing(card, true),
-            onRefreshEnd: () => setElementRefreshing(card, false),
-            onUpdated: renderBlacklist,
-        });
-        renderBlacklist(result);
-    } catch (err) {
-        if (firstLoad) {
-            tbody.innerHTML = '<tr><td colspan="2" style="text-align: center; color: var(--danger);">Error loading blacklist</td></tr>';
-        }
-    }
-}
-
-// Add Blacklist Entry Submit
-document.getElementById("form-blacklist-add").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const entryInput = document.getElementById("blacklist-entry");
-    const entry = entryInput.value.trim();
-    if (!entry) return;
-    
-    try {
-        await apiRequest(`/api/domains/${activeDomain}/spam/blacklist`, "POST", { entry });
-        showAlert("success", `Added "${entry}" to blacklist.`);
-        entryInput.value = "";
-        await loadSpamBlacklist(activeDomain, { force: true });
-    } catch (err) {
-        showAlert("error", err.message);
-    }
+    });
 });
 
 // Remove Whitelist/Blacklist Entry
@@ -2238,11 +2166,7 @@ async function handleRemoveSpamList(type, entry) {
         const encodedEntry = encodeURIComponent(entry);
         await apiRequest(`/api/domains/${activeDomain}/spam/${type}/${encodedEntry}`, "DELETE");
         showAlert("success", `Removed "${entry}" from ${type}.`);
-        if (type === "whitelist") {
-            await loadSpamWhitelist(activeDomain, { force: true });
-        } else {
-            await loadSpamBlacklist(activeDomain, { force: true });
-        }
+        await loadSpamList(activeDomain, type, { force: true });
     } catch (err) {
         showAlert("error", err.message);
     }
@@ -2298,7 +2222,10 @@ async function initDomainDropdowns() {
 document.getElementById("global-domain-select").addEventListener("change", async (e) => {
     activeDomain = e.target.value;
     applyDashboardSectionVisibility();
-    if (userHasPermission("dashboard", activeDomain)) {
+    // The dashboard refresh below loads DNS health itself; only pre-load it here
+    // (to keep the header status current) when another tab is active.
+    const activeTab = document.querySelector(".nav-item.active")?.getAttribute("data-tab");
+    if (activeTab !== "dashboard" && userHasPermission("dashboard", activeDomain)) {
         await loadDnsHealth(activeDomain);
     }
     if (!activeTabAllowedForDomain()) {
@@ -2354,7 +2281,7 @@ function updateDelegationPasswordHint() {
     }
 }
 
-async function loadDelegationsPage() {
+async function loadDelegationsPage(options = {}) {
     const listBody = document.getElementById("delegations-list-tbody");
     listBody.innerHTML = '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Querying access delegations...</td></tr>';
     

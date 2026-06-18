@@ -19,19 +19,12 @@ def get_mx_headers():
 
 
 def mx_request_raw(method, path, payload=None):
+    if method not in ("GET", "POST", "PATCH", "DELETE"):
+        return {"success": False, "error": {"message": "Invalid method"}}, 400
     url = f"{BASE_URL}{path}"
     headers = get_mx_headers()
     try:
-        if method == "GET":
-            response = requests.get(url, headers=headers, timeout=30)
-        elif method == "POST":
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-        elif method == "PATCH":
-            response = requests.patch(url, json=payload, headers=headers, timeout=30)
-        elif method == "DELETE":
-            response = requests.delete(url, headers=headers, timeout=30)
-        else:
-            return {"success": False, "error": {"message": "Invalid method"}}, 400
+        response = requests.request(method, url, json=payload, headers=headers, timeout=30)
 
         # Handle 204 No Content or empty responses
         if response.status_code == 204 or (not response.text.strip()):
@@ -85,13 +78,18 @@ def get_mxroute_verification_record():
     return verify_res.get("data", {}).get("record")
 
 
+def inject_dmarc(data):
+    """Attach the configured DMARC expectation to an MXroute DNS data dict."""
+    data = data or {}
+    data["dmarc"] = {"name": "_dmarc", "value": get_dmarc_record()}
+    return data
+
+
 def get_mxroute_dns_data(domain):
     mx_dns_res, mx_dns_status = mx_request_raw("GET", f"/domains/{domain}/dns")
     if mx_dns_status != 200:
         return None
-    data = mx_dns_res.get("data") or {}
-    data["dmarc"] = {"name": "_dmarc", "value": get_dmarc_record()}
-    return data
+    return inject_dmarc(mx_dns_res.get("data"))
 
 
 def get_domain_mail_hosting(domain):

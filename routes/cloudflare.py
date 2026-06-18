@@ -15,6 +15,7 @@ from services.cloudflare import (
 from services.mxroute import (
     get_mxroute_verification_record,
     get_mxroute_dns_data,
+    inject_dmarc,
     register_domain_on_mxroute,
     mx_request,
     mx_request_raw,
@@ -121,12 +122,7 @@ def fix_domain_dns(domain):
 def get_dns_info(domain):
     res, status = mx_request_raw("GET", f"/domains/{domain}/dns")
     if status == 200 and isinstance(res, dict) and res.get("success"):
-        data = res.get("data") or {}
-        data["dmarc"] = {
-            "name": "_dmarc",
-            "value": get_dmarc_record(),
-        }
-        res["data"] = data
+        res["data"] = inject_dmarc(res.get("data"))
     return jsonify(res), status
 
 

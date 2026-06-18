@@ -2,6 +2,7 @@ import secrets
 import sqlite3
 import requests
 from urllib.parse import urlencode
+from werkzeug.security import check_password_hash
 from flask import Blueprint, request, session, redirect, url_for, render_template, jsonify, current_app
 
 from models.db import (
@@ -67,7 +68,6 @@ def login_page():
             current_app.logger.error(f"Error checking user in SQLite: {e}")
 
         if user_row and user_row[2]:  # password_hash exists
-            from werkzeug.security import check_password_hash
             if check_password_hash(user_row[2], password):
                 session["user"] = build_session_user(user_row[1], bool(user_row[3]))
                 write_audit_log("auth.login", user_row[1], user_row[1])

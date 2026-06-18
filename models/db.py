@@ -3,6 +3,8 @@ import json
 import sqlite3
 import secrets
 
+from werkzeug.security import check_password_hash, generate_password_hash
+
 DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mxroute-manager.db"))
 MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "domain_mapping.json")
 
@@ -29,9 +31,26 @@ def get_env_config(key, default=None):
     return os.getenv(key, default)
 
 
+# ponytail: single-process in-memory cache for DB-backed settings. Settings change
+# only via admin action, so we clear the whole cache on any write. Ceiling: per-worker
+# cache (no cross-process invalidation); upgrade path is a shared cache/pubsub if needed.
+_MISSING = object()
+_settings_cache = {}
+
+
+def invalidate_settings_cache():
+    _settings_cache.clear()
+
+
 def get_config_value(key, default=None):
     if key in ENV_ONLY_SECRET_KEYS:
         return get_env_config(key, default)
+
+    cached = _settings_cache.get(key, _MISSING)
+    if cached is not _MISSING:
+        return cached if cached is not None else get_env_config(key, default)
+
+    stored = None
     try:
         conn = sqlite3.connect(DATABASE_FILE)
         cursor = conn.cursor()
@@ -39,9 +58,13 @@ def get_config_value(key, default=None):
         row = cursor.fetchone()
         conn.close()
         if row is not None:
-            return row[0]
+            stored = row[0]
+        _settings_cache[key] = stored
     except Exception:
         pass
+
+    if stored is not None:
+        return stored
     return get_env_config(key, default)
 
 
@@ -63,12 +86,10 @@ def verify_admin_password(password):
     password_hash = get_admin_password_hash()
     if not password_hash:
         return False
-    from werkzeug.security import check_password_hash
     return check_password_hash(password_hash, password)
 
 
 def set_admin_password_hash(password, admin_email=None):
-    from werkzeug.security import generate_password_hash
     password_hash = generate_password_hash(password)
     admin_email = (admin_email or get_admin_user()).lower().strip()
     conn = sqlite3.connect(DATABASE_FILE)
@@ -92,6 +113,7 @@ def set_admin_password_hash(password, admin_email=None):
         )
     conn.commit()
     conn.close()
+    invalidate_settings_cache()
 
 
 def _looks_like_password_hash(value):
@@ -110,7 +132,6 @@ def migrate_settings_secrets(cursor):
     hash_row = cursor.fetchone()
 
     if legacy_password_row and legacy_password_row[0] and not _looks_like_password_hash(legacy_password_row[0]):
-        from werkzeug.security import generate_password_hash
         cursor.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
             (ADMIN_PASSWORD_HASH_KEY, generate_password_hash(legacy_password_row[0])),
@@ -119,12 +140,12 @@ def migrate_settings_secrets(cursor):
     elif not hash_row or not hash_row[0]:
         env_password = get_env_config("ADMIN_PASSWORD")
         if env_password:
-            from werkzeug.security import generate_password_hash
             cursor.execute(
                 "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
                 (ADMIN_PASSWORD_HASH_KEY, generate_password_hash(env_password)),
             )
             cursor.execute("DELETE FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
+    invalidate_settings_cache()
 
 
 def is_secret_configured(key):
@@ -332,6 +353,7 @@ def get_or_create_secret_key():
         )
         conn.commit()
         conn.close()
+        invalidate_settings_cache()
         return random_key
     except Exception:
         # Emergency last-resort fallback

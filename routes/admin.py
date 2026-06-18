@@ -11,10 +11,12 @@ from models.db import (
     mask_settings_for_response,
     load_delegations_detail,
     is_oidc_enabled,
+    invalidate_settings_cache,
     ALL_PERMISSIONS,
     DEFAULT_PERMISSIONS,
     _normalize_permissions,
 )
+from werkzeug.security import generate_password_hash
 from utils.auth_helpers import require_admin, get_current_user, clear_oidc_config_cache
 from utils.validators import validate_local_user_identifier, requires_local_password
 from services.mxroute import mx_request, audit
@@ -117,7 +119,6 @@ def update_delegation():
                 "error": {"message": "Password is required for local users who do not have one set."},
             }), 400
 
-        from werkzeug.security import generate_password_hash
         hashed_password = generate_password_hash(password) if password_provided else None
 
         if not row:
@@ -251,7 +252,8 @@ def update_settings():
         conn.commit()
         conn.close()
 
-        # Clear the cached OIDC config
+        # Clear cached settings + OIDC config so changes take effect immediately
+        invalidate_settings_cache()
         clear_oidc_config_cache()
 
         audit("settings.update", target="system", keys=updated_keys)

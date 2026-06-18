@@ -36,19 +36,12 @@ def cf_request(method, path, payload=None):
         "Content-Type": "application/json"
     }
 
+    if method not in ("GET", "POST", "PUT", "DELETE"):
+        raise ValueError("Unsupported Cloudflare method")
+
     response = None
     try:
-        if method == "GET":
-            response = requests.get(url, headers=headers, timeout=30)
-        elif method == "POST":
-            response = requests.post(url, json=payload, headers=headers, timeout=30)
-        elif method == "PUT":
-            response = requests.put(url, json=payload, headers=headers, timeout=30)
-        elif method == "DELETE":
-            response = requests.delete(url, headers=headers, timeout=30)
-        else:
-            raise ValueError("Unsupported Cloudflare method")
-
+        response = requests.request(method, url, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as e:

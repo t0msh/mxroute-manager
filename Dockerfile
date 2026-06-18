@@ -22,4 +22,4 @@ COPY static/ ./static/
 EXPOSE 5000
 
 # Step 6: Run the app using Gunicorn bound to all network interfaces
-CMD ["gunicorn", "--timeout", "60", "--bind", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--workers", "2", "--timeout", "120", "--bind", "0.0.0.0:5000", "app:app"]

@@ -5,6 +5,7 @@ from .spam import spam_bp
 from .cloudflare import cloudflare_bp
 from .admin import admin_bp
 from .password_reset import password_reset_bp
+from .reset_portal import reset_portal_bp
 
 __all__ = [
     "auth_bp",
@@ -14,4 +15,5 @@ __all__ = [
     "cloudflare_bp",
     "admin_bp",
     "password_reset_bp",
+    "reset_portal_bp",
 ]

@@ -1,11 +1,23 @@
 import os
 import secrets
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, g, abort
+
 from dotenv import load_dotenv
 
-from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled
+from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled, get_reset_portal_by_host
 from app_meta import APP_VERSION, get_about_info
-from routes import auth_bp, domains_bp, emails_bp, spam_bp, cloudflare_bp, admin_bp, password_reset_bp
+from routes import (
+    auth_bp,
+    domains_bp,
+    emails_bp,
+    spam_bp,
+    cloudflare_bp,
+    admin_bp,
+    password_reset_bp,
+    reset_portal_bp,
+)
+from services.mail import is_password_reset_available
+from services.reset_portal import is_portal_allowed_path, get_portal_branding_context
 
 load_dotenv()
 
@@ -19,6 +31,7 @@ app.register_blueprint(spam_bp)
 app.register_blueprint(cloudflare_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(password_reset_bp)
+app.register_blueprint(reset_portal_bp)
 
 
 PUBLIC_PATHS = frozenset({
@@ -30,6 +43,7 @@ PUBLIC_PATHS = frozenset({
     "/api/public/password-reset/status",
     "/api/public/password-reset/request",
     "/api/public/password-reset/confirm",
+    "/api/public/reset-portal/logo",
 })
 
 CSRF_EXEMPT_PATHS = frozenset({
@@ -38,11 +52,33 @@ CSRF_EXEMPT_PATHS = frozenset({
 })
 
 
+def _is_public_request():
+    if request.path.startswith("/static/"):
+        return True
+    if request.path in PUBLIC_PATHS:
+        return True
+    if getattr(g, "reset_portal", None) and is_portal_allowed_path(request.path):
+        return True
+    return False
+
+
+@app.before_request
+def resolve_reset_portal():
+    host = request.host.split(":", 1)[0].lower()
+    portal = get_reset_portal_by_host(host)
+    g.reset_portal = portal
+    g.reset_portal_domain = portal["domain"] if portal else None
+    if portal and not is_portal_allowed_path(request.path):
+        abort(404)
+
+
 @app.context_processor
 def inject_app_meta():
+    branding = get_portal_branding_context(getattr(g, "reset_portal", None))
     return {
         "app_version": APP_VERSION,
         "app_meta": get_about_info(),
+        **branding,
     }
 
 
@@ -62,8 +98,7 @@ init_db(app.logger)
 # Route interceptor to enforce login globally
 @app.before_request
 def check_authentication():
-    # Exclude asset paths, authentication logic endpoints (including blueprints paths)
-    if request.path.startswith('/static/') or request.path in PUBLIC_PATHS:
+    if _is_public_request():
         return
 
     user = session.get('user')
@@ -109,6 +144,14 @@ def csrf_protect():
 
 @app.route('/')
 def home():
+    portal = getattr(g, "reset_portal", None)
+    if portal:
+        branding = get_portal_branding_context(portal)
+        return render_template(
+            "reset_portal.html",
+            reset_available=is_password_reset_available(),
+            **branding,
+        )
     return render_template('index.html')
 
 

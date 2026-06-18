@@ -64,6 +64,28 @@ def validate_mailbox_password(password):
     return all(pattern.search(password) for pattern in _PASSWORD_REQUIREMENTS.values())
 
 
+_RESERVED_SUBDOMAIN_PREFIXES = frozenset({
+    "mail", "www", "webmail", "smtp", "imap", "pop", "pop3", "autodiscover",
+    "ftp", "mx", "ns", "ns1", "ns2", "_dmarc", "dmarc", "dkim", "@",
+})
+
+_DNS_LABEL_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+def validate_subdomain_prefix(prefix):
+    """Validate a user-provided DNS label for reset portal hosts. Returns (ok, error_message)."""
+    prefix = (prefix or "").strip().lower()
+    if not prefix:
+        return False, "Subdomain prefix is required."
+    if len(prefix) > 63:
+        return False, "Subdomain prefix must be 63 characters or fewer."
+    if not _DNS_LABEL_PATTERN.match(prefix):
+        return False, "Subdomain prefix must use letters, numbers, and hyphens only."
+    if prefix in _RESERVED_SUBDOMAIN_PREFIXES:
+        return False, f"'{prefix}' is reserved for mail or DNS infrastructure."
+    return True, ""
+
+
 def validate_recovery_email(mailbox_email, recovery_email):
     """Validate recovery email for a mailbox. Returns (ok, error_message)."""
     mailbox_email = (mailbox_email or "").strip().lower()

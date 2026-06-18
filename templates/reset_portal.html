@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ portal_title }} - Reset Mailbox Password</title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background: var(--bg-dark);
+            background-image: var(--bg-gradient);
+            font-family: var(--font-body);
+        }
+
+        .login-container {
+            width: 90%;
+            max-width: 440px;
+            padding: 1rem;
+        }
+
+        .login-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 3.5rem 2.5rem 2rem;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+            text-align: center;
+        }
+
+        .portal-logo {
+            max-width: 220px;
+            max-height: 80px;
+            margin: 0 auto 1.25rem;
+            display: block;
+            object-fit: contain;
+        }
+
+        .portal-title {
+            font-family: var(--font-heading);
+            font-size: 1.35rem;
+            color: var(--color-primary);
+            margin: 0 0 0.35rem;
+        }
+
+        .portal-subtitle {
+            color: var(--color-muted);
+            font-size: 0.85rem;
+            margin: 0 0 1.5rem;
+        }
+
+        .login-desc {
+            color: var(--color-secondary);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+            text-align: left;
+        }
+
+        .btn-login {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            width: 100%;
+            padding: 0.9rem 1.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            background: var(--accent);
+            color: #121824;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            box-shadow: 0 4px 20px var(--accent-glow);
+            text-decoration: none;
+        }
+
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .reset-notice,
+        .reset-success {
+            border-radius: 12px;
+            padding: 0.8rem;
+            margin-bottom: 1.25rem;
+            font-size: 0.85rem;
+            text-align: left;
+        }
+
+        .reset-notice {
+            background: rgba(248, 113, 113, 0.15);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+        }
+
+        .reset-success {
+            background: rgba(92, 221, 141, 0.12);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .form-group {
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body data-portal-domain="{{ portal_domain }}">
+    <div class="login-container">
+        <div class="login-card">
+            {% if portal_logo_url %}
+            <img src="{{ portal_logo_url }}" alt="{{ portal_title }}" class="portal-logo">
+            {% endif %}
+            <h1 class="portal-title">Reset Mailbox Password</h1>
+            <p class="portal-subtitle">{{ portal_title }}</p>
+
+            <p class="login-desc">Enter your mailbox address for <strong>@{{ portal_domain }}</strong>. If a recovery email is on file, you will receive reset instructions.</p>
+
+            <div id="reset-unavailable-notice" class="reset-notice" style="display: none;">
+                Self-service password reset is not currently available. Contact your administrator.
+            </div>
+            <div id="reset-success-notice" class="reset-success" style="display: none;"></div>
+
+            <form id="form-request-reset" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                <div class="form-group">
+                    <label for="reset-mailbox-email" style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Mailbox Email</label>
+                    <input type="email" id="reset-mailbox-email" placeholder="you@{{ portal_domain }}" required autocomplete="email">
+                </div>
+                <button type="submit" class="btn-login" id="btn-request-reset">Send Reset Link</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? decodeURIComponent(match[2]) : null;
+        }
+
+        async function loadResetStatus() {
+            try {
+                const response = await fetch('/api/public/password-reset/status');
+                const result = await response.json();
+                const available = result?.data?.available;
+                const notice = document.getElementById('reset-unavailable-notice');
+                const form = document.getElementById('form-request-reset');
+                const submitBtn = document.getElementById('btn-request-reset');
+                if (!available) {
+                    notice.style.display = 'block';
+                    form.style.display = 'none';
+                } else {
+                    notice.style.display = 'none';
+                    form.style.display = 'flex';
+                    submitBtn.disabled = false;
+                }
+            } catch (err) {
+                document.getElementById('reset-unavailable-notice').style.display = 'block';
+                document.getElementById('form-request-reset').style.display = 'none';
+            }
+        }
+
+        document.getElementById('form-request-reset').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('btn-request-reset');
+            const successNotice = document.getElementById('reset-success-notice');
+            const mailboxEmail = document.getElementById('reset-mailbox-email').value.trim().toLowerCase();
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+            successNotice.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/public/password-reset/request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCookie('csrf_token') || ''
+                    },
+                    body: JSON.stringify({ mailbox_email: mailboxEmail })
+                });
+                const result = await response.json();
+                successNotice.textContent = result.message || 'If an account with a recovery email on file exists, you will receive password reset instructions shortly.';
+                successNotice.style.display = 'block';
+            } catch (err) {
+                successNotice.textContent = 'If an account with a recovery email on file exists, you will receive password reset instructions shortly.';
+                successNotice.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Reset Link';
+            }
+        });
+
+        loadResetStatus();
+    </script>
+    <script src="/static/brand.js?v={{ app_version }}"></script>
+</body>
+
+</html>

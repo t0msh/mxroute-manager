@@ -28,6 +28,7 @@ from services.reset_portal import (
 )
 from utils.validators import validate_domain, validate_subdomain_prefix
 from utils.auth_helpers import require_permission
+from utils.themes import normalize_theme, DEFAULT_THEME
 
 reset_portal_bp = Blueprint("reset_portal", __name__)
 
@@ -47,6 +48,7 @@ def _portal_response(portal, include_live_checks=True):
             "subdomain_prefix": "",
             "portal_host": "",
             "portal_title": "",
+            "portal_theme": DEFAULT_THEME,
             "has_logo": False,
             "portal_url": "",
             "cname_target": get_reset_portal_cname_target(),
@@ -76,6 +78,7 @@ def _portal_response(portal, include_live_checks=True):
         "subdomain_prefix": portal.get("subdomain_prefix") or "",
         "portal_host": host,
         "portal_title": portal.get("portal_title") or "",
+        "portal_theme": normalize_theme(portal.get("portal_theme")),
         "has_logo": bool(portal.get("logo_filename")),
         "portal_url": f"https://{host}" if host else "",
         "cname_target": get_reset_portal_cname_target(),
@@ -108,6 +111,7 @@ def update_domain_reset_portal(domain):
     enabled = bool(data.get("enabled"))
     subdomain_prefix = (data.get("subdomain_prefix") or "").strip().lower()
     portal_title = (data.get("portal_title") or "").strip()
+    portal_theme = normalize_theme(data.get("portal_theme"))
 
     if enabled and not subdomain_prefix:
         return jsonify({"success": False, "error": {"message": "Subdomain prefix is required when the portal is enabled."}}), 400
@@ -119,7 +123,7 @@ def update_domain_reset_portal(domain):
     portal_before = get_reset_portal(domain)
     was_enabled = bool(portal_before and portal_before.get("enabled"))
 
-    ok, message = upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title)
+    ok, message = upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title, portal_theme)
     if not ok:
         return jsonify({"success": False, "error": {"message": message}}), 400
 

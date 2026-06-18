@@ -668,6 +668,8 @@ def get_reset_portal_cname_target():
 def _row_to_reset_portal(row):
     if not row:
         return None
+    from utils.themes import normalize_theme
+
     return {
         "domain": row[0],
         "enabled": bool(row[1]),
@@ -675,6 +677,7 @@ def _row_to_reset_portal(row):
         "portal_host": row[3] or "",
         "portal_title": row[4] or "",
         "logo_filename": row[5] or "",
+        "portal_theme": normalize_theme(row[6] if len(row) > 6 else None),
     }
 
 
@@ -684,7 +687,7 @@ def get_reset_portal(domain):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename
+        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
         FROM domain_reset_portals WHERE domain = ?
         """,
         (domain,),
@@ -702,7 +705,7 @@ def get_reset_portal_by_host(host):
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename
+        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
         FROM domain_reset_portals
         WHERE portal_host = ? AND enabled = 1
         """,
@@ -718,7 +721,7 @@ def list_reset_portals():
     cursor = conn.cursor()
     cursor.execute(
         """
-        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename
+        SELECT domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme
         FROM domain_reset_portals ORDER BY domain
         """
     )
@@ -727,13 +730,15 @@ def list_reset_portals():
     return [_row_to_reset_portal(row) for row in rows]
 
 
-def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None):
+def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None, portal_theme=None):
     from utils.validators import validate_subdomain_prefix
+    from utils.themes import normalize_theme
 
     domain = domain.lower().strip()
     enabled = bool(enabled)
     subdomain_prefix = (subdomain_prefix or "").strip().lower()
     portal_title = (portal_title or "").strip()
+    theme = normalize_theme(portal_theme)
 
     if enabled and not subdomain_prefix:
         return False, "Subdomain prefix is required when the portal is enabled."
@@ -749,15 +754,16 @@ def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None):
     cursor.execute(
         """
         INSERT INTO domain_reset_portals
-            (domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename)
-        VALUES (?, ?, ?, ?, ?, '')
+            (domain, enabled, subdomain_prefix, portal_host, portal_title, logo_filename, portal_theme)
+        VALUES (?, ?, ?, ?, ?, '', ?)
         ON CONFLICT(domain) DO UPDATE SET
             enabled = excluded.enabled,
             subdomain_prefix = excluded.subdomain_prefix,
             portal_host = excluded.portal_host,
-            portal_title = excluded.portal_title
+            portal_title = excluded.portal_title,
+            portal_theme = excluded.portal_theme
         """,
-        (domain, 1 if enabled else 0, subdomain_prefix, portal_host, portal_title),
+        (domain, 1 if enabled else 0, subdomain_prefix, portal_host, portal_title, theme),
     )
     conn.commit()
     conn.close()
@@ -881,7 +887,8 @@ def init_db(logger=None):
                 subdomain_prefix TEXT NOT NULL DEFAULT '',
                 portal_host TEXT NOT NULL DEFAULT '',
                 portal_title TEXT NOT NULL DEFAULT '',
-                logo_filename TEXT NOT NULL DEFAULT ''
+                logo_filename TEXT NOT NULL DEFAULT '',
+                portal_theme TEXT NOT NULL DEFAULT 'emerald'
             );
         """)
         cursor.execute("""
@@ -889,6 +896,13 @@ def init_db(logger=None):
             ON domain_reset_portals(portal_host)
             WHERE portal_host != '' AND enabled = 1
         """)
+        cursor.execute("PRAGMA table_info(domain_reset_portals)")
+        portal_columns = {row[1] for row in cursor.fetchall()}
+        if "portal_theme" not in portal_columns:
+            cursor.execute(
+                "ALTER TABLE domain_reset_portals ADD COLUMN portal_theme TEXT NOT NULL DEFAULT 'emerald'"
+            )
+            conn.commit()
         conn.commit()
 
         # Perform migration from JSON if it exists

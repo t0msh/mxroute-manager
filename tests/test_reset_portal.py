@@ -5,6 +5,8 @@ import sqlite3
 
 import pytest
 
+from services.reset_portal import get_portal_branding_context
+from utils.themes import normalize_theme
 from utils.validators import validate_subdomain_prefix
 from tests.helpers import csrf_token_from_response
 
@@ -44,6 +46,7 @@ def test_reset_portal_crud_and_host_lookup(fresh_db):
     assert portal["subdomain_prefix"] == "reset"
     assert portal["portal_host"] == "reset.example.com"
     assert portal["portal_title"] == "Example Org"
+    assert portal["portal_theme"] == "emerald"
 
     by_host = fresh_db.get_reset_portal_by_host("reset.example.com")
     assert by_host["domain"] == "example.com"
@@ -51,6 +54,36 @@ def test_reset_portal_crud_and_host_lookup(fresh_db):
     fresh_db.upsert_reset_portal("other.com", True, "password", "")
     assert fresh_db.get_reset_portal_by_host("password.other.com")["domain"] == "other.com"
     assert fresh_db.get_reset_portal_by_host("reset.example.com")["domain"] == "example.com"
+
+
+def test_reset_portal_theme_round_trip_and_validation(fresh_db):
+    ok, _ = fresh_db.upsert_reset_portal("example.com", True, "reset", "Example", "indigo-light")
+    assert ok is True
+    portal = fresh_db.get_reset_portal("example.com")
+    assert portal["portal_theme"] == "indigo-light"
+
+    ok, _ = fresh_db.upsert_reset_portal("example.com", True, "reset", "Example", "not-a-theme")
+    portal = fresh_db.get_reset_portal("example.com")
+    assert portal["portal_theme"] == "emerald"
+
+    branding = get_portal_branding_context(portal)
+    assert branding["portal_theme"] == "emerald"
+    assert branding["is_reset_portal"] is True
+
+
+def test_normalize_theme():
+    assert normalize_theme("indigo") == "indigo"
+    assert normalize_theme(" INDIGO-LIGHT ") == "indigo-light"
+    assert normalize_theme("bogus") == "emerald"
+    assert normalize_theme(None) == "emerald"
+
+
+def test_portal_html_includes_theme_attribute(fresh_db, client):
+    fresh_db.upsert_reset_portal("example.com", True, "reset", "Example", "crimson")
+
+    response = client.get("/", headers={"Host": "reset.example.com"})
+    assert response.status_code == 200
+    assert b'data-portal-theme="crimson"' in response.data
 
 
 def test_build_reset_portal_url(fresh_db):

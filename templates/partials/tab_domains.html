@@ -143,6 +143,23 @@
             </div>
 
             <div class="form-group mb-4">
+                <div style="font-weight: 600; color: var(--accent); margin-bottom: 0.5rem;">Portal theme</div>
+                <p class="stat-card-subtitle" style="margin: 0 0 0.75rem;">Colorscheme for the public reset page (independent of your workspace theme).</p>
+                <div class="portal-theme-grid" id="reset-portal-theme-grid">
+                    <button type="button" class="portal-theme-card" data-portal-theme="emerald" style="--swatch: #5cdd8d;" title="Emerald Glass"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="indigo" style="--swatch: #6366f1;" title="Classic Indigo"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="crimson" style="--swatch: #f43f5e;" title="Crimson Dusk"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="amber" style="--swatch: #f59e0b;" title="Amber Sunset"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="amethyst" style="--swatch: #a855f7;" title="Amethyst Glow"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="cyberpunk" style="--swatch: #00f0ff;" title="Cyberpunk"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="emerald-light" style="--swatch: #059669;" title="Mint Paper"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="indigo-light" style="--swatch: #4f46e5;" title="Indigo Day"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="slate-light" style="--swatch: #475569;" title="Slate Office"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="rose-light" style="--swatch: #e11d48;" title="Rose Blush"><span class="portal-theme-swatch"></span></button>
+                </div>
+            </div>
+
+            <div class="form-group mb-4">
                 <label for="reset-portal-logo">Logo image</label>
                 <div class="flex-row align-center" style="gap: 1rem; flex-wrap: wrap;">
                     <img id="reset-portal-logo-preview" alt="" style="display: none; max-width: 180px; max-height: 64px; object-fit: contain; border-radius: 8px; background: rgba(0,0,0,0.2); padding: 0.5rem;">
@@ -197,3 +214,40 @@
         </div>
     </div>
 </div>
+
+<style>
+    .portal-theme-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .portal-theme-card {
+        width: 2.25rem;
+        height: 2.25rem;
+        padding: 0;
+        border: 2px solid transparent;
+        border-radius: 10px;
+        background: transparent;
+        cursor: pointer;
+        transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .portal-theme-swatch {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: 7px;
+        background: var(--swatch);
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+
+    .portal-theme-card.active {
+        border-color: var(--accent);
+        transform: scale(1.05);
+    }
+
+    .portal-theme-card:hover:not(.active) {
+        border-color: rgba(var(--accent-rgb), 0.35);
+    }
+</style>

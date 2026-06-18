@@ -1058,6 +1058,15 @@ async function populateSetupDomainSelect() {
 // --- Password Reset Portal ---
 let resetPortalDomain = "";
 let resetPortalLoadedPrefix = "";
+let resetPortalSelectedTheme = "emerald";
+
+function highlightResetPortalTheme(themeId) {
+    const theme = themeId || "emerald";
+    resetPortalSelectedTheme = theme;
+    document.querySelectorAll("#reset-portal-theme-grid .portal-theme-card").forEach(card => {
+        card.classList.toggle("active", card.getAttribute("data-portal-theme") === theme);
+    });
+}
 
 async function populateResetPortalDomainSelect() {
     const select = document.getElementById("reset-portal-domain-select");
@@ -1102,6 +1111,7 @@ function renderResetPortalForm(data) {
     document.getElementById("reset-portal-enabled").checked = !!data.enabled;
     document.getElementById("reset-portal-prefix").value = data.subdomain_prefix || "";
     document.getElementById("reset-portal-title").value = data.portal_title || "";
+    highlightResetPortalTheme(data.portal_theme || "emerald");
     resetPortalLoadedPrefix = data.subdomain_prefix || "";
 
     const logoPreview = document.getElementById("reset-portal-logo-preview");
@@ -1188,6 +1198,12 @@ function initResetPortal() {
         }
     });
 
+    document.querySelectorAll("#reset-portal-theme-grid .portal-theme-card").forEach(card => {
+        card.addEventListener("click", () => {
+            highlightResetPortalTheme(card.getAttribute("data-portal-theme"));
+        });
+    });
+
     document.getElementById("btn-reset-portal-save")?.addEventListener("click", async () => {
         if (!resetPortalDomain) {
             showAlert("warning", "Select a domain first.");
@@ -1196,6 +1212,7 @@ function initResetPortal() {
         const enabled = document.getElementById("reset-portal-enabled").checked;
         const subdomain_prefix = document.getElementById("reset-portal-prefix").value.trim().toLowerCase();
         const portal_title = document.getElementById("reset-portal-title").value.trim();
+        const portal_theme = resetPortalSelectedTheme;
         if (enabled && !subdomain_prefix) {
             showAlert("warning", "Subdomain prefix is required when the portal is enabled.");
             return;
@@ -1204,7 +1221,7 @@ function initResetPortal() {
             const result = await apiRequest(
                 `/api/domains/${resetPortalDomain}/reset-portal`,
                 "PATCH",
-                { enabled, subdomain_prefix, portal_title }
+                { enabled, subdomain_prefix, portal_title, portal_theme }
             );
             showAlert("success", "Reset portal settings saved.");
             if (result.data?.teardown_steps?.length) {

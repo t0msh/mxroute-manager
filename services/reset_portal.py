@@ -3,6 +3,7 @@ import os
 from flask import g
 
 from models.db import get_branding_dir
+from utils.themes import normalize_theme, DEFAULT_THEME
 
 RESET_PORTAL_ALLOWED_PATHS = frozenset({
     "/",
@@ -39,6 +40,7 @@ def get_portal_branding_context(portal):
             "portal_title": "",
             "portal_logo_url": None,
             "portal_domain": "",
+            "portal_theme": DEFAULT_THEME,
             "is_reset_portal": False,
         }
     title = (portal.get("portal_title") or "").strip() or portal["domain"]
@@ -49,6 +51,7 @@ def get_portal_branding_context(portal):
         "portal_title": title,
         "portal_logo_url": logo_url,
         "portal_domain": portal["domain"],
+        "portal_theme": normalize_theme(portal.get("portal_theme")),
         "is_reset_portal": True,
     }
 

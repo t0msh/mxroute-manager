@@ -14,8 +14,14 @@ function getAccentColor() {
 }
 
 function applyStoredTheme() {
-    const stored = localStorage.getItem("workspace-theme") || "emerald";
+    const portalTheme = document.body.dataset.portalTheme;
     const ids = getThemeIds();
+    if (portalTheme && ids.includes(portalTheme)) {
+        ids.forEach(t => document.body.classList.remove(`theme-${t}`));
+        document.body.classList.add(`theme-${portalTheme}`);
+        return portalTheme;
+    }
+    const stored = localStorage.getItem("workspace-theme") || "emerald";
     const theme = ids.includes(stored) ? stored : "emerald";
     ids.forEach(t => document.body.classList.remove(`theme-${t}`));
     document.body.classList.add(`theme-${theme}`);

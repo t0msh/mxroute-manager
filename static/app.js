@@ -3090,11 +3090,11 @@ function setTheme(theme, save = true) {
     }
 }
 
-function renderSecretStatus(elementId, configured, envLabel = "environment") {
+function renderSecretStatus(elementId, configured, successText = "Configured via environment") {
     const el = document.getElementById(elementId);
     if (!el) return;
     el.innerHTML = configured
-        ? `<span class="status-indicator success"><span class="dot"></span> Configured via ${escapeHtml(envLabel)}</span>`
+        ? `<span class="status-indicator success"><span class="dot"></span> ${escapeHtml(successText)}</span>`
         : `<span class="status-indicator danger"><span class="dot"></span> Not configured</span>`;
 }
 
@@ -3184,11 +3184,6 @@ async function loadSettingsPage() {
                 
                 document.getElementById("setting-admin-user").value = settings.ADMIN_USER || "admin";
                 document.getElementById("setting-admin-password").value = "";
-                renderSecretStatus(
-                    "setting-admin-password-status",
-                    settings.ADMIN_PASSWORD_configured,
-                    "secure hash"
-                );
 
                 document.getElementById("setting-mailbox-reset-enabled").value = settings.MAILBOX_RESET_ENABLED || "false";
                 document.getElementById("setting-reset-smtp-host").value = settings.RESET_SMTP_HOST || "";
@@ -3200,7 +3195,7 @@ async function loadSettingsPage() {
                 renderSecretStatus(
                     "setting-reset-smtp-password-status",
                     settings.RESET_SMTP_PASSWORD_configured,
-                    "configured"
+                    "Password saved"
                 );
 
                 const contactInput = document.getElementById("setting-admin-contact-email");

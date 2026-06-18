@@ -3,13 +3,13 @@
     <!-- Provision Email Account -->
     <div class="glass-card" style="position: relative;" id="email-provision-card">
         <div class="card-overlay" id="email-hosting-disabled-overlay">
-            <span style="font-size: 3rem; margin-bottom: 1rem;">⚠️</span>
+            <span class="overlay-icon">{{ icon('exclamation-triangle-fill', 'icon-lg') }}</span>
             <h3 style="font-family: var(--font-heading); font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--color-primary);">Mail Hosting Disabled</h3>
             <p style="color: var(--color-secondary); max-width: 380px; font-size: 0.95rem; line-height: 1.5;">
                 Mail hosting is currently disabled for this domain. Enable it on the <a href="#" onclick="document.querySelector('[data-tab=\'dashboard\']').click(); return false;" style="color: var(--accent); text-decoration: underline;">Dashboard</a> to provision mailboxes.
             </p>
         </div>
-        <h3 class="card-title">➕ Provision New Email Account</h3>
+        <h3 class="card-title">{{ icon('plus-circle') }} Provision New Email Account</h3>
         <form id="form-create-email">
             <div class="form-row">
                 <div class="form-group">
@@ -38,11 +38,11 @@
                 <div class="form-group">
                     <label>Password Requirements</label>
                     <ul class="validation-list" id="create-email-requirements">
-                        <li data-req="length">✖ 8+ chars</li>
-                        <li data-req="upper">✖ Uppercase</li>
-                        <li data-req="lower">✖ Lowercase</li>
-                        <li data-req="number">✖ Number</li>
-                        <li data-req="special">✖ Special char</li>
+                        <li data-req="length"><i class="bi bi-x req-icon" aria-hidden="true"></i> 8+ chars</li>
+                        <li data-req="upper"><i class="bi bi-x req-icon" aria-hidden="true"></i> Uppercase</li>
+                        <li data-req="lower"><i class="bi bi-x req-icon" aria-hidden="true"></i> Lowercase</li>
+                        <li data-req="number"><i class="bi bi-x req-icon" aria-hidden="true"></i> Number</li>
+                        <li data-req="special"><i class="bi bi-x req-icon" aria-hidden="true"></i> Special char</li>
                     </ul>
                 </div>
             </div>
@@ -83,10 +83,10 @@
     <div id="credentials-output-card" class="glass-card"
         style="display: none; border-color: var(--success); box-shadow: 0 0 20px var(--success-glow);">
         <div class="flex-row justify-between align-center mb-4">
-            <h3 class="card-title" style="color: var(--success); margin-bottom: 0;">🎉 Mailbox Created
+            <h3 class="card-title" style="color: var(--success); margin-bottom: 0;">{{ icon('check-circle-fill') }} Mailbox Created
                 Successfully!</h3>
             <div class="flex-row" style="gap: 0.5rem;">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-copy-mailbox-credentials">📋 Copy Credentials</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-copy-mailbox-credentials">{{ icon('clipboard') }} Copy Credentials</button>
                 <button class="btn btn-secondary btn-sm"
                     onclick="document.getElementById('credentials-output-card').style.display='none'">Dismiss</button>
             </div>
@@ -103,7 +103,7 @@
 
     <!-- List Email Accounts -->
     <div class="glass-card">
-        <h3 class="card-title">📋 Active Domain Mailboxes</h3>
+        <h3 class="card-title">{{ icon('clipboard') }} Active Domain Mailboxes</h3>
         <div class="table-container">
             <table>
                 <thead>

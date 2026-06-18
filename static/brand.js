@@ -1,5 +1,11 @@
 const APP_LOGO_PATH = "/static/logo.svg";
-const APP_THEMES = ["emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk"];
+
+function getThemeIds() {
+    return window.Mxm?.themes?.THEME_IDS ?? [
+        "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk",
+        "emerald-light", "indigo-light", "slate-light", "rose-light",
+    ];
+}
 
 let _logoSvgTemplate = null;
 
@@ -8,8 +14,10 @@ function getAccentColor() {
 }
 
 function applyStoredTheme() {
-    const theme = localStorage.getItem("workspace-theme") || "emerald";
-    APP_THEMES.forEach(t => document.body.classList.remove(`theme-${t}`));
+    const stored = localStorage.getItem("workspace-theme") || "emerald";
+    const ids = getThemeIds();
+    const theme = ids.includes(stored) ? stored : "emerald";
+    ids.forEach(t => document.body.classList.remove(`theme-${t}`));
     document.body.classList.add(`theme-${theme}`);
     return theme;
 }

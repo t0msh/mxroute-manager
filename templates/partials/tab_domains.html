@@ -2,7 +2,7 @@
 <div class="tab-panel" id="tab-domains">
     <!-- Domain & DNS Setup Wizard -->
     <div class="glass-card" id="domain-setup-wizard">
-        <h3 class="card-title">🌐 Domain &amp; DNS Setup</h3>
+        <h3 class="card-title">{{ icon('globe') }} Domain &amp; DNS Setup</h3>
         <p class="stat-card-subtitle mb-4">Configure MXroute hosting and Cloudflare DNS records in three guided steps.</p>
 
         <div class="setup-wizard-steps">
@@ -107,7 +107,7 @@
 
     <!-- Password Reset Portal -->
     <div class="glass-card" id="reset-portal-card">
-        <h3 class="card-title">🔐 Password Reset Portal</h3>
+        <h3 class="card-title">{{ icon('shield-lock') }} Password Reset Portal</h3>
         <p class="stat-card-subtitle mb-4">Expose a branded mailbox password reset page on a subdomain of the selected domain.</p>
 
         <div class="telemetry-item mb-4">
@@ -173,8 +173,8 @@
     <!-- List Domains -->
     <div class="glass-card" id="domains-list-card">
         <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
-            <span>📋 Active Account Domains</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">🔄 Refresh status</button>
+            <span>{{ icon('clipboard') }} Active Account Domains</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">{{ icon('arrow-clockwise') }} Refresh status</button>
         </div>
         <p class="stat-card-subtitle mb-4" id="domains-list-status-hint">Mail and DNS columns use cached results. Click Refresh status to recheck all domains.</p>
         <div class="table-container">

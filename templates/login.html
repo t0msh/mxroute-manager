@@ -10,6 +10,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ app_version }}">
 
     <!-- Custom stylesheet connection -->
+    <link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
     <style>
         body {
@@ -44,7 +45,7 @@
         }
 
         .login-card:hover {
-            border-color: rgba(92, 221, 141, 0.15);
+            border-color: rgba(var(--accent-rgb), 0.15);
         }
 
         .login-desc {
@@ -78,9 +79,9 @@
         }
 
         .login-tab.active {
-            background: rgba(92, 221, 141, 0.15);
+            background: rgba(var(--accent-rgb), 0.15);
             color: var(--accent);
-            box-shadow: inset 0 0 0 1px rgba(92, 221, 141, 0.25);
+            box-shadow: inset 0 0 0 1px rgba(var(--accent-rgb), 0.25);
         }
 
         .login-panel {
@@ -206,8 +207,8 @@
         }
 
         .btn-admin:hover {
-            background: rgba(92, 221, 141, 0.07);
-            border-color: rgba(92, 221, 141, 0.3);
+            background: rgba(var(--accent-rgb), 0.07);
+            border-color: rgba(var(--accent-rgb), 0.3);
             color: var(--accent);
         }
 
@@ -216,9 +217,26 @@
             padding-top: 0;
         }
 
-        .login-version {
+        .login-card-footer {
             margin-top: auto;
             padding-top: 2rem;
+            text-align: center;
+        }
+
+        .login-app-name {
+            font-family: var(--font-heading);
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--accent);
+            letter-spacing: 0.03em;
+            margin: 0;
+            white-space: nowrap;
+            opacity: 0.9;
+        }
+
+        .login-version {
+            margin-top: 0.35rem;
+            padding-top: 0;
             font-size: 0.7rem;
             color: var(--color-secondary);
             opacity: 0.6;
@@ -238,10 +256,10 @@
         }
 
         .reset-success {
-            background: rgba(92, 221, 141, 0.12);
-            border: 1px solid rgba(92, 221, 141, 0.35);
+            background: rgba(var(--accent-rgb), 0.12);
+            border: 1px solid rgba(var(--accent-rgb), 0.35);
             border-radius: 12px;
-            color: var(--success);
+            color: var(--accent);
             padding: 0.8rem;
             margin-bottom: 1rem;
             font-size: 0.85rem;
@@ -253,18 +271,15 @@
 <body data-has-error="{{ 'true' if error else 'false' }}" data-oidc-enabled="{{ 'true' if oidc_enabled else 'false' }}">
     <div class="login-container">
         <div class="login-card">
-            <div class="login-brand">
+            <div class="login-brand login-brand--logo-only">
                 <span class="app-logo" role="img" aria-label="MXroute Manager"></span>
-                <div class="brand-title-block">
-                    <h1 class="brand-title">MXroute Manager</h1>
-                </div>
             </div>
 
             <!-- Error Message Alert -->
             {% if error %}
             <div
                 style="background: rgba(248, 113, 113, 0.15); border: 1px solid var(--danger); border-radius: 12px; color: var(--danger); padding: 0.8rem; margin-bottom: 1.5rem; font-size: 0.85rem; text-align: left; display: flex; align-items: center; gap: 0.5rem;">
-                <span>⚠️</span> {{ error }}
+                <span>{{ icon('exclamation-triangle-fill') }}</span> {{ error }}
             </div>
             {% endif %}
 
@@ -284,7 +299,7 @@
 
                 {% if oidc_enabled %}
                 <a href="/login/redirect" class="btn-login">
-                    <span>🔑</span> Sign In with OIDC
+                    <span>{{ icon('key-fill') }}</span> Sign In with OIDC
                 </a>
 
                 <button class="admin-toggle" id="adminToggle" aria-expanded="false" aria-controls="adminSection"
@@ -316,7 +331,7 @@
                                     autocomplete="current-password">
                             </div>
                             <button type="submit" class="btn-admin">
-                                <span>👤</span> Sign In
+                                <span>{{ icon('person') }}</span> Sign In
                             </button>
                         </form>
                     </div>
@@ -340,7 +355,10 @@
                 </form>
             </div>
 
-            <p class="login-version">v{{ app_version }}</p>
+            <div class="login-card-footer">
+                <p class="login-app-name">MXroute Manager</p>
+                <p class="login-version">v{{ app_version }}</p>
+            </div>
         </div>
     </div>
 

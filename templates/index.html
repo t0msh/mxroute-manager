@@ -12,6 +12,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ app_version }}">
 
     <!-- Custom Stylesheet -->
+    <link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
 </head>
 
@@ -44,7 +45,7 @@
                 </div>
             </div>
             <div class="flex-row">
-                <button class="btn btn-secondary btn-sm" id="btn-refresh-data">🔄 Refresh Data</button>
+                <button class="btn btn-secondary btn-sm" id="btn-refresh-data">{{ icon('arrow-clockwise') }} Refresh Data</button>
             </div>
         </section>
 
@@ -61,7 +62,7 @@
 
     <!-- Global Floating Toast Notification Banner -->
     <div id="alert-banner" class="alert-banner">
-        <span id="alert-banner-icon">🔔</span>
+        <span id="alert-banner-icon">{{ icon('bell') }}</span>
         <div style="flex: 1;" id="alert-banner-text">Welcome to the Dashboard</div>
         <button class="alert-banner-close" onclick="dismissAlert()">×</button>
     </div>

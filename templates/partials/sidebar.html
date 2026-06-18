@@ -10,28 +10,28 @@
 
     <nav class="sidebar-nav">
         <div class="nav-item active" data-tab="dashboard">
-            <span>📊</span> Dashboard
+            {{ icon('speedometer2') }} Dashboard
         </div>
         <div class="nav-item" data-tab="domains" id="nav-tab-domains">
-            <span>🌐</span> Domains
+            {{ icon('globe') }} Domains
         </div>
         <div class="nav-item" data-tab="emails">
-            <span>📧</span> Email Accounts
+            {{ icon('envelope') }} Email Accounts
         </div>
         <div class="nav-item" data-tab="forwarders">
-            <span>↪️</span> Forwarders
+            {{ icon('arrow-return-right') }} Forwarders
         </div>
         <div class="nav-item" data-tab="spam">
-            <span>🛡️</span> Spam Controls
+            {{ icon('shield-check') }} Spam Controls
         </div>
         <div class="nav-item" data-tab="delegations" id="nav-tab-delegations" style="display: none;">
-            <span>👥</span> Access Control
+            {{ icon('people') }} Access Control
         </div>
         <div class="nav-item" data-tab="logs" id="nav-tab-logs" style="display: none;">
-            <span>📜</span> Logs
+            {{ icon('journal-text') }} Logs
         </div>
         <div class="nav-item" data-tab="settings" id="nav-tab-settings">
-            <span>⚙️</span> Settings
+            {{ icon('gear') }} Settings
         </div>
     </nav>
 
@@ -57,7 +57,7 @@
                     style="font-size: 0.65rem; padding: 0.1rem 0.3rem; border-radius: 4px; background: var(--accent-glow); color: var(--accent);">Admin</span>
             </div>
             <a href="/logout" class="btn btn-secondary btn-sm"
-                style="width: 100%; font-size: 0.75rem; padding: 0.35rem 0.5rem; justify-content: center; display: inline-flex;">🚪
+                style="width: 100%; font-size: 0.75rem; padding: 0.35rem 0.5rem; justify-content: center; display: inline-flex;">{{ icon('box-arrow-right') }}
                 Log Out</a>
         </div>
     </div>

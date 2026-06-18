@@ -36,6 +36,22 @@ export function dnsNeedsFix(health) {
     return !!health && health.overall !== "healthy";
 }
 
+/** Run async fn over items with a fixed concurrency cap (third-party / heavy API calls). */
+export async function mapWithConcurrency(items, limit, fn) {
+    const results = new Array(items.length);
+    let i = 0;
+    async function worker() {
+        while (i < items.length) {
+            const idx = i++;
+            results[idx] = await fn(items[idx], idx);
+        }
+    }
+    await Promise.all(
+        Array.from({ length: Math.min(limit, items.length) }, () => worker())
+    );
+    return results;
+}
+
 export function renderDnsStatusBadge(health) {
     if (!health || !health.checks) {
         return `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;

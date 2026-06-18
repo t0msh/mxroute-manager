@@ -1,6 +1,6 @@
 """Single source of truth for application metadata. Bump APP_VERSION here for releases."""
 
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.9.2"
 APP_NAME = "MXroute Manager"
 APP_DESCRIPTION = (
     "Self-hosted control panel for MXroute email hosting, DNS management, "
@@ -13,6 +13,11 @@ LICENSE_URL = "https://opensource.org/licenses/MIT"
 COPYRIGHT = "Copyright (c) 2026 Tom Shute"
 
 ATTRIBUTIONS = [
+    {
+        "name": "Bootstrap Icons",
+        "description": "Open-source icon font used in the UI",
+        "url": "https://icons.getbootstrap.com/",
+    },
     {
         "name": "MXroute",
         "description": "Email hosting platform and domain/mailbox management API",

@@ -4,7 +4,7 @@
         <div class="stat-card">
             <div class="stat-card-header">
                 <span>Mail Hosting Status</span>
-                <span>🌐</span>
+                <span>{{ icon('globe') }}</span>
             </div>
             <div class="stat-card-value flex-row justify-between align-center">
                 <span id="dash-mail-status">--</span>
@@ -16,7 +16,7 @@
         <div class="stat-card">
             <div class="stat-card-header">
                 <span>Active Mailboxes</span>
-                <span>📧</span>
+                <span>{{ icon('envelope') }}</span>
             </div>
             <div class="stat-card-value" id="dash-mailboxes-count">--</div>
             <div class="stat-card-subtitle">Total mailboxes configured</div>
@@ -24,7 +24,7 @@
         <div class="stat-card">
             <div class="stat-card-header">
                 <span>Domain Aliases (Pointers)</span>
-                <span>🔗</span>
+                <span>{{ icon('link-45deg') }}</span>
             </div>
             <div class="stat-card-value" id="dash-pointers-count">0</div>
             <div class="stat-card-subtitle">Alternative domains pointing here</div>
@@ -33,7 +33,7 @@
 
     <!-- Detailed Quota Breakdown -->
     <div class="glass-card" id="dash-quota-card">
-        <h3 class="card-title">💾 Account Quota Telemetry</h3>
+        <h3 class="card-title">{{ icon('hdd-stack') }} Account Quota Telemetry</h3>
         <div class="quota-telemetry">
             <div class="telemetry-details">
                 <div class="telemetry-item">
@@ -59,8 +59,8 @@
     <!-- DNS Health -->
     <div class="glass-card" id="dns-health-card">
         <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-            <span>🩺 DNS Health Check</span>
-            <button class="btn btn-secondary btn-sm" id="btn-refresh-dns-health">🔄 Recheck DNS</button>
+            <span>{{ icon('heart-pulse') }} DNS Health Check</span>
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-dns-health">{{ icon('arrow-clockwise') }} Recheck DNS</button>
         </div>
         <p class="stat-card-subtitle mb-4">Live public DNS lookup compared against MXroute expectations for the active domain.</p>
         <div id="dns-health-summary" class="dns-health-summary">

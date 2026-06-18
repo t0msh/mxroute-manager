@@ -8,7 +8,7 @@
 > 
 > This app was 90% vibe coded with Cursor. It was to solve a particular annoyance I personally had with managing the domains I have with email services on MXroute. It was a way for me to learn more about JavaScript, Python and APIs. I got carried away, the AI kept pointing out my failures, and it turned into this.
 >
-> I fully understand that nobody in their right mind is going to trust this tool to manage their production email environment. This repo is more of a show and tell, in case anyone finds it useful or got annoyed of having to remember their MXroute login to reset their parents' email password.
+> Nobody in their right mind is going to trust this tool to manage their production email environment. This repo is more of a show and tell, in case anyone finds it useful or got annoyed of having to remember their MXroute login to reset their parents' email password.
 >
 > **Use it at your own risk!**
 
@@ -128,28 +128,6 @@ Mailbox owners reset passwords from the **Reset Mailbox Password** tab on the lo
 
 Reset requests use generic responses (no mailbox enumeration), rate limits, and single-use hashed tokens. See [docs/configuration.md](docs/configuration.md) for SMTP variables.
 
-## Screenshots
-
-### Dashboard
-![Dashboard](screenshots/dashboard.png)
-
-### Domain Management
-![Domain Management](screenshots/domain_management.png)
-
-### Email Accounts
-![Email Accounts](screenshots/email_accounts.png)
-
-### Forwarders
-![Forwarders](screenshots/forwarders.png)
-
-### Spam Controls
-![Spam Controls](screenshots/spamcontrol.png)
-
-### Access Control
-![Access Control](screenshots/accesscontrol.png)
-
-### Settings
-![Settings](screenshots/settings.png)
 
 ## License
 

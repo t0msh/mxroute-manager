@@ -4,7 +4,7 @@
     <!-- System Settings (Admin Only) -->
     <div class="glass-card" id="system-settings-card" style="display: none;">
         <div class="card-title">
-            <span>⚙️</span> System Configuration
+            <span>{{ icon('gear') }}</span> System Configuration
             <span class="badge">Admin Only</span>
         </div>
         
@@ -13,7 +13,7 @@
             <!-- OpenID Connect (OIDC) Parameters -->
             <div>
                 <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
-                    🗝️ OpenID Connect (OIDC) Settings
+                    {{ icon('key') }} OpenID Connect (OIDC) Settings
                 </h3>
                 
                 <div class="form-row">
@@ -70,7 +70,7 @@
             <!-- MXroute API Settings -->
             <div>
                 <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
-                    📧 MXroute Server Configuration
+                    {{ icon('envelope') }} MXroute Server Configuration
                 </h3>
                 
                 <div class="form-row">
@@ -94,7 +94,7 @@
             <!-- Cloudflare API Settings -->
             <div>
                 <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
-                    ☁️ Cloudflare API Settings
+                    {{ icon('cloud') }} Cloudflare API Settings
                 </h3>
                 
                 <div class="form-row">
@@ -113,7 +113,7 @@
             <!-- Fallback Local Admin -->
             <div>
                 <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
-                    👤 Local Credentials Admin
+                    {{ icon('person') }} Local Credentials Admin
                 </h3>
                 
                 <div class="form-row">
@@ -132,7 +132,7 @@
             <!-- Mailbox Password Reset -->
             <div>
                 <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
-                    🔐 Mailbox Password Reset
+                    {{ icon('shield-lock') }} Mailbox Password Reset
                 </h3>
 
                 <div class="form-row">
@@ -190,12 +190,12 @@
                 </div>
 
                 <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
-                    <button type="button" class="btn btn-secondary" id="btn-test-smtp-settings">✉️ Send Test Email</button>
+                    <button type="button" class="btn btn-secondary" id="btn-test-smtp-settings">{{ icon('send') }} Send Test Email</button>
                 </div>
             </div>
             
             <div style="display: flex; justify-content: flex-end; gap: 1rem;">
-                <button type="submit" class="btn btn-primary" id="btn-save-system-settings">💾 Save System Settings</button>
+                <button type="submit" class="btn btn-primary" id="btn-save-system-settings">{{ icon('save') }} Save System Settings</button>
             </div>
         </form>
     </div>
@@ -203,67 +203,83 @@
     <!-- Appearance Settings (All Users) -->
     <div class="glass-card">
         <div class="card-title">
-            <span>🎨</span> Appearance & Colorscheme
+            <span>{{ icon('palette') }}</span> Appearance & Colorscheme
             <span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border-color: rgba(99, 102, 241, 0.2);">Preferences</span>
         </div>
         
-        <p class="stat-card-subtitle mb-4">Choose your preferred accents and workspace styles. Your settings are saved locally to your browser.</p>
+        <p class="stat-card-subtitle mb-4">Choose your preferred accents and workspace styles. Dark and light palettes are saved locally to your browser.</p>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1.25rem; margin-top: 1rem;" id="theme-selectors-grid">
-            
-            <!-- Emerald Theme -->
-            <div class="theme-select-card" data-theme="emerald" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #5cdd8d; box-shadow: 0 0 10px rgba(92, 221, 141, 0.4);"></div>
-                <div style="font-weight: 600; font-size: 0.9rem;">Emerald Glass</div>
+        <h4 class="theme-section-title">Dark</h4>
+        <div class="theme-select-grid" id="theme-selectors-dark">
+            <div class="theme-select-card" data-theme="emerald" style="--swatch: #5cdd8d;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Emerald Glass</div>
             </div>
-            
-            <!-- Indigo Theme -->
-            <div class="theme-select-card" data-theme="indigo" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #6366f1; box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);"></div>
-                <div style="font-weight: 600; font-size: 0.9rem;">Classic Indigo</div>
+            <div class="theme-select-card" data-theme="indigo" style="--swatch: #6366f1;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Classic Indigo</div>
             </div>
-            
-            <!-- Crimson Theme -->
-            <div class="theme-select-card" data-theme="crimson" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #f43f5e; box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);"></div>
-                <div style="font-weight: 600; font-size: 0.9rem;">Crimson Dusk</div>
+            <div class="theme-select-card" data-theme="crimson" style="--swatch: #f43f5e;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Crimson Dusk</div>
             </div>
-            
-            <!-- Amber Theme -->
-            <div class="theme-select-card" data-theme="amber" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);"></div>
-                <div style="font-weight: 600; font-size: 0.9rem;">Amber Sunset</div>
+            <div class="theme-select-card" data-theme="amber" style="--swatch: #f59e0b;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Amber Sunset</div>
             </div>
-            
-            <!-- Amethyst Theme -->
-            <div class="theme-select-card" data-theme="amethyst" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #a855f7; box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);"></div>
-                <div style="font-weight: 600; font-size: 0.9rem;">Amethyst Glow</div>
+            <div class="theme-select-card" data-theme="amethyst" style="--swatch: #a855f7;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Amethyst Glow</div>
             </div>
-            
-            <!-- Cyberpunk Theme -->
-            <div class="theme-select-card" data-theme="cyberpunk" style="border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.25rem; cursor: pointer; transition: all 0.2s ease; background: rgba(255, 255, 255, 0.02); display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #00f0ff; box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);"></div>
-                <div style="font-weight: 600; font-size: 0.9rem;">Cyberpunk</div>
+            <div class="theme-select-card" data-theme="cyberpunk" style="--swatch: #00f0ff;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Cyberpunk</div>
             </div>
-            
+        </div>
+
+        <h4 class="theme-section-title">Light</h4>
+        <div class="theme-select-grid" id="theme-selectors-light">
+            <div class="theme-select-card" data-theme="emerald-light" style="--swatch: #059669;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Mint Paper</div>
+            </div>
+            <div class="theme-select-card" data-theme="indigo-light" style="--swatch: #4f46e5;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Indigo Day</div>
+            </div>
+            <div class="theme-select-card" data-theme="slate-light" style="--swatch: #475569;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Slate Office</div>
+            </div>
+            <div class="theme-select-card" data-theme="rose-light" style="--swatch: #e11d48;">
+                <div class="theme-swatch"></div>
+                <div class="theme-select-label">Rose Blush</div>
+            </div>
         </div>
     </div>
 
     <!-- About (All Users) -->
     <div class="glass-card about-card">
         <div class="card-title">
-            <span>ℹ️</span> About
+            <span>{{ icon('info-circle') }}</span> About
         </div>
 
         <div class="about-box">
             <div class="about-header">
                 <span class="app-logo" role="img" aria-label="{{ app_meta.name }}"></span>
                 <div>
-                    <p class="about-title">{{ app_meta.name }} <span class="about-version">v{{ app_meta.version }}</span></p>
+                    <p class="about-title">{{ app_meta.name }} <span class="about-version">{{ app_meta.version_label }}</span></p>
                 </div>
             </div>
             <p class="stat-card-subtitle about-description">{{ app_meta.description }}</p>
+            {% if app_meta.build.describe %}
+            <p class="about-build">
+                Build: <code>{{ app_meta.build.describe }}</code>
+                {% if app_meta.commit_url %}
+                · <a href="{{ app_meta.commit_url }}" target="_blank" rel="noopener noreferrer">view commit</a>
+                {% endif %}
+            </p>
+            {% endif %}
 
             <div class="about-links">
                 <a href="{{ app_meta.github_url }}" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
@@ -287,6 +303,53 @@
 </div>
 
 <style>
+    .theme-section-title {
+        font-family: var(--font-heading);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--color-muted);
+        margin: 1.5rem 0 0.75rem;
+    }
+
+    .theme-section-title:first-of-type {
+        margin-top: 1rem;
+    }
+
+    .theme-select-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 1rem;
+    }
+
+    .theme-select-card {
+        border: 1px solid var(--glass-border);
+        border-radius: 12px;
+        padding: 1.25rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.02);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .theme-swatch {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--swatch);
+        box-shadow: 0 0 10px color-mix(in srgb, var(--swatch) 40%, transparent);
+    }
+
+    .theme-select-label {
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-align: center;
+    }
+
     .theme-select-card.active {
         background: rgba(255, 255, 255, 0.07) !important;
         border-color: var(--accent) !important;

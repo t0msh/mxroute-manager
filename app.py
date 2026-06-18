@@ -5,7 +5,8 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from dotenv import load_dotenv
 
 from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled, get_reset_portal_by_host
-from app_meta import APP_VERSION, get_about_info
+from app_meta import APP_VERSION, get_about_info, get_version_label
+from utils.icons import icon
 from routes import (
     auth_bp,
     domains_bp,
@@ -77,7 +78,9 @@ def inject_app_meta():
     branding = get_portal_branding_context(getattr(g, "reset_portal", None))
     return {
         "app_version": APP_VERSION,
+        "app_version_label": get_version_label(),
         "app_meta": get_about_info(),
+        "icon": icon,
         **branding,
     }
 
@@ -124,6 +127,14 @@ def inject_global_vars():
 def set_csrf_cookie(response):
     if "csrf_token" in session:
         response.set_cookie("csrf_token", session["csrf_token"], samesite="Lax", secure=use_secure_cookies())
+    return response
+
+
+@app.after_request
+def set_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return response
 
 

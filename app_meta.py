@@ -1,6 +1,6 @@
 """Single source of truth for application metadata. Bump APP_VERSION here for releases."""
 
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.9.2"
 APP_NAME = "MXroute Manager"
 APP_DESCRIPTION = (
     "Self-hosted control panel for MXroute email hosting, DNS management, "
@@ -13,6 +13,11 @@ LICENSE_URL = "https://opensource.org/licenses/MIT"
 COPYRIGHT = "Copyright (c) 2026 Tom Shute"
 
 ATTRIBUTIONS = [
+    {
+        "name": "Bootstrap Icons",
+        "description": "Open-source icon font used in the UI",
+        "url": "https://icons.getbootstrap.com/",
+    },
     {
         "name": "MXroute",
         "description": "Email hosting platform and domain/mailbox management API",
@@ -56,10 +61,47 @@ ATTRIBUTIONS = [
 ]
 
 
+def get_build_info():
+    """Git stamp from deploy.sh (empty when running locally without a deploy)."""
+    try:
+        from build_info import BUILD_BRANCH, BUILD_DESCRIBE, BUILD_SHA
+    except ImportError:
+        return {"sha": "", "branch": "", "describe": ""}
+    return {
+        "sha": (BUILD_SHA or "").strip(),
+        "branch": (BUILD_BRANCH or "").strip(),
+        "describe": (BUILD_DESCRIBE or "").strip(),
+    }
+
+
+def get_commit_url(sha: str = "") -> str:
+    sha = (sha or get_build_info()["sha"]).strip()
+    if not sha or "github.com" not in GITHUB_URL:
+        return ""
+    return f"{GITHUB_URL.rstrip('/')}/commit/{sha}"
+
+
+def get_version_label() -> str:
+    """Short UI label: v0.9.2 or v0.9.2 · dev@47d575a when stamped at deploy."""
+    label = f"v{APP_VERSION}"
+    build = get_build_info()
+    sha, branch = build["sha"], build["branch"]
+    if sha and branch and branch != "main":
+        return f"{label} · {branch}@{sha}"
+    if sha:
+        return f"{label} · {sha}"
+    return label
+
+
 def get_about_info():
+    build = get_build_info()
+    commit_url = get_commit_url(build["sha"])
     return {
         "name": APP_NAME,
         "version": APP_VERSION,
+        "version_label": get_version_label(),
+        "build": build,
+        "commit_url": commit_url,
         "description": APP_DESCRIPTION,
         "github_url": GITHUB_URL,
         "license_name": LICENSE_NAME,

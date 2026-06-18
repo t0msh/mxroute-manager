@@ -1,15 +1,17 @@
 ---
-description: Bump APP_VERSION in app_meta.py before pushing, using semantic versioning
+description: Bump APP_VERSION and tag releases when merging to main, using semantic versioning
 alwaysApply: true
 ---
 
-# Version Bumps Before Push
+# Version Bumps & Releases
 
 Single source of truth: `app_meta.py` → `APP_VERSION`.
 
-Before any push (or when the user asks to commit/push), check whether unreleased work warrants a version bump. Bump **once per push**, not per file or per commit.
+**Release = merge to `main`.** Routine pushes to `dev` do **not** require a version bump or git tag.
 
-## SemVer (pre-1.0)
+## When to bump
+
+Bump **once per release** (the merge batch landing on `main`), not per commit and not per `dev` push.
 
 | Change type | Bump | Example |
 |-------------|------|---------|
@@ -17,23 +19,40 @@ Before any push (or when the user asks to commit/push), check whether unreleased
 | Bug fix, small tweak, docs-only in code paths | **patch** | `0.2.0` → `0.2.1` |
 | Breaking change (config, permissions, API contract) | **minor** while `0.x` | `0.2.0` → `0.3.0` |
 
-Skip a bump when the push contains only non-user-facing changes (e.g. README, comments) with no functional delta.
+Skip a bump when the release contains only non-user-facing changes (e.g. README, comments, CI) with no functional delta.
 
-## Workflow
+When several features landed since the last release, use **one** minor bump for the batch.
 
-1. Review staged/unpushed changes and pick minor vs patch.
+## Release workflow (`dev` → `main`)
+
+1. Review everything merging to `main` since the last tag and pick minor vs patch.
 2. Update `APP_VERSION` in `app_meta.py` only — templates read it via `app_version`.
-3. Include the version bump in the same commit as the feature/fix when possible.
-4. Do **not** add version strings elsewhere; keep one source of truth.
+3. Include the version bump in the release merge commit (or the final `dev` commit before merge).
+4. Merge to `main`, then tag that commit: `v{APP_VERSION}` (e.g. `v0.9.2`).
+5. Push `main` and the tag: `git push origin main && git push origin v0.9.2`.
+6. Do **not** add version strings elsewhere; keep one source of truth.
+
+`deploy.sh` stamps `build_info.py` (git branch/SHA/describe) for test deploys. The UI shows e.g. `v0.9.2 · dev@47d575a` without changing `APP_VERSION`.
+
+## What not to do
+
+- Do **not** bump or tag for routine `dev` pushes while iterating.
+- Do **not** tag every push — tags mark releases, not WIP commits.
+- Do **not** bump per file or per commit within the same release.
 
 ## Examples
 
 ```python
-# New delegated-access permissions or DNS wizard step → minor
-APP_VERSION = "0.3.0"
+# Batch on main: icons, light themes, login polish → one minor
+APP_VERSION = "0.9.0"
 
-# Fix CSRF edge case or typo in API error handling → patch
-APP_VERSION = "0.2.1"
+# Release hotfix on main → patch
+APP_VERSION = "0.9.1"
 ```
 
-When several features landed since the last bump, use one minor bump for the batch (e.g. current `0.2.0` with many features → `0.3.0`).
+```bash
+# After merging to main at APP_VERSION 0.9.2
+git tag v0.9.2
+git push origin main
+git push origin v0.9.2
+```

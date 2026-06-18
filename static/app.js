@@ -16,6 +16,15 @@ const DELEGATION_PERMISSION_LABELS = {
     dns: "DNS Records",
 };
 
+function bi(name, extraClass = "") {
+    return window.Mxm?.icons?.icon(name, extraClass) ?? "";
+}
+
+function btnLabel(iconName, text, loading = false) {
+    const spin = loading ? " bi-spin" : "";
+    return `${bi(iconName, spin)} ${text}`;
+}
+
 function userHasPermission(permission, domain = activeDomain) {
     return window.Mxm.permissions.userHasPermission(currentUser, permission, domain);
 }
@@ -334,8 +343,8 @@ function showAlert(type, message) {
     const text = document.getElementById("alert-banner-text");
     
     banner.className = `alert-banner ${type}`;
-    const icons = { success: "✅", error: "❌", warning: "⚠️", info: "ℹ️" };
-    icon.textContent = icons[type] || "🔔";
+    const alertIcons = window.Mxm?.icons?.ALERT_ICONS ?? {};
+    icon.innerHTML = bi(alertIcons[type] || "bell");
     text.textContent = message;
     
     banner.classList.add("show");
@@ -534,10 +543,10 @@ function setupPasswordValidation(inputId, listId, buttonId) {
             if (el) {
                 if (regex.test(val)) {
                     el.classList.add("valid");
-                    el.innerHTML = `✔ ${el.textContent.slice(2)}`;
+                    window.Mxm?.icons?.setReqIcon(el, true);
                 } else {
                     el.classList.remove("valid");
-                    el.innerHTML = `✖ ${el.textContent.slice(2)}`;
+                    window.Mxm?.icons?.setReqIcon(el, false);
                     allValid = false;
                 }
             }
@@ -667,7 +676,7 @@ async function triggerDataRefresh(options = {}) {
 // Global Refresh Actions
 document.getElementById("btn-refresh-data").addEventListener("click", async () => {
     const refreshBtn = document.getElementById("btn-refresh-data");
-    refreshBtn.textContent = "⌛ Refreshing...";
+    refreshBtn.innerHTML = btnLabel("arrow-clockwise", "Refreshing...", true);
     refreshBtn.disabled = true;
     try {
         await triggerDataRefresh({ force: true });
@@ -675,7 +684,7 @@ document.getElementById("btn-refresh-data").addEventListener("click", async () =
     } catch (e) {
         showAlert("error", "Refresh failed: " + e.message);
     } finally {
-        refreshBtn.innerHTML = "🔄 Refresh Data";
+        refreshBtn.innerHTML = btnLabel("arrow-clockwise", "Refresh Data");
         refreshBtn.disabled = false;
     }
 });
@@ -860,17 +869,21 @@ async function refreshDomainsListStatus() {
     const btn = document.getElementById("btn-refresh-domains-status");
     if (btn) {
         btn.disabled = true;
-        btn.textContent = "⌛ Refreshing...";
+        btn.innerHTML = btnLabel("arrow-clockwise", "Refreshing...", true);
     }
     try {
-        await Promise.allSettled(domains.map(domain => refreshDomainRowDetails(domain, { force: true })));
+        await window.Mxm.utils.mapWithConcurrency(
+            domains,
+            5,
+            (domain) => refreshDomainRowDetails(domain, { force: true })
+        );
         showAlert("success", "Domain mail and DNS status refreshed.");
     } catch (err) {
         showAlert("error", err.message);
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = "🔄 Refresh status";
+            btn.innerHTML = btnLabel("arrow-clockwise", "Refresh status");
         }
     }
 }
@@ -1305,13 +1318,13 @@ function renderSetupDnsChecks(health) {
     Object.entries(health.checks || {}).forEach(([key, check]) => {
         const item = document.createElement("div");
         const statusClass = check.status === "pass" ? "pass" : check.status === "pending" ? "pending" : check.status === "skipped" ? "skipped" : check.status;
-        const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "skipped" ? "➖" : check.status === "warn" ? "⚠️" : "❌";
+        const statusIcon = window.Mxm?.icons?.dnsStatusIcon(check.status) ?? "";
         const canFix = setupCfConfigured && (check.status === "warn" || check.status === "fail");
         if (canFix) fixable.push(key);
 
         item.className = `dns-health-item ${statusClass}`;
         item.innerHTML = `
-            <div class="dns-health-item-title">${icon} ${escapeHtml(check.label)}</div>
+            <div class="dns-health-item-title">${statusIcon} ${escapeHtml(check.label)}</div>
             <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
             ${canFix ? `<button class="btn btn-secondary btn-sm setup-fix-btn" data-record="${escapeHtml(key)}" style="margin-top: 0.6rem;">Fix in Cloudflare</button>` : ""}
         `;
@@ -1378,10 +1391,10 @@ function showSetupDnsProgress(steps, isError = false) {
     container.style.display = "block";
     list.innerHTML = "";
     (steps || []).forEach(step => {
-        list.innerHTML += `<li>✅ ${escapeHtml(step)}</li>`;
+        list.innerHTML += `<li>${bi("check-circle-fill")} ${escapeHtml(step)}</li>`;
     });
     if (isError) {
-        list.innerHTML += `<li style="color: var(--danger);">❌ See alert for details</li>`;
+        list.innerHTML += `<li style="color: var(--danger);">${bi("x-circle-fill")} See alert for details</li>`;
     }
 }
 
@@ -1521,7 +1534,7 @@ function initSetupWizard() {
         const btn = document.getElementById("btn-setup-register-mxroute");
         if (btn) {
             btn.disabled = true;
-            btn.textContent = "⌛ Registering...";
+            btn.innerHTML = btnLabel("arrow-clockwise", "Registering...", true);
         }
         try {
             await apiRequest("/api/domains", "POST", { domain: setupWizardDomain });
@@ -1752,9 +1765,9 @@ function renderDnsHealth(health) {
         Object.values(health.checks || {}).forEach(check => {
             const item = document.createElement("div");
             item.className = `dns-health-item ${check.status}`;
-            const icon = check.status === "pass" ? "✅" : check.status === "pending" ? "⏳" : check.status === "skipped" ? "➖" : check.status === "warn" ? "⚠️" : "❌";
+            const statusIcon = window.Mxm?.icons?.dnsStatusIcon(check.status) ?? "";
             item.innerHTML = `
-                <div class="dns-health-item-title">${icon} ${escapeHtml(check.label)}</div>
+                <div class="dns-health-item-title">${statusIcon} ${escapeHtml(check.label)}</div>
                 <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
             `;
             checksEl.appendChild(item);
@@ -1834,7 +1847,7 @@ function renderEmailsList(result, domain) {
             tr.innerHTML = `
                 <td>
                     <div style="font-weight: 600;">${escapeHtml(account.username)}@${escapeHtml(domain)}</div>
-                    ${account.suspended ? '<span style="font-size:0.75rem; color: var(--danger); font-weight:500;">🚫 Suspended</span>' : ''}
+                    ${account.suspended ? `<span style="font-size:0.75rem; color: var(--danger); font-weight:500;">${bi("slash-circle")} Suspended</span>` : ''}
                 </td>
                 <td>
                     <div style="font-size:0.85rem;">${recoveryLabel}</div>
@@ -1859,11 +1872,11 @@ function renderEmailsList(result, domain) {
                 </td>
                 <td style="text-align: right;">
                     <div class="flex-row" style="justify-content: flex-end; gap: 0.5rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="openRecoveryModal(${jsAttrString(account.username)}, ${jsAttrString(account.recovery_email || "")})">📧 Recovery</button>
-                        <button class="btn btn-secondary btn-sm" onclick="openPasswordModal(${jsAttrString(account.username)})">🔑 Pass</button>
-                        <button class="btn btn-secondary btn-sm" onclick="openQuotaModal(${jsAttrString(account.username)}, ${Number(account.quota)}, ${Number(account.limit)})">⚙️ Limit</button>
-                        <button class="btn btn-secondary btn-sm" onclick="handleToggleSuspend(${jsAttrString(account.username)}, ${account.suspended ? "true" : "false"})">${account.suspended ? '🟢 Activate' : '🚫 Suspend'}</button>
-                        <button class="btn btn-danger btn-sm" onclick="handleDeleteEmail(${jsAttrString(account.username)})">🗑️ Delete</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openRecoveryModal(${jsAttrString(account.username)}, ${jsAttrString(account.recovery_email || "")})">${bi("envelope")} Recovery</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openPasswordModal(${jsAttrString(account.username)})">${bi("key")} Pass</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openQuotaModal(${jsAttrString(account.username)}, ${Number(account.quota)}, ${Number(account.limit)})">${bi("gear")} Limit</button>
+                        <button class="btn btn-secondary btn-sm" onclick="handleToggleSuspend(${jsAttrString(account.username)}, ${account.suspended ? "true" : "false"})">${account.suspended ? `${bi("check-circle")} Activate` : `${bi("slash-circle")} Suspend`}</button>
+                        <button class="btn btn-danger btn-sm" onclick="handleDeleteEmail(${jsAttrString(account.username)})">${bi("trash")} Delete</button>
                     </div>
                 </td>
             `;
@@ -1957,7 +1970,7 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
     
     const submitBtn = document.getElementById("btn-provision-submit");
     submitBtn.disabled = true;
-    submitBtn.textContent = "⌛ Provisioning...";
+    submitBtn.innerHTML = btnLabel("arrow-clockwise", "Provisioning...", true);
     
     try {
         const payload = {
@@ -1993,7 +2006,7 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
         // Reset password rules visualizer
         document.querySelectorAll("#create-email-requirements li").forEach(li => {
             li.classList.remove("valid");
-            li.innerHTML = `✖ ${li.textContent.slice(2)}`;
+            window.Mxm?.icons?.setReqIcon(li, false);
         });
         
         await loadEmailsList(activeDomain, { force: true });
@@ -2070,7 +2083,7 @@ function openPasswordModal(username) {
     // Reset password validations
     document.querySelectorAll("#modal-pass-requirements li").forEach(li => {
         li.classList.remove("valid");
-        li.innerHTML = `✖ ${li.textContent.slice(2)}`;
+        window.Mxm?.icons?.setReqIcon(li, false);
     });
     document.getElementById("btn-modal-pass-submit").disabled = true;
     
@@ -2591,7 +2604,7 @@ async function loadDelegationsPage(options = {}) {
                 
                 const editBtn = document.createElement("button");
                 editBtn.className = "btn btn-secondary btn-sm";
-                editBtn.innerHTML = "⚙️ Edit";
+                editBtn.innerHTML = btnLabel("gear", "Edit");
                 editBtn.addEventListener("click", () => {
                     handleEditDelegation(
                         item.email,
@@ -2807,14 +2820,14 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return;
             }
             refreshDnsHealthBtn.disabled = true;
-            refreshDnsHealthBtn.textContent = "⌛ Checking...";
+            refreshDnsHealthBtn.innerHTML = btnLabel("arrow-clockwise", "Checking...", true);
             try {
                 await loadDnsHealth(activeDomain, { force: true });
                 showAlert("success", "DNS health rechecked.");
             } catch (err) {
                 showAlert("error", err.message);
             } finally {
-                refreshDnsHealthBtn.textContent = "🔄 Recheck DNS";
+                refreshDnsHealthBtn.innerHTML = btnLabel("arrow-clockwise", "Recheck DNS");
                 refreshDnsHealthBtn.disabled = false;
             }
         });
@@ -2837,7 +2850,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 document.getElementById("user-email").textContent = currentUser.email;
                 const roleBadge = document.getElementById("user-role-badge");
                 roleBadge.textContent = currentUser.is_admin ? "Admin" : "User";
-                roleBadge.style.background = currentUser.is_admin ? "rgba(92, 221, 141, 0.2)" : "rgba(99, 102, 241, 0.2)";
+                roleBadge.style.background = currentUser.is_admin
+                    ? `rgba(var(--accent-rgb), 0.2)`
+                    : "rgba(99, 102, 241, 0.2)";
                 roleBadge.style.color = currentUser.is_admin ? "var(--accent)" : "#a5b4fc";
                 document.getElementById("user-profile-container").style.display = "block";
                 applyUserPermissionsUI();
@@ -2893,7 +2908,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             e.preventDefault();
             const submitBtn = document.getElementById("btn-save-system-settings");
             submitBtn.disabled = true;
-            submitBtn.textContent = "⌛ Saving Settings...";
+            submitBtn.innerHTML = btnLabel("save", "Saving Settings...", true);
             
             const payload = {
                 OIDC_ENABLED: document.getElementById("setting-oidc-enabled").value,
@@ -2929,7 +2944,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const contactSaved = await saveAdminContactEmail();
                 if (!contactSaved) {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = "💾 Save System Settings";
+                    submitBtn.innerHTML = btnLabel("save", "Save System Settings");
                     return;
                 }
 
@@ -2946,7 +2961,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 showAlert("error", `Error updating settings: ${err.message}`);
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.textContent = "💾 Save System Settings";
+                submitBtn.innerHTML = btnLabel("save", "Save System Settings");
             }
         });
     }
@@ -2955,7 +2970,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (testSmtpBtn) {
         testSmtpBtn.addEventListener("click", async () => {
             testSmtpBtn.disabled = true;
-            testSmtpBtn.textContent = "⌛ Sending...";
+            testSmtpBtn.innerHTML = btnLabel("send", "Sending...", true);
             try {
                 const contactSaved = await saveAdminContactEmail();
                 if (!contactSaved) return;
@@ -2969,7 +2984,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             } catch (err) {
                 showAlert("error", err.message);
             } finally {
-                testSmtpBtn.textContent = "✉️ Send Test Email";
+                testSmtpBtn.innerHTML = btnLabel("send", "Send Test Email");
                 renderSmtpTestStatus(currentUser);
             }
         });
@@ -2984,21 +2999,25 @@ function loadTheme() {
 }
 
 function setTheme(theme, save = true) {
-    const themes = ["emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk"];
+    const themes = window.Mxm?.themes?.THEME_IDS ?? [
+        "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk",
+        "emerald-light", "indigo-light", "slate-light", "rose-light",
+    ];
+    const safeTheme = themes.includes(theme) ? theme : "emerald";
     
     // Remove all theme classes from body
     themes.forEach(t => document.body.classList.remove(`theme-${t}`));
     
     // Apply selected theme class
-    document.body.classList.add(`theme-${theme}`);
+    document.body.classList.add(`theme-${safeTheme}`);
     
     if (save) {
-        localStorage.setItem("workspace-theme", theme);
+        localStorage.setItem("workspace-theme", safeTheme);
     }
     
     // Highlight selected card if settings page is loaded
     document.querySelectorAll(".theme-select-card").forEach(card => {
-        if (card.getAttribute("data-theme") === theme) {
+        if (card.getAttribute("data-theme") === safeTheme) {
             card.classList.add("active");
         } else {
             card.classList.remove("active");
@@ -3242,11 +3261,11 @@ function initLogsPageEvents() {
 
     refreshBtn.addEventListener("click", async () => {
         refreshBtn.disabled = true;
-        refreshBtn.textContent = "⌛ Loading...";
+        refreshBtn.innerHTML = btnLabel("arrow-clockwise", "Loading...", true);
         try {
             await loadLogsPage();
         } finally {
-            refreshBtn.textContent = "🔄 Reload Logs";
+            refreshBtn.innerHTML = btnLabel("arrow-clockwise", "Reload Logs");
             refreshBtn.disabled = false;
         }
     });

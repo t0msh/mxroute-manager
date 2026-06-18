@@ -1,7 +1,7 @@
 <!-- Tab Panel 5: Spam Settings -->
 <div class="tab-panel" id="tab-spam" style="position: relative;">
     <div class="card-overlay" id="spam-hosting-disabled-overlay">
-        <span style="font-size: 3rem; margin-bottom: 1rem;">⚠️</span>
+        <span class="overlay-icon">{{ icon('exclamation-triangle-fill', 'icon-lg') }}</span>
         <h3 style="font-family: var(--font-heading); font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--color-primary);">Mail Hosting Disabled</h3>
         <p style="color: var(--color-secondary); max-width: 380px; font-size: 0.95rem; line-height: 1.5;">
             Mail hosting is currently disabled for this domain. Enable it on the <a href="#" onclick="document.querySelector('[data-tab=\'dashboard\']').click(); return false;" style="color: var(--accent); text-decoration: underline;">Dashboard</a> to configure spam controls.
@@ -9,7 +9,7 @@
     </div>
     <!-- Domain Spam Threshold -->
     <div class="glass-card">
-        <h3 class="card-title">🛡️ Spam Filtering Configuration</h3>
+        <h3 class="card-title">{{ icon('shield-check') }} Spam Filtering Configuration</h3>
         <p class="stat-card-subtitle mb-4">Specify the SpamAssassin score threshold at which incoming emails are
             automatically deleted. Lower scores are more aggressive.</p>
         <form id="form-spam-settings">
@@ -29,7 +29,7 @@
     <div class="grid-2">
         <!-- Whitelist -->
         <div class="glass-card">
-            <h3 class="card-title" style="color: #34d399;">🟢 Spam Whitelist</h3>
+            <h3 class="card-title" style="color: var(--accent);">{{ icon('circle-fill', 'icon-dot-success') }} Spam Whitelist</h3>
             <form id="form-whitelist-add" class="mb-4">
                 <div class="flex-row">
                     <input type="text" id="whitelist-entry" placeholder="*@trusted.com" required
@@ -57,7 +57,7 @@
 
         <!-- Blacklist -->
         <div class="glass-card">
-            <h3 class="card-title" style="color: #f87171;">🔴 Spam Blacklist</h3>
+            <h3 class="card-title" style="color: #f87171;">{{ icon('circle-fill', 'icon-dot-danger') }} Spam Blacklist</h3>
             <form id="form-blacklist-add" class="mb-4">
                 <div class="flex-row">
                     <input type="text" id="blacklist-entry" placeholder="spammer@domain.com" required

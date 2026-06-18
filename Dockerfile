@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Step 4: Copy the rest of the application code into the container
 COPY app.py .
 COPY app_meta.py .
+COPY build_info.py .
 COPY models/ ./models/
 COPY utils/ ./utils/
 COPY services/ ./services/

@@ -35,6 +35,36 @@
     </div>
 </div>
 
+<!-- Modal: Edit Recovery Email -->
+<div class="modal-overlay" id="modal-update-recovery">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Recovery Email</h3>
+            <button class="alert-banner-close" style="font-size: 1.5rem;"
+                onclick="closeModal('modal-update-recovery')">×</button>
+        </div>
+        <form id="form-modal-update-recovery">
+            <input type="hidden" id="modal-recovery-username">
+            <div class="form-group mb-4">
+                <label>Mailbox:</label>
+                <div class="copyable-code" style="margin-top: 0; padding: 0.5rem 1rem;">
+                    <span id="modal-recovery-email-display" style="font-weight: 500;">alex@yourdomain.com</span>
+                </div>
+            </div>
+            <div class="form-group mb-4">
+                <label for="modal-recovery-input">Recovery Email</label>
+                <input type="email" id="modal-recovery-input" placeholder="personal@gmail.com">
+                <span style="font-size: 0.75rem; color: var(--color-muted);">Leave blank to remove recovery email.</span>
+            </div>
+            <div class="flex-row justify-end" style="justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary btn-sm"
+                    onclick="closeModal('modal-update-recovery')">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-sm">Save Recovery Email</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Modal 2: Update Email Quota / Limits -->
 <div class="modal-overlay" id="modal-update-quota">
     <div class="modal-content">

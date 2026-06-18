@@ -1662,6 +1662,13 @@ async function loadDnsHealth(domain, { force = false } = {}) {
 }
 
 // 5.7 Email Accounts Management
+function maskRecoveryEmail(email) {
+    if (!email || !email.includes("@")) return "—";
+    const [local, domain] = email.split("@");
+    if (local.length <= 1) return `*@${domain}`;
+    return `${local[0]}${"*".repeat(Math.min(3, local.length - 1))}@${domain}`;
+}
+
 function renderEmailsList(result, domain) {
     const tbody = document.getElementById("emails-list-tbody");
     tbody.innerHTML = "";
@@ -1677,10 +1684,17 @@ function renderEmailsList(result, domain) {
             const limitVal = account.limit;
             const sentPercent = Math.min(100, (account.sent / account.limit) * 100);
 
+            const recoveryLabel = account.has_recovery_email
+                ? escapeHtml(maskRecoveryEmail(account.recovery_email))
+                : '<span style="color: var(--color-muted);">—</span>';
+
             tr.innerHTML = `
                 <td>
                     <div style="font-weight: 600;">${escapeHtml(account.username)}@${escapeHtml(domain)}</div>
                     ${account.suspended ? '<span style="font-size:0.75rem; color: var(--danger); font-weight:500;">🚫 Suspended</span>' : ''}
+                </td>
+                <td>
+                    <div style="font-size:0.85rem;">${recoveryLabel}</div>
                 </td>
                 <td>
                     <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--color-secondary); margin-bottom: 0.25rem;">
@@ -1702,6 +1716,7 @@ function renderEmailsList(result, domain) {
                 </td>
                 <td style="text-align: right;">
                     <div class="flex-row" style="justify-content: flex-end; gap: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="openRecoveryModal(${jsAttrString(account.username)}, ${jsAttrString(account.recovery_email || "")})">📧 Recovery</button>
                         <button class="btn btn-secondary btn-sm" onclick="openPasswordModal(${jsAttrString(account.username)})">🔑 Pass</button>
                         <button class="btn btn-secondary btn-sm" onclick="openQuotaModal(${jsAttrString(account.username)}, ${Number(account.quota)}, ${Number(account.limit)})">⚙️ Limit</button>
                         <button class="btn btn-secondary btn-sm" onclick="handleToggleSuspend(${jsAttrString(account.username)}, ${account.suspended ? "true" : "false"})">${account.suspended ? '🟢 Activate' : '🚫 Suspend'}</button>
@@ -1712,7 +1727,7 @@ function renderEmailsList(result, domain) {
             tbody.appendChild(tr);
         });
     } else {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">No mailboxes found for this domain.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--color-muted);">No mailboxes found for this domain.</td></tr>';
     }
     tbody.dataset.loaded = "true";
 }
@@ -1726,8 +1741,8 @@ async function loadEmailsList(domain, { force = false } = {}) {
         url: `/api/domains/${domain}/email-accounts`,
         tbody, card, force, firstLoad,
         render: (result) => renderEmailsList(result, domain),
-        loadingHtml: '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">Querying mailboxes...</td></tr>',
-        errorHtml: (err) => `<tr><td colspan="4" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${escapeHtml(err.message)}</td></tr>`,
+        loadingHtml: '<tr><td colspan="5" style="text-align: center; color: var(--color-muted);">Querying mailboxes...</td></tr>',
+        errorHtml: (err) => `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${escapeHtml(err.message)}</td></tr>`,
     });
 }
 
@@ -1782,25 +1797,35 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
     const passwordInput = document.getElementById("create-email-password");
     const quotaInput = document.getElementById("create-email-quota");
     const limitInput = document.getElementById("create-email-limit");
+    const recoveryInput = document.getElementById("create-email-recovery");
     
     const username = usernameInput.value.trim().toLowerCase();
     const password = passwordInput.value;
     const quota = parseInt(quotaInput.value);
     const limit = parseInt(limitInput.value);
+    const recoveryEmail = recoveryInput?.value.trim().toLowerCase() || "";
     
     if (!username || !password) return;
+
+    if (recoveryEmail && recoveryEmail === `${username}@${activeDomain}`) {
+        showAlert("error", "Recovery email must differ from the mailbox address.");
+        return;
+    }
     
     const submitBtn = document.getElementById("btn-provision-submit");
     submitBtn.disabled = true;
     submitBtn.textContent = "⌛ Provisioning...";
     
     try {
-        await apiRequest(`/api/domains/${activeDomain}/email-accounts`, "POST", {
+        const payload = {
             username,
             password,
             quota,
             limit
-        });
+        };
+        if (recoveryEmail) payload.recovery_email = recoveryEmail;
+
+        await apiRequest(`/api/domains/${activeDomain}/email-accounts`, "POST", payload);
         
         // Show Credentials card
         showMailboxCredentials({
@@ -1816,6 +1841,7 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
         // Reset Form
         usernameInput.value = "";
         passwordInput.value = "";
+        if (recoveryInput) recoveryInput.value = "";
         quotaInput.value = 1024;
         document.getElementById("create-email-quota-val").textContent = "1024 MB";
         limitInput.value = 9600;
@@ -1917,6 +1943,37 @@ document.getElementById("form-modal-update-pass").addEventListener("submit", asy
         await apiRequest(`/api/domains/${activeDomain}/email-accounts/${username}`, "PATCH", { password });
         showAlert("success", `Password updated for ${username}@${activeDomain}`);
         closeModal("modal-update-password");
+    } catch (err) {
+        showAlert("error", err.message);
+    }
+});
+
+function openRecoveryModal(username, currentRecovery = "") {
+    document.getElementById("modal-recovery-username").value = username;
+    document.getElementById("modal-recovery-email-display").textContent = `${username}@${activeDomain}`;
+    document.getElementById("modal-recovery-input").value = currentRecovery || "";
+    openModal("modal-update-recovery");
+}
+
+document.getElementById("form-modal-update-recovery").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = document.getElementById("modal-recovery-username").value;
+    const recoveryEmail = document.getElementById("modal-recovery-input").value.trim().toLowerCase();
+    const mailboxEmail = `${username}@${activeDomain}`;
+
+    if (recoveryEmail && recoveryEmail === mailboxEmail) {
+        showAlert("error", "Recovery email must differ from the mailbox address.");
+        return;
+    }
+
+    try {
+        const payload = recoveryEmail ? { recovery_email: recoveryEmail } : { recovery_email: null };
+        await apiRequest(`/api/domains/${activeDomain}/email-accounts/${username}/recovery`, "PATCH", payload);
+        showAlert("success", recoveryEmail
+            ? `Recovery email updated for ${mailboxEmail}.`
+            : `Recovery email removed for ${mailboxEmail}.`);
+        closeModal("modal-update-recovery");
+        await loadEmailsList(activeDomain, { force: true });
     } catch (err) {
         showAlert("error", err.message);
     }
@@ -2355,6 +2412,21 @@ async function loadDelegationsPage(options = {}) {
                 const emailStrong = document.createElement("strong");
                 emailStrong.textContent = item.email;
                 emailTd.appendChild(emailStrong);
+                if (item.notification_email && item.notification_email !== item.email) {
+                    const contactLine = document.createElement("div");
+                    contactLine.style.fontSize = "0.75rem";
+                    contactLine.style.color = "var(--color-secondary)";
+                    contactLine.style.marginTop = "0.25rem";
+                    contactLine.textContent = `Contact: ${item.notification_email}`;
+                    emailTd.appendChild(contactLine);
+                } else if (item.notification_email) {
+                    const contactLine = document.createElement("div");
+                    contactLine.style.fontSize = "0.75rem";
+                    contactLine.style.color = "var(--color-secondary)";
+                    contactLine.style.marginTop = "0.25rem";
+                    contactLine.textContent = "Contact: email login";
+                    emailTd.appendChild(contactLine);
+                }
                 tr.appendChild(emailTd);
                 
                 const domainsTd = document.createElement("td");
@@ -2375,7 +2447,12 @@ async function loadDelegationsPage(options = {}) {
                 editBtn.className = "btn btn-secondary btn-sm";
                 editBtn.innerHTML = "⚙️ Edit";
                 editBtn.addEventListener("click", () => {
-                    handleEditDelegation(item.email, item.grants || [], item.is_admin || item.domains.includes("*"));
+                    handleEditDelegation(
+                        item.email,
+                        item.grants || [],
+                        item.is_admin || item.domains.includes("*"),
+                        item.contact_email || ""
+                    );
                 });
                 wrapper.appendChild(editBtn);
                 
@@ -2448,8 +2525,10 @@ function collectDelegationGrants() {
     return grants;
 }
 
-function handleEditDelegation(email, grants, isAdmin) {
+function handleEditDelegation(email, grants, isAdmin, contactEmail = "") {
     document.getElementById("delegation-email").value = email;
+    const contactInput = document.getElementById("delegation-contact-email");
+    if (contactInput) contactInput.value = contactEmail || "";
     const passInput = document.getElementById("delegation-password");
     if (passInput) passInput.value = "";
 
@@ -2516,7 +2595,9 @@ window.handleDeleteDelegation = handleDeleteDelegation;
 document.getElementById("form-create-delegation").addEventListener("submit", async (e) => {
     e.preventDefault();
     const emailInput = document.getElementById("delegation-email");
+    const contactInput = document.getElementById("delegation-contact-email");
     const email = emailInput.value.trim().toLowerCase();
+    const contactEmail = contactInput ? contactInput.value.trim().toLowerCase() : "";
     const passInput = document.getElementById("delegation-password");
     const password = passInput ? passInput.value : "";
     const adminCb = document.getElementById("delegation-admin-cb");
@@ -2544,6 +2625,7 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
     try {
         const payload = {
             email,
+            contact_email: contactEmail || null,
             domains: isAdmin ? ["*"] : grants.map(grant => grant.domain),
             grants: isAdmin ? [] : grants,
         };
@@ -2552,6 +2634,7 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
         await apiRequest("/api/admin/delegations", "POST", payload);
         showAlert("success", `Permissions updated for ${email}.`);
         emailInput.value = "";
+        if (contactInput) contactInput.value = "";
         if (passInput) passInput.value = "";
         if (adminCb) adminCb.checked = false;
         document.getElementById("delegation-permissions-matrix")?.style.setProperty("display", "flex");
@@ -2672,18 +2755,37 @@ document.addEventListener("DOMContentLoaded", async () => {
                 MX_USER: document.getElementById("setting-mx-user").value.trim(),
                 CF_ACCOUNT_ID: document.getElementById("setting-cf-account-id").value.trim(),
                 ADMIN_USER: document.getElementById("setting-admin-user").value.trim(),
+                MAILBOX_RESET_ENABLED: document.getElementById("setting-mailbox-reset-enabled").value,
+                RESET_SMTP_HOST: document.getElementById("setting-reset-smtp-host").value.trim(),
+                RESET_SMTP_PORT: document.getElementById("setting-reset-smtp-port").value.trim(),
+                RESET_SMTP_USER: document.getElementById("setting-reset-smtp-user").value.trim(),
+                RESET_SMTP_FROM: document.getElementById("setting-reset-smtp-from").value.trim(),
+                RESET_SMTP_USE_TLS: document.getElementById("setting-reset-smtp-use-tls").value,
             };
 
             const newAdminPassword = document.getElementById("setting-admin-password").value;
             if (newAdminPassword.trim()) {
                 payload.ADMIN_PASSWORD = newAdminPassword;
             }
+
+            const newSmtpPassword = document.getElementById("setting-reset-smtp-password").value;
+            if (newSmtpPassword.trim()) {
+                payload.RESET_SMTP_PASSWORD = newSmtpPassword;
+            }
             
             try {
+                const contactSaved = await saveAdminContactEmail();
+                if (!contactSaved) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = "💾 Save System Settings";
+                    return;
+                }
+
                 const res = await apiRequest("/api/admin/settings", "POST", payload);
                 if (res.success) {
                     showAlert("success", "System settings successfully updated!");
                     document.getElementById("setting-admin-password").value = "";
+                    document.getElementById("setting-reset-smtp-password").value = "";
                     await loadSettingsPage();
                 } else {
                     showAlert("error", res.error.message || "Failed to update system settings.");
@@ -2693,6 +2795,30 @@ document.addEventListener("DOMContentLoaded", async () => {
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = "💾 Save System Settings";
+            }
+        });
+    }
+
+    const testSmtpBtn = document.getElementById("btn-test-smtp-settings");
+    if (testSmtpBtn) {
+        testSmtpBtn.addEventListener("click", async () => {
+            testSmtpBtn.disabled = true;
+            testSmtpBtn.textContent = "⌛ Sending...";
+            try {
+                const contactSaved = await saveAdminContactEmail();
+                if (!contactSaved) return;
+
+                const result = await apiRequest("/api/admin/settings/test-smtp", "POST", collectSmtpTestPayload());
+                if (result.success) {
+                    showAlert("success", result.message || "Test email sent.");
+                } else {
+                    showAlert("error", result.error?.message || "Failed to send test email.");
+                }
+            } catch (err) {
+                showAlert("error", err.message);
+            } finally {
+                testSmtpBtn.textContent = "✉️ Send Test Email";
+                renderSmtpTestStatus(currentUser);
             }
         });
     }
@@ -2740,6 +2866,60 @@ function renderSecretStatus(elementId, configured, envLabel = "environment") {
         : `<span class="status-indicator danger"><span class="dot"></span> Not configured</span>`;
 }
 
+function renderSmtpTestStatus(user) {
+    const statusEl = document.getElementById("setting-smtp-test-status");
+    const testBtn = document.getElementById("btn-test-smtp-settings");
+    if (!statusEl || !testBtn) return;
+
+    const notificationEmail = user?.notification_email;
+    if (notificationEmail) {
+        statusEl.innerHTML = `<span class="status-indicator success"><span class="dot"></span> Test emails will be sent to <strong>${escapeHtml(notificationEmail)}</strong></span>`;
+        testBtn.disabled = false;
+    } else {
+        statusEl.innerHTML = `<span class="status-indicator danger"><span class="dot"></span> Add a contact email below (or sign in with an email address) to send test emails.</span>`;
+        testBtn.disabled = true;
+    }
+}
+
+function collectSmtpTestPayload() {
+    const payload = {
+        RESET_SMTP_HOST: document.getElementById("setting-reset-smtp-host").value.trim(),
+        RESET_SMTP_PORT: document.getElementById("setting-reset-smtp-port").value.trim(),
+        RESET_SMTP_USER: document.getElementById("setting-reset-smtp-user").value.trim(),
+        RESET_SMTP_FROM: document.getElementById("setting-reset-smtp-from").value.trim(),
+        RESET_SMTP_USE_TLS: document.getElementById("setting-reset-smtp-use-tls").value,
+    };
+    const smtpPassword = document.getElementById("setting-reset-smtp-password").value;
+    if (smtpPassword.trim()) {
+        payload.RESET_SMTP_PASSWORD = smtpPassword;
+    }
+    return payload;
+}
+
+async function saveAdminContactEmail() {
+    const input = document.getElementById("setting-admin-contact-email");
+    if (!input) return true;
+
+    const nextValue = input.value.trim().toLowerCase();
+    const currentValue = (currentUser?.contact_email || "").toLowerCase();
+    if (nextValue === currentValue) return true;
+
+    const result = await apiRequest("/api/me/profile", "PATCH", {
+        contact_email: nextValue || null,
+    });
+    if (result?.success) {
+        currentUser = {
+            ...currentUser,
+            contact_email: result.data?.contact_email || null,
+            notification_email: result.data?.notification_email || null,
+        };
+        renderSmtpTestStatus(currentUser);
+        return true;
+    }
+    showAlert("error", result?.error?.message || "Failed to save contact email.");
+    return false;
+}
+
 async function loadSettingsPage() {
     // Refresh theme active selector highlighted state
     const activeTheme = localStorage.getItem("workspace-theme") || "emerald";
@@ -2777,6 +2957,25 @@ async function loadSettingsPage() {
                     settings.ADMIN_PASSWORD_configured,
                     "secure hash"
                 );
+
+                document.getElementById("setting-mailbox-reset-enabled").value = settings.MAILBOX_RESET_ENABLED || "false";
+                document.getElementById("setting-reset-smtp-host").value = settings.RESET_SMTP_HOST || "";
+                document.getElementById("setting-reset-smtp-port").value = settings.RESET_SMTP_PORT || "587";
+                document.getElementById("setting-reset-smtp-user").value = settings.RESET_SMTP_USER || "";
+                document.getElementById("setting-reset-smtp-from").value = settings.RESET_SMTP_FROM || "";
+                document.getElementById("setting-reset-smtp-use-tls").value = settings.RESET_SMTP_USE_TLS || "true";
+                document.getElementById("setting-reset-smtp-password").value = "";
+                renderSecretStatus(
+                    "setting-reset-smtp-password-status",
+                    settings.RESET_SMTP_PASSWORD_configured,
+                    "configured"
+                );
+
+                const contactInput = document.getElementById("setting-admin-contact-email");
+                if (contactInput) {
+                    contactInput.value = currentUser?.contact_email || "";
+                }
+                renderSmtpTestStatus(currentUser);
             }
         } catch (err) {
             showAlert("error", `Failed to load settings: ${err.message}`);

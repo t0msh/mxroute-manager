@@ -1,0 +1,39 @@
+---
+description: Bump APP_VERSION in app_meta.py before pushing, using semantic versioning
+alwaysApply: true
+---
+
+# Version Bumps Before Push
+
+Single source of truth: `app_meta.py` → `APP_VERSION`.
+
+Before any push (or when the user asks to commit/push), check whether unreleased work warrants a version bump. Bump **once per push**, not per file or per commit.
+
+## SemVer (pre-1.0)
+
+| Change type | Bump | Example |
+|-------------|------|---------|
+| New feature, new tab, new API surface, UX overhaul | **minor** | `0.2.0` → `0.3.0` |
+| Bug fix, small tweak, docs-only in code paths | **patch** | `0.2.0` → `0.2.1` |
+| Breaking change (config, permissions, API contract) | **minor** while `0.x` | `0.2.0` → `0.3.0` |
+
+Skip a bump when the push contains only non-user-facing changes (e.g. README, comments) with no functional delta.
+
+## Workflow
+
+1. Review staged/unpushed changes and pick minor vs patch.
+2. Update `APP_VERSION` in `app_meta.py` only — templates read it via `app_version`.
+3. Include the version bump in the same commit as the feature/fix when possible.
+4. Do **not** add version strings elsewhere; keep one source of truth.
+
+## Examples
+
+```python
+# New delegated-access permissions or DNS wizard step → minor
+APP_VERSION = "0.3.0"
+
+# Fix CSRF edge case or typo in API error handling → patch
+APP_VERSION = "0.2.1"
+```
+
+When several features landed since the last bump, use one minor bump for the batch (e.g. current `0.2.0` with many features → `0.3.0`).

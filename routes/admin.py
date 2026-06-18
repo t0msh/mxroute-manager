@@ -6,6 +6,7 @@ from models.db import (
     DATABASE_FILE,
     SETTINGS_UI_KEYS,
     set_admin_password_hash,
+    set_reset_smtp_password,
     get_admin_user,
     migrate_settings_secrets,
     mask_settings_for_response,
@@ -15,11 +16,14 @@ from models.db import (
     ALL_PERMISSIONS,
     DEFAULT_PERMISSIONS,
     _normalize_permissions,
+    resolve_notification_email,
+    get_user_contact_email,
 )
 from werkzeug.security import generate_password_hash
 from utils.auth_helpers import require_admin, get_current_user, clear_oidc_config_cache
-from utils.validators import validate_local_user_identifier, requires_local_password
+from utils.validators import validate_local_user_identifier, requires_local_password, is_email_identifier
 from services.mxroute import mx_request, audit
+from services.mail import send_test_email, smtp_config_from_overrides, is_smtp_configured
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -98,6 +102,16 @@ def update_delegation():
     local_user = requires_local_password(email, is_oidc_enabled())
     password_provided = bool(password and str(password).strip())
 
+    contact_email = None
+    update_contact_email = "contact_email" in data
+    if update_contact_email:
+        contact_email = str(data.get("contact_email") or "").strip().lower() or None
+        if contact_email and not is_email_identifier(contact_email):
+            return jsonify({
+                "success": False,
+                "error": {"message": "Invalid contact email format."},
+            }), 400
+
     try:
         conn = sqlite3.connect(DATABASE_FILE)
         cursor = conn.cursor()
@@ -123,16 +137,26 @@ def update_delegation():
 
         if not row:
             cursor.execute(
-                "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, ?)",
-                (email, hashed_password, 1 if is_admin else 0)
+                "INSERT INTO users (email, password_hash, is_admin, contact_email) VALUES (?, ?, ?, ?)",
+                (email, hashed_password, 1 if is_admin else 0, contact_email if update_contact_email else None)
             )
             user_id = cursor.lastrowid
         else:
             user_id = row[0]
-            if password_provided:
+            if password_provided and update_contact_email:
+                cursor.execute(
+                    "UPDATE users SET password_hash = ?, is_admin = ?, contact_email = ? WHERE id = ?",
+                    (hashed_password, 1 if is_admin else 0, contact_email, user_id)
+                )
+            elif password_provided:
                 cursor.execute(
                     "UPDATE users SET password_hash = ?, is_admin = ? WHERE id = ?",
                     (hashed_password, 1 if is_admin else 0, user_id)
+                )
+            elif update_contact_email:
+                cursor.execute(
+                    "UPDATE users SET is_admin = ?, contact_email = ? WHERE id = ?",
+                    (1 if is_admin else 0, contact_email, user_id)
                 )
             else:
                 cursor.execute(
@@ -248,6 +272,12 @@ def update_settings():
                 set_admin_password_hash(new_password.strip(), admin_email=admin_email)
                 updated_keys.append("ADMIN_PASSWORD")
 
+        if "RESET_SMTP_PASSWORD" in data:
+            new_smtp_password = str(data["RESET_SMTP_PASSWORD"])
+            if new_smtp_password.strip():
+                set_reset_smtp_password(new_smtp_password.strip())
+                updated_keys.append("RESET_SMTP_PASSWORD")
+
         migrate_settings_secrets(cursor)
         conn.commit()
         conn.close()
@@ -262,6 +292,47 @@ def update_settings():
         from flask import current_app
         current_app.logger.error(f"Error saving system settings: {e}")
         return jsonify({"success": False, "error": {"message": f"Failed to save settings: {e}"}}), 500
+
+
+@admin_bp.route('/api/admin/settings/test-smtp', methods=['POST'])
+@require_admin
+def test_smtp_settings():
+    current_user = get_current_user()
+    login_identifier = (current_user or {}).get("email", "").strip().lower()
+    contact_email = get_user_contact_email(login_identifier)
+    recipient = resolve_notification_email(login_identifier, contact_email)
+
+    if not recipient:
+        return jsonify({
+            "success": False,
+            "error": {
+                "message": (
+                    "No deliverable email address for your account. "
+                    "Add a contact email in Access Control or use an email-based login."
+                ),
+            },
+        }), 400
+
+    data = request.json or {}
+    smtp_config = smtp_config_from_overrides(data)
+    if not is_smtp_configured(smtp_config):
+        return jsonify({
+            "success": False,
+            "error": {"message": "SMTP is not fully configured. Check host, user, from address, and password."},
+        }), 400
+
+    try:
+        send_test_email(recipient, smtp_config=smtp_config)
+        audit("settings.smtp_test", target=login_identifier, recipient=recipient)
+        return jsonify({
+            "success": True,
+            "message": f"Test email sent to {recipient}.",
+        })
+    except Exception as exc:
+        return jsonify({
+            "success": False,
+            "error": {"message": f"Failed to send test email: {exc}"},
+        }), 500
 
 
 # --- QUOTA ---

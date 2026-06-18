@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 
 from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled
 from app_meta import APP_VERSION, get_about_info
-from routes import auth_bp, domains_bp, emails_bp, spam_bp, cloudflare_bp, admin_bp
+from routes import auth_bp, domains_bp, emails_bp, spam_bp, cloudflare_bp, admin_bp, password_reset_bp
 
 load_dotenv()
 
@@ -18,6 +18,24 @@ app.register_blueprint(emails_bp)
 app.register_blueprint(spam_bp)
 app.register_blueprint(cloudflare_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(password_reset_bp)
+
+
+PUBLIC_PATHS = frozenset({
+    "/login",
+    "/login/redirect",
+    "/oidc/callback",
+    "/logout",
+    "/reset-password",
+    "/api/public/password-reset/status",
+    "/api/public/password-reset/request",
+    "/api/public/password-reset/confirm",
+})
+
+CSRF_EXEMPT_PATHS = frozenset({
+    "/login",
+    "/oidc/callback",
+})
 
 
 @app.context_processor
@@ -45,7 +63,7 @@ init_db(app.logger)
 @app.before_request
 def check_authentication():
     # Exclude asset paths, authentication logic endpoints (including blueprints paths)
-    if request.path.startswith('/static/') or request.path in ['/login', '/login/redirect', '/oidc/callback', '/logout']:
+    if request.path.startswith('/static/') or request.path in PUBLIC_PATHS:
         return
 
     user = session.get('user')
@@ -79,7 +97,7 @@ def csrf_protect():
     # Only protect state-changing methods
     if request.method in ["POST", "PUT", "PATCH", "DELETE"]:
         # Exclude specific paths like login endpoints
-        if request.path in ["/login", "/oidc/callback"]:
+        if request.path in CSRF_EXEMPT_PATHS:
             return
 
         token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")

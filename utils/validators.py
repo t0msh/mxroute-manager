@@ -3,6 +3,14 @@ import re
 _EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
 _LOCAL_PSEUDO_EMAIL_PATTERN = re.compile(r"^[a-zA-Z0-9._-]+@[a-zA-Z0-9-]+$")
 
+_PASSWORD_REQUIREMENTS = {
+    "length": re.compile(r".{8,}"),
+    "upper": re.compile(r"[A-Z]"),
+    "lower": re.compile(r"[a-z]"),
+    "number": re.compile(r"[0-9]"),
+    "special": re.compile(r"[^A-Za-z0-9]"),
+}
+
 
 def validate_domain(domain):
     if not domain or not isinstance(domain, str):
@@ -48,3 +56,23 @@ def requires_local_password(identifier, oidc_enabled):
     if not validate_local_user_identifier(identifier):
         return False
     return not is_oidc_user_identifier(identifier, oidc_enabled)
+
+
+def validate_mailbox_password(password):
+    if not password or not isinstance(password, str):
+        return False
+    return all(pattern.search(password) for pattern in _PASSWORD_REQUIREMENTS.values())
+
+
+def validate_recovery_email(mailbox_email, recovery_email):
+    """Validate recovery email for a mailbox. Returns (ok, error_message)."""
+    mailbox_email = (mailbox_email or "").strip().lower()
+    recovery_email = (recovery_email or "").strip().lower()
+    if not recovery_email:
+        return False, "Recovery email is required."
+    if not is_email_identifier(recovery_email):
+        return False, "Invalid recovery email format."
+    if recovery_email == mailbox_email:
+        return False, "Recovery email must differ from the mailbox address."
+    return True, ""
+

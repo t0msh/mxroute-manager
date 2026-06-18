@@ -1,6 +1,6 @@
 """Single source of truth for application metadata. Bump APP_VERSION here for releases."""
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 APP_NAME = "MXroute Manager"
 APP_DESCRIPTION = "Self-hosted control panel for MXroute email hosting and DNS management."
 

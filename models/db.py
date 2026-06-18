@@ -2,6 +2,8 @@ import os
 import json
 import sqlite3
 import secrets
+import hashlib
+from datetime import datetime, timedelta, timezone
 
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -16,13 +18,18 @@ ENV_ONLY_SECRET_KEYS = frozenset({
     "CF_API_TOKEN",
     "OIDC_CLIENT_SECRET",
 })
-MASKED_SECRET_KEYS = ENV_ONLY_SECRET_KEYS | frozenset({"ADMIN_PASSWORD", "SECRET_KEY"})
+MASKED_SECRET_KEYS = ENV_ONLY_SECRET_KEYS | frozenset({
+    "ADMIN_PASSWORD", "SECRET_KEY", "RESET_SMTP_PASSWORD",
+})
 ADMIN_PASSWORD_HASH_KEY = "ADMIN_PASSWORD_HASH"
+RESET_TOKEN_TTL_HOURS = 1
 SETTINGS_UI_KEYS = [
     "OIDC_ENABLED", "OIDC_CLIENT_ID", "OIDC_DISCOVERY_URL",
     "OIDC_REDIRECT_URI", "OIDC_SCOPES", "OIDC_ADMIN_USERS", "OIDC_ADMIN_GROUP",
     "MX_SERVER", "MX_USER", "CF_ACCOUNT_ID",
     "ADMIN_USER",
+    "MAILBOX_RESET_ENABLED", "RESET_SMTP_HOST", "RESET_SMTP_PORT",
+    "RESET_SMTP_USER", "RESET_SMTP_FROM", "RESET_SMTP_USE_TLS",
 ]
 SETTINGS_RESPONSE_KEYS = SETTINGS_UI_KEYS + sorted(MASKED_SECRET_KEYS)
 
@@ -151,6 +158,8 @@ def migrate_settings_secrets(cursor):
 def is_secret_configured(key):
     if key == "ADMIN_PASSWORD":
         return bool(get_admin_password_hash())
+    if key == "RESET_SMTP_PASSWORD":
+        return bool(get_reset_smtp_password())
     if key in ENV_ONLY_SECRET_KEYS:
         return bool(get_env_config(key))
     if key == "SECRET_KEY":
@@ -221,6 +230,217 @@ def use_secure_cookies():
     if explicit is not None and explicit.strip() != "":
         return explicit.lower() in ("true", "1", "yes")
     return is_oidc_enabled()
+
+
+def is_mailbox_reset_enabled():
+    return get_config_value("MAILBOX_RESET_ENABLED", "false").lower() in ("true", "1", "yes")
+
+
+def get_reset_smtp_host():
+    return (get_config_value("RESET_SMTP_HOST") or "").strip()
+
+
+def get_reset_smtp_port():
+    raw = get_config_value("RESET_SMTP_PORT", "587")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 587
+
+
+def get_reset_smtp_user():
+    return (get_config_value("RESET_SMTP_USER") or "").strip()
+
+
+def get_reset_smtp_password():
+    env_password = get_env_config("RESET_SMTP_PASSWORD")
+    if env_password:
+        return env_password
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",))
+        row = cursor.fetchone()
+        conn.close()
+        if row and row[0]:
+            return row[0]
+    except Exception:
+        pass
+    return None
+
+
+def set_reset_smtp_password(password):
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        ("RESET_SMTP_PASSWORD", password),
+    )
+    conn.commit()
+    conn.close()
+    invalidate_settings_cache()
+
+
+def get_reset_smtp_from():
+    return (get_config_value("RESET_SMTP_FROM") or "").strip()
+
+
+def reset_smtp_use_tls():
+    return get_config_value("RESET_SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+
+
+def _utc_now_iso():
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+
+def _hash_reset_token(raw_token):
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+
+def parse_mailbox_email(address):
+    """Return (username, domain) for a full mailbox address, or (None, None)."""
+    from utils.validators import validate_domain, validate_username, is_email_identifier
+
+    if not address or not isinstance(address, str):
+        return None, None
+    address = address.strip().lower()
+    if not is_email_identifier(address) or "@" not in address:
+        return None, None
+    username, domain = address.rsplit("@", 1)
+    if not validate_username(username) or not validate_domain(domain):
+        return None, None
+    return username, domain
+
+
+def get_recovery_email(mailbox_email):
+    mailbox_email = (mailbox_email or "").strip().lower()
+    if not mailbox_email:
+        return None
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT recovery_email FROM mailbox_recovery WHERE mailbox_email = ?",
+            (mailbox_email,),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+
+def get_recovery_map(mailbox_emails):
+    """Return {mailbox_email: recovery_email} for the given addresses."""
+    emails = [e.strip().lower() for e in mailbox_emails if e]
+    if not emails:
+        return {}
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        placeholders = ",".join("?" for _ in emails)
+        cursor.execute(
+            f"SELECT mailbox_email, recovery_email FROM mailbox_recovery WHERE mailbox_email IN ({placeholders})",
+            emails,
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return {row[0]: row[1] for row in rows}
+    except Exception:
+        return {}
+
+
+def set_recovery_email(mailbox_email, recovery_email):
+    mailbox_email = (mailbox_email or "").strip().lower()
+    recovery_email = (recovery_email or "").strip().lower()
+    if not mailbox_email or not recovery_email:
+        return False
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(mailbox_email) DO UPDATE SET
+            recovery_email = excluded.recovery_email,
+            updated_at = excluded.updated_at
+        """,
+        (mailbox_email, recovery_email, _utc_now_iso()),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def delete_recovery_email(mailbox_email):
+    mailbox_email = (mailbox_email or "").strip().lower()
+    if not mailbox_email:
+        return
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM mailbox_recovery WHERE mailbox_email = ?", (mailbox_email,))
+    cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
+    conn.commit()
+    conn.close()
+
+
+def _purge_expired_reset_tokens(cursor):
+    now = _utc_now_iso()
+    cursor.execute(
+        "DELETE FROM password_reset_tokens WHERE expires_at < ? OR used_at IS NOT NULL",
+        (now,),
+    )
+
+
+def create_reset_token(mailbox_email):
+    mailbox_email = (mailbox_email or "").strip().lower()
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = _hash_reset_token(raw_token)
+    expires_at = (
+        datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_TTL_HOURS)
+    ).replace(microsecond=0).isoformat()
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    _purge_expired_reset_tokens(cursor)
+    cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
+    cursor.execute(
+        """
+        INSERT INTO password_reset_tokens (token_hash, mailbox_email, expires_at, used_at, created_at)
+        VALUES (?, ?, ?, NULL, ?)
+        """,
+        (token_hash, mailbox_email, expires_at, _utc_now_iso()),
+    )
+    conn.commit()
+    conn.close()
+    return raw_token
+
+
+def consume_reset_token(raw_token):
+    if not raw_token or not isinstance(raw_token, str):
+        return None
+    token_hash = _hash_reset_token(raw_token.strip())
+    now = _utc_now_iso()
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT id, mailbox_email FROM password_reset_tokens
+        WHERE token_hash = ? AND used_at IS NULL AND expires_at >= ?
+        """,
+        (token_hash, now),
+    )
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return None
+    token_id, mailbox_email = row
+    cursor.execute(
+        "UPDATE password_reset_tokens SET used_at = ? WHERE id = ?",
+        (now, token_id),
+    )
+    conn.commit()
+    conn.close()
+    return mailbox_email
 
 
 def load_domain_mapping():
@@ -301,6 +521,7 @@ def load_delegations_detail():
     """Return structured delegation records for admin UI/API."""
     mapping = load_domain_mapping()
     grant_map = load_user_grants()
+    contact_map = get_users_contact_map()
     records = []
     for email, domains in mapping.items():
         is_admin = "*" in domains
@@ -311,13 +532,83 @@ def load_delegations_detail():
                 "domain": domain,
                 "permissions": grant_map.get(email, {}).get(domain, list(DEFAULT_PERMISSIONS)),
             })
+        contact_email = contact_map.get(email)
         records.append({
             "email": email,
+            "contact_email": contact_email,
+            "notification_email": resolve_notification_email(email, contact_email),
             "is_admin": is_admin,
             "domains": domains,
             "grants": grant_rows,
         })
     return records
+
+
+def get_users_contact_map():
+    """Return {login_identifier: contact_email} for all users."""
+    try:
+        conn = sqlite3.connect(DATABASE_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT email, contact_email FROM users")
+        rows = cursor.fetchall()
+        conn.close()
+        return {
+            (email or "").lower(): (contact or "").strip().lower() or None
+            for email, contact in rows
+            if email
+        }
+    except Exception:
+        return {}
+
+
+def get_user_contact_email(login_identifier):
+    return get_users_contact_map().get((login_identifier or "").strip().lower())
+
+
+def resolve_notification_email(login_identifier, contact_email=None):
+    """Return a deliverable email for notifications, or None."""
+    from utils.validators import is_email_identifier
+
+    login_identifier = (login_identifier or "").strip().lower()
+    if contact_email is None:
+        contact_email = get_user_contact_email(login_identifier)
+    else:
+        contact_email = (contact_email or "").strip().lower() or None
+
+    if contact_email and is_email_identifier(contact_email):
+        return contact_email
+    if is_email_identifier(login_identifier):
+        return login_identifier
+    return None
+
+
+def set_user_contact_email(login_identifier, contact_email, is_admin=None):
+    login_identifier = (login_identifier or "").strip().lower()
+    if not login_identifier:
+        return False
+    contact_email = (contact_email or "").strip().lower() or None
+    conn = sqlite3.connect(DATABASE_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE email = ?", (login_identifier,))
+    row = cursor.fetchone()
+    if row:
+        cursor.execute(
+            "UPDATE users SET contact_email = ? WHERE id = ?",
+            (contact_email, row[0]),
+        )
+    else:
+        admin_flag = 0
+        if is_admin is not None:
+            admin_flag = 1 if is_admin else 0
+        elif login_identifier == get_admin_user():
+            admin_flag = 1
+        cursor.execute(
+            "INSERT INTO users (email, contact_email, is_admin) VALUES (?, ?, ?)",
+            (login_identifier, contact_email, admin_flag),
+        )
+    conn.commit()
+    conn.close()
+    return True
 
 
 def get_or_create_secret_key():
@@ -394,10 +685,32 @@ def init_db(logger=None):
                 (default_permissions,),
             )
             conn.commit()
+        cursor.execute("PRAGMA table_info(users)")
+        user_columns = {row[1] for row in cursor.fetchall()}
+        if "contact_email" not in user_columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN contact_email TEXT")
+            conn.commit()
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mailbox_recovery (
+                mailbox_email TEXT PRIMARY KEY,
+                recovery_email TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                token_hash TEXT NOT NULL,
+                mailbox_email TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                used_at TEXT,
+                created_at TEXT NOT NULL
             );
         """)
         conn.commit()

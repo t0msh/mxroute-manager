@@ -51,7 +51,45 @@
             color: var(--color-secondary);
             font-size: 0.95rem;
             line-height: 1.6;
-            margin-bottom: 2.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .login-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 0.35rem;
+        }
+
+        .login-tab {
+            flex: 1;
+            border: none;
+            background: transparent;
+            color: var(--color-secondary);
+            padding: 0.65rem 0.75rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-speed) ease;
+            font-family: inherit;
+        }
+
+        .login-tab.active {
+            background: rgba(92, 221, 141, 0.15);
+            color: var(--accent);
+            box-shadow: inset 0 0 0 1px rgba(92, 221, 141, 0.25);
+        }
+
+        .login-panel {
+            display: none;
+            text-align: left;
+        }
+
+        .login-panel.active {
+            display: block;
         }
 
         .btn-login {
@@ -79,10 +117,16 @@
             filter: brightness(1.08);
         }
 
+        .btn-login:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         /* Admin login toggle link */
         .admin-toggle {
             display: inline-block;
-            margin-top: 2rem;
+            margin-top: 1.25rem;
             font-size: 0.78rem;
             color: var(--color-muted);
             cursor: pointer;
@@ -121,7 +165,7 @@
         .admin-section.open {
             max-height: 340px;
             opacity: 1;
-            margin-top: 1.5rem;
+            margin-top: 1rem;
         }
 
         .admin-inner {
@@ -181,6 +225,28 @@
             font-weight: 500;
             letter-spacing: 0.05em;
         }
+
+        .reset-notice {
+            background: rgba(248, 113, 113, 0.12);
+            border: 1px solid rgba(248, 113, 113, 0.35);
+            border-radius: 12px;
+            color: var(--danger);
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            font-size: 0.82rem;
+            line-height: 1.5;
+        }
+
+        .reset-success {
+            background: rgba(92, 221, 141, 0.12);
+            border: 1px solid rgba(92, 221, 141, 0.35);
+            border-radius: 12px;
+            color: var(--success);
+            padding: 0.8rem;
+            margin-bottom: 1rem;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
     </style>
 </head>
 
@@ -202,54 +268,76 @@
             </div>
             {% endif %}
 
-            <p class="login-desc">
+            <div class="login-tabs" role="tablist" aria-label="Login options">
+                <button type="button" class="login-tab active" id="tab-sign-in" role="tab" aria-selected="true" aria-controls="panel-sign-in">Sign In</button>
+                <button type="button" class="login-tab" id="tab-reset" role="tab" aria-selected="false" aria-controls="panel-reset">Reset Mailbox Password</button>
+            </div>
+
+            <div class="login-panel active" id="panel-sign-in" role="tabpanel" aria-labelledby="tab-sign-in">
+                <p class="login-desc">
+                    {% if oidc_enabled %}
+                    Welcome to the administration panel. Sign in with your OIDC provider to continue.
+                    {% else %}
+                    Welcome to the administration panel. Sign in with your credentials to continue.
+                    {% endif %}
+                </p>
+
                 {% if oidc_enabled %}
-                Welcome to the administration panel. Sign in with your OIDC provider to continue.
-                {% else %}
-                Welcome to the administration panel. Sign in with your credentials to continue.
+                <a href="/login/redirect" class="btn-login">
+                    <span>🔑</span> Sign In with OIDC
+                </a>
+
+                <button class="admin-toggle" id="adminToggle" aria-expanded="false" aria-controls="adminSection"
+                    onclick="toggleAdmin()">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        aria-hidden="true">
+                        <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                    Local Login
+                </button>
                 {% endif %}
-            </p>
 
-            {% if oidc_enabled %}
-            <!-- Primary: OIDC login -->
-            <a href="/login/redirect" class="btn-login">
-                <span>🔑</span> Sign In with OIDC
-            </a>
-
-            <!-- Secondary: collapsible admin login -->
-            <button class="admin-toggle" id="adminToggle" aria-expanded="false" aria-controls="adminSection"
-                onclick="toggleAdmin()">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"
-                    aria-hidden="true">
-                    <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                        stroke-linejoin="round" />
-                </svg>
-                Local Login
-            </button>
-            {% endif %}
-
-            <div class="admin-section {% if not oidc_enabled %}open{% endif %}" id="adminSection" aria-hidden="{% if oidc_enabled %}true{% else %}false{% endif %}">
-                <div class="admin-inner {% if not oidc_enabled %}no-border{% endif %}">
-                    <p class="admin-label">{% if oidc_enabled %}Local Admin{% else %}Credential Sign In{% endif %}</p>
-                    <form action="/login" method="POST" style="display: flex; flex-direction: column; gap: 1.25rem;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <div class="form-group">
-                            <label for="username"
-                                style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Username / Email</label>
-                            <input type="text" id="username" name="username" placeholder="admin@example.com" required
-                                autocomplete="username">
-                        </div>
-                        <div class="form-group">
-                            <label for="password"
-                                style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Password</label>
-                            <input type="password" id="password" name="password" placeholder="••••••••••••" required
-                                autocomplete="current-password">
-                        </div>
-                        <button type="submit" class="btn-admin">
-                            <span>👤</span> Sign In
-                        </button>
-                    </form>
+                <div class="admin-section {% if not oidc_enabled %}open{% endif %}" id="adminSection" aria-hidden="{% if oidc_enabled %}true{% else %}false{% endif %}">
+                    <div class="admin-inner {% if not oidc_enabled %}no-border{% endif %}">
+                        <p class="admin-label">{% if oidc_enabled %}Local Admin{% else %}Credential Sign In{% endif %}</p>
+                        <form action="/login" method="POST" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <div class="form-group">
+                                <label for="username"
+                                    style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Username / Email</label>
+                                <input type="text" id="username" name="username" placeholder="admin@example.com" required
+                                    autocomplete="username">
+                            </div>
+                            <div class="form-group">
+                                <label for="password"
+                                    style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Password</label>
+                                <input type="password" id="password" name="password" placeholder="••••••••••••" required
+                                    autocomplete="current-password">
+                            </div>
+                            <button type="submit" class="btn-admin">
+                                <span>👤</span> Sign In
+                            </button>
+                        </form>
+                    </div>
                 </div>
+            </div>
+
+            <div class="login-panel" id="panel-reset" role="tabpanel" aria-labelledby="tab-reset">
+                <p class="login-desc">Enter your full mailbox address. If a recovery email is on file, you will receive reset instructions.</p>
+
+                <div id="reset-unavailable-notice" class="reset-notice" style="display: none;">
+                    Self-service password reset is not currently available. Contact your administrator.
+                </div>
+                <div id="reset-success-notice" class="reset-success" style="display: none;"></div>
+
+                <form id="form-request-reset" style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <div class="form-group">
+                        <label for="reset-mailbox-email" style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Mailbox Email</label>
+                        <input type="email" id="reset-mailbox-email" placeholder="you@yourdomain.com" required autocomplete="email">
+                    </div>
+                    <button type="submit" class="btn-login" id="btn-request-reset">Send Reset Link</button>
+                </form>
             </div>
 
             <p class="login-version">v{{ app_version }}</p>
@@ -267,10 +355,87 @@
             section.setAttribute('aria-hidden', !isOpen);
         }
 
-        // If the page loaded with an error or OIDC is disabled, auto-expand the admin form
+        function switchLoginTab(tabName) {
+            const signInTab = document.getElementById('tab-sign-in');
+            const resetTab = document.getElementById('tab-reset');
+            const signInPanel = document.getElementById('panel-sign-in');
+            const resetPanel = document.getElementById('panel-reset');
+            const isReset = tabName === 'reset';
+
+            signInTab.classList.toggle('active', !isReset);
+            resetTab.classList.toggle('active', isReset);
+            signInPanel.classList.toggle('active', !isReset);
+            resetPanel.classList.toggle('active', isReset);
+            signInTab.setAttribute('aria-selected', !isReset);
+            resetTab.setAttribute('aria-selected', isReset);
+        }
+
+        document.getElementById('tab-sign-in').addEventListener('click', () => switchLoginTab('signin'));
+        document.getElementById('tab-reset').addEventListener('click', () => switchLoginTab('reset'));
+
         const hasLoginError = document.body.dataset.hasError === 'true';
         const oidcEnabled = document.body.dataset.oidcEnabled === 'true';
         if (hasLoginError || !oidcEnabled) toggleAdmin();
+
+        function getCookie(name) {
+            const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+            return match ? decodeURIComponent(match[2]) : null;
+        }
+
+        async function loadResetStatus() {
+            try {
+                const response = await fetch('/api/public/password-reset/status');
+                const result = await response.json();
+                const available = result?.data?.available;
+                const notice = document.getElementById('reset-unavailable-notice');
+                const form = document.getElementById('form-request-reset');
+                const submitBtn = document.getElementById('btn-request-reset');
+                if (!available) {
+                    notice.style.display = 'block';
+                    form.style.display = 'none';
+                } else {
+                    notice.style.display = 'none';
+                    form.style.display = 'flex';
+                    submitBtn.disabled = false;
+                }
+            } catch (err) {
+                document.getElementById('reset-unavailable-notice').style.display = 'block';
+                document.getElementById('form-request-reset').style.display = 'none';
+            }
+        }
+
+        document.getElementById('form-request-reset').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('btn-request-reset');
+            const successNotice = document.getElementById('reset-success-notice');
+            const mailboxEmail = document.getElementById('reset-mailbox-email').value.trim().toLowerCase();
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Sending...';
+            successNotice.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/public/password-reset/request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-Token': getCookie('csrf_token') || ''
+                    },
+                    body: JSON.stringify({ mailbox_email: mailboxEmail })
+                });
+                const result = await response.json();
+                successNotice.textContent = result.message || 'If an account with a recovery email on file exists, you will receive password reset instructions shortly.';
+                successNotice.style.display = 'block';
+            } catch (err) {
+                successNotice.textContent = 'If an account with a recovery email on file exists, you will receive password reset instructions shortly.';
+                successNotice.style.display = 'block';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Send Reset Link';
+            }
+        });
+
+        loadResetStatus();
     </script>
     <script src="/static/brand.js?v={{ app_version }}"></script>
 </body>

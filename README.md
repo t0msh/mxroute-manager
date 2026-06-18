@@ -20,6 +20,7 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 ### Mail and domain operations
 - Register and remove domains on MXroute
 - Provision mailboxes with password, quota, and send-limit controls
+- Optional recovery email per mailbox for self-service password reset
 - Suspend/activate, change password, update limits, and delete mailboxes
 - Manage domain pointers and catch-all routing
 - Create and remove forwarders
@@ -35,6 +36,7 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 ### Access control and authentication
 - OIDC/SSO login flow
 - Local credential login fallback
+- Self-service mailbox password reset tab on the login page (recovery email + SMTP required)
 - Per-domain permission matrix for delegated users (`dashboard`, `emails`, `forwarders`, `spam`, `dns`)
 - Grant different functions per domain (for example, spam controls only on one domain)
 - Existing delegations keep full access after upgrades
@@ -42,6 +44,7 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 
 ### Settings and UX
 - In-app Settings tab for MXroute, OIDC, Cloudflare, and local admin settings
+- Mailbox password reset SMTP configuration and test-email sending in Settings
 - About box with version, repository link, license, and attributions
 - Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk)
 - Client-side API caching with stale-while-revalidate behaviour
@@ -53,6 +56,7 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 - Configurable secure cookie enforcement (`FORCE_HTTPS`)
 - Server-side permission checks on all domain-scoped API routes
 - JSON-line audit logs for key admin/user actions
+- Self-service password reset with hashed single-use tokens and rate limiting
 
 ## Delegated access
 
@@ -70,6 +74,38 @@ Admins configure access in the **Access Control** tab. For each user you can:
 | DNS Records | View and copy required DNS records |
 
 Delegated users only see nav tabs and actions they are permitted to use. Mail hosting toggles remain admin-only.
+
+Local username accounts (not email-based logins) can have an optional **contact email** in Access Control. This is used for SMTP test emails and other admin notifications when no login email is available.
+
+## Mailbox password reset
+
+Mailbox owners can reset their own password from the **Reset Mailbox Password** tab on the login page. This requires:
+
+1. **Recovery email** — set when provisioning a mailbox (optional) or later via the **Recovery** action in the Email Accounts tab.
+2. **SMTP settings** — configured in **Settings → Mailbox Password Reset** (or via environment variables).
+3. **Feature enabled** — toggle **Self-Service Reset** to **Enabled** in the same settings section.
+
+Flow:
+
+1. Mailbox owner enters their full mailbox address on the login page reset tab.
+2. If a recovery email exists, a one-time link is emailed (valid for 1 hour).
+3. The owner sets a new password on the reset page; the app updates the mailbox via the MXRoute API.
+
+Security notes:
+
+- Reset requests always return the same generic message (no mailbox enumeration).
+- Rate limits apply per IP and per mailbox.
+- Recovery email must differ from the mailbox address.
+- Reset tokens are single-use and stored hashed.
+
+### SMTP test emails
+
+Admins can send a test email from **Settings → Mailbox Password Reset** to verify SMTP settings before enabling self-service reset. The test uses the current form values (including an unsaved password if entered).
+
+Test emails are sent to your **notification email**:
+
+- OIDC users and local users who sign in with a real email address use that login email.
+- Local username accounts need a **contact email** set in **Access Control** or under **Your Contact Email** in the SMTP settings section.
 
 ## Screenshots
 
@@ -220,6 +256,13 @@ docker run -d \
 | `SECRET_KEY` | Recommended | Session signing key |
 | `FORCE_HTTPS` | No | Force secure cookies |
 | `PORT` | No | Local dev server port |
+| `MAILBOX_RESET_ENABLED` | No | Enable self-service mailbox password reset |
+| `RESET_SMTP_HOST` | If reset enabled | SMTP server for reset emails |
+| `RESET_SMTP_PORT` | No | SMTP port (default: `587`) |
+| `RESET_SMTP_USER` | If reset enabled | SMTP username |
+| `RESET_SMTP_PASSWORD` | If reset enabled | SMTP password |
+| `RESET_SMTP_FROM` | If reset enabled | From address for reset emails |
+| `RESET_SMTP_USE_TLS` | No | Use STARTTLS (`true`/`false`) |
 
 
 ## License

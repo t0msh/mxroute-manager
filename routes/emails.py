@@ -1,10 +1,25 @@
 from flask import Blueprint, request, jsonify
 
-from utils.validators import validate_domain, validate_username
+from models.db import (
+    delete_recovery_email,
+    get_recovery_map,
+    set_recovery_email,
+)
+from utils.validators import validate_domain, validate_username, validate_recovery_email
 from utils.auth_helpers import require_permission, require_any_permission, require_compat_domain_access
-from services.mxroute import mx_request, audited_mx
+from services.mxroute import mx_request, audited_mx, audit
 
 emails_bp = Blueprint("emails", __name__)
+
+
+def _mailbox_address(username, domain):
+    return f"{username}@{domain}".lower()
+
+
+def _mx_payload_without_recovery(data):
+    if not isinstance(data, dict):
+        return data
+    return {key: value for key, value in data.items() if key != "recovery_email"}
 
 
 # --- EMAIL ACCOUNTS ---
@@ -13,7 +28,23 @@ emails_bp = Blueprint("emails", __name__)
 @emails_bp.route('/list-emails/<domain>', methods=['GET'])  # backward compat
 @require_any_permission("dashboard", "emails")
 def list_emails(domain):
-    return mx_request("GET", f"/domains/{domain}/email-accounts")
+    result, status = mx_request("GET", f"/domains/{domain}/email-accounts")
+    if status != 200:
+        return result, status
+
+    payload = result.get_json()
+    if payload.get("success") and isinstance(payload.get("data"), list):
+        addresses = [_mailbox_address(account.get("username"), domain) for account in payload["data"]]
+        recovery_map = get_recovery_map(addresses)
+        for account in payload["data"]:
+            username = account.get("username")
+            if not username:
+                continue
+            mailbox_email = _mailbox_address(username, domain)
+            recovery = recovery_map.get(mailbox_email)
+            account["recovery_email"] = recovery
+            account["has_recovery_email"] = bool(recovery)
+    return jsonify(payload), status
 
 
 @emails_bp.route('/api/domains/<domain>/email-accounts', methods=['POST'])
@@ -23,7 +54,27 @@ def create_email_api(domain):
     username = data.get("username")
     if not validate_username(username):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-    return audited_mx("POST", f"/domains/{domain}/email-accounts", request.json, "mailbox.create", target=f"{username}@{domain}")
+
+    recovery_email = (data.get("recovery_email") or "").strip().lower() or None
+    mailbox_email = _mailbox_address(username, domain)
+    if recovery_email:
+        ok, message = validate_recovery_email(mailbox_email, recovery_email)
+        if not ok:
+            return jsonify({"success": False, "error": {"message": message}}), 400
+
+    response, status = audited_mx(
+        "POST",
+        f"/domains/{domain}/email-accounts",
+        _mx_payload_without_recovery(data),
+        "mailbox.create",
+        target=mailbox_email,
+    )
+    if status in (200, 201, 204):
+        payload = response.get_json()
+        if payload.get("success", True) and recovery_email:
+            set_recovery_email(mailbox_email, recovery_email)
+            audit("mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email)
+    return response, status
 
 
 @emails_bp.route('/create-email', methods=['POST'])  # backward compat (expects Form)
@@ -96,7 +147,38 @@ def update_password_compat():
 def delete_email_api(domain, user):
     if not validate_username(user):
         return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
-    return audited_mx("DELETE", f"/domains/{domain}/email-accounts/{user}", None, "mailbox.delete", target=f"{user}@{domain}")
+    response, status = audited_mx(
+        "DELETE",
+        f"/domains/{domain}/email-accounts/{user}",
+        None,
+        "mailbox.delete",
+        target=f"{user}@{domain}",
+    )
+    return _delete_recovery_after_mx_delete(response, status, user, domain)
+
+
+@emails_bp.route('/api/domains/<domain>/email-accounts/<user>/recovery', methods=['PATCH'])
+@require_permission("emails")
+def update_recovery_email(domain, user):
+    if not validate_username(user):
+        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+
+    data = request.json or {}
+    mailbox_email = _mailbox_address(user, domain)
+
+    if "recovery_email" not in data or data.get("recovery_email") in (None, ""):
+        delete_recovery_email(mailbox_email)
+        audit("mailbox.recovery_update", target=mailbox_email, recovery_email=None)
+        return jsonify({"success": True})
+
+    recovery_email = str(data.get("recovery_email")).strip().lower()
+    ok, message = validate_recovery_email(mailbox_email, recovery_email)
+    if not ok:
+        return jsonify({"success": False, "error": {"message": message}}), 400
+
+    set_recovery_email(mailbox_email, recovery_email)
+    audit("mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email)
+    return jsonify({"success": True, "data": {"recovery_email": recovery_email}})
 
 
 @emails_bp.route('/delete-email', methods=['POST'])  # backward compat (expects Form)
@@ -113,7 +195,22 @@ def delete_email_compat():
     if denied:
         return denied
 
-    return audited_mx("DELETE", f"/domains/{domain}/email-accounts/{email_username}", None, "mailbox.delete", target=f"{email_username}@{domain}")
+    response, status = audited_mx(
+        "DELETE",
+        f"/domains/{domain}/email-accounts/{email_username}",
+        None,
+        "mailbox.delete",
+        target=f"{email_username}@{domain}",
+    )
+    return _delete_recovery_after_mx_delete(response, status, email_username, domain)
+
+
+def _delete_recovery_after_mx_delete(response, status, username, domain):
+    if status in (200, 201, 204):
+        payload = response.get_json()
+        if payload.get("success", True):
+            delete_recovery_email(_mailbox_address(username, domain))
+    return response, status
 
 
 # --- EMAIL FORWARDERS ---

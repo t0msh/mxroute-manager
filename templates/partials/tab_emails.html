@@ -66,6 +66,14 @@
                 </div>
             </div>
 
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="create-email-recovery">Recovery Email <span style="font-size: 0.75rem; color: var(--color-muted); font-weight: normal;">(optional)</span></label>
+                    <input type="email" id="create-email-recovery" placeholder="personal@gmail.com" autocomplete="off">
+                    <span style="font-size: 0.75rem; color: var(--color-muted);">Enables self-service password reset for this mailbox.</span>
+                </div>
+            </div>
+
             <button type="submit" id="btn-provision-submit" class="btn btn-primary mt-4" disabled>Provision
                 Mailbox</button>
         </form>
@@ -101,6 +109,7 @@
                 <thead>
                     <tr>
                         <th>Mailbox Address</th>
+                        <th>Recovery Email</th>
                         <th>Storage Usage (Quota)</th>
                         <th>Outbound Today (Limit)</th>
                         <th style="text-align: right;">Actions</th>
@@ -108,7 +117,7 @@
                 </thead>
                 <tbody id="emails-list-tbody">
                     <tr>
-                        <td colspan="4" style="text-align: center; color: var(--color-muted);">Select a domain
+                        <td colspan="5" style="text-align: center; color: var(--color-muted);">Select a domain
                             to see email accounts.</td>
                     </tr>
                 </tbody>

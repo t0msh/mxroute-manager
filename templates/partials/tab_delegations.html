@@ -14,6 +14,11 @@
                     <p class="stat-card-subtitle" style="margin-top: 0.5rem;">Use a short username for local sign-in, or an email address for OIDC users.</p>
                 </div>
                 <div class="form-group mb-4">
+                    <label for="delegation-contact-email">Contact Email <span style="font-size: 0.75rem; color: var(--color-muted); font-weight: normal;">(optional)</span></label>
+                    <input type="email" id="delegation-contact-email" placeholder="notifications@example.com" autocomplete="email">
+                    <p class="stat-card-subtitle" style="margin-top: 0.5rem;">Used for notifications such as SMTP tests. OIDC users already sign in with an email; local username accounts need this to receive mail.</p>
+                </div>
+                <div class="form-group mb-4">
                     <label for="delegation-password">Local Password <span id="delegation-password-required" style="display: none; color: var(--danger);">*</span></label>
                     <input type="password" id="delegation-password" placeholder="Required for new local users" autocomplete="new-password">
                     <p id="delegation-password-hint" class="stat-card-subtitle" style="margin-top: 0.5rem;">Required for new local users. Optional for OIDC email accounts or when editing an existing user.</p>

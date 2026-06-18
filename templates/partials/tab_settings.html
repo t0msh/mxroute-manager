@@ -129,6 +129,71 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Mailbox Password Reset -->
+            <div>
+                <h3 style="font-family: var(--font-heading); font-size: 1.1rem; border-bottom: 1px solid var(--glass-border); padding-bottom: 0.5rem; margin-bottom: 1.25rem; color: var(--accent);">
+                    🔐 Mailbox Password Reset
+                </h3>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-mailbox-reset-enabled">Self-Service Reset</label>
+                        <select id="setting-mailbox-reset-enabled">
+                            <option value="false">Disabled</option>
+                            <option value="true">Enabled</option>
+                        </select>
+                        <span style="font-size: 0.75rem; color: var(--color-secondary);">Allows mailbox owners to reset passwords from the login page.</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-reset-smtp-use-tls">SMTP STARTTLS</label>
+                        <select id="setting-reset-smtp-use-tls">
+                            <option value="true">Enabled</option>
+                            <option value="false">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-reset-smtp-host">SMTP Hostname</label>
+                        <input type="text" id="setting-reset-smtp-host" placeholder="smtp.example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-reset-smtp-port">SMTP Port</label>
+                        <input type="number" id="setting-reset-smtp-port" placeholder="587" min="1" max="65535">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="setting-reset-smtp-user">SMTP Username</label>
+                        <input type="text" id="setting-reset-smtp-user" placeholder="notifications@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-reset-smtp-from">From Address</label>
+                        <input type="email" id="setting-reset-smtp-from" placeholder="MXroute Manager &lt;noreply@example.com&gt;">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="setting-reset-smtp-password">SMTP Password</label>
+                    <input type="password" id="setting-reset-smtp-password" placeholder="Leave blank to keep current password" autocomplete="new-password">
+                    <div id="setting-reset-smtp-password-status" class="secret-status" style="margin-top: 0.5rem;"></div>
+                    <span style="font-size: 0.75rem; color: var(--color-secondary);">Can also be set via <code>RESET_SMTP_PASSWORD</code> in <code>.env</code>.</span>
+                </div>
+
+                <div class="form-group" style="margin-top: 1rem;">
+                    <label for="setting-admin-contact-email">Your Contact Email</label>
+                    <input type="email" id="setting-admin-contact-email" placeholder="you@example.com" autocomplete="email">
+                    <span style="font-size: 0.75rem; color: var(--color-secondary);">Required for SMTP test emails when you sign in with a username instead of an email address.</span>
+                    <div id="setting-smtp-test-status" class="secret-status" style="margin-top: 0.75rem;"></div>
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; margin-top: 1rem;">
+                    <button type="button" class="btn btn-secondary" id="btn-test-smtp-settings">✉️ Send Test Email</button>
+                </div>
+            </div>
             
             <div style="display: flex; justify-content: flex-end; gap: 1rem;">
                 <button type="submit" class="btn btn-primary" id="btn-save-system-settings">💾 Save System Settings</button>

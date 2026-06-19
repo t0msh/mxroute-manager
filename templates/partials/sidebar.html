@@ -4,6 +4,7 @@
         <span class="app-logo" role="img" aria-label="MXroute Manager"></span>
         <div class="brand-title-block">
             <h1 class="brand-title">MXroute Manager</h1>
+            {% if demo_mode %}<span class="brand-demo-label" title="Simulated — no real mailboxes or DNS changes">DEMO</span>{% endif %}
             <span class="brand-version">{{ app_version_label }}</span>
         </div>
     </div>

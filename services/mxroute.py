@@ -19,6 +19,12 @@ def get_mx_headers():
 
 
 def mx_request_raw(method, path, payload=None):
+    from services.demo_mode import is_demo_mode
+    from services.demo_backend import demo_mx_request_raw
+
+    if is_demo_mode():
+        return demo_mx_request_raw(method, path, payload)
+
     if method not in ("GET", "POST", "PATCH", "DELETE"):
         return {"success": False, "error": {"message": "Invalid method"}}, 400
     url = f"{BASE_URL}{path}"

@@ -18,6 +18,10 @@ def npm_api_base():
 
 
 def npm_is_configured():
+    from services.demo_mode import is_demo_mode
+
+    if is_demo_mode():
+        return True
     return bool(
         npm_api_base()
         and (get_env_config("NPM_IDENTITY") or "").strip()
@@ -44,6 +48,11 @@ def npm_forward_target():
 
 
 def _fetch_npm_token():
+    from services.demo_mode import is_demo_mode
+
+    if is_demo_mode():
+        return "demo-npm-token"
+
     global _cached_npm_token, _cached_npm_token_expires
     now = time.time()
     if _cached_npm_token and now < _cached_npm_token_expires - 60:
@@ -83,6 +92,12 @@ def _fetch_npm_token():
 
 
 def npm_request(method, path, json_payload=None, files=None):
+    from services.demo_mode import is_demo_mode
+    from services.demo_backend import demo_npm_request
+
+    if is_demo_mode():
+        return demo_npm_request(method, path, json_payload, files)
+
     if not npm_is_configured():
         raise ValueError("Nginx Proxy Manager is not configured")
 

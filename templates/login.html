@@ -13,15 +13,22 @@
     <link rel="stylesheet" href="/static/vendor/bootstrap-icons/bootstrap-icons.min.css?v={{ app_version }}">
     <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
     <style>
-        body {
+        body.login-page {
             display: flex;
-            align-items: center;
-            justify-content: center;
+            flex-direction: column;
             min-height: 100vh;
             margin: 0;
             background: var(--bg-dark);
             background-image: var(--bg-gradient);
             font-family: var(--font-body);
+        }
+
+        body.login-page .login-page-center {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
         }
 
         .login-container {
@@ -268,11 +275,13 @@
     </style>
 </head>
 
-<body data-has-error="{{ 'true' if error else 'false' }}" data-oidc-enabled="{{ 'true' if oidc_enabled else 'false' }}">
+<body class="login-page" data-has-error="{{ 'true' if error else 'false' }}" data-oidc-enabled="{{ 'true' if oidc_enabled else 'false' }}">
+    <div class="login-page-center">
     <div class="login-container">
         <div class="login-card">
             <div class="login-brand login-brand--logo-only">
                 <span class="app-logo" role="img" aria-label="MXroute Manager"></span>
+                {% if demo_mode %}<span class="brand-demo-label" title="Simulated — no real mailboxes or DNS changes">DEMO</span>{% endif %}
             </div>
 
             <!-- Error Message Alert -->
@@ -363,6 +372,7 @@
                 <p class="login-version">{{ app_version_label }}</p>
             </div>
         </div>
+    </div>
     </div>
 
     <script>

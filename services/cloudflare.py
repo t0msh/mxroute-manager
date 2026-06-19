@@ -22,10 +22,20 @@ PENDING_MAIL_CHECK = {
 
 
 def cf_is_configured():
+    from services.demo_mode import is_demo_mode
+
+    if is_demo_mode():
+        return True
     return bool(get_config_value("CF_API_TOKEN") and get_config_value("CF_ACCOUNT_ID"))
 
 
 def cf_request(method, path, payload=None):
+    from services.demo_mode import is_demo_mode
+    from services.demo_backend import demo_cf_request
+
+    if is_demo_mode():
+        return demo_cf_request(method, path, payload)
+
     cf_token = get_config_value("CF_API_TOKEN")
     if not cf_token:
         raise ValueError("Cloudflare API token not configured")

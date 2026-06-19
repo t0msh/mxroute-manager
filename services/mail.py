@@ -53,6 +53,10 @@ def smtp_config_from_overrides(data):
 
 
 def is_smtp_configured(config=None):
+    from services.demo_mode import is_demo_mode
+
+    if is_demo_mode():
+        return True
     config = config or smtp_config_from_settings()
     return bool(
         config.get("host")
@@ -63,10 +67,19 @@ def is_smtp_configured(config=None):
 
 
 def is_password_reset_available():
+    from services.demo_mode import is_demo_mode
+
+    if is_demo_mode():
+        return True
     return is_mailbox_reset_enabled() and is_smtp_configured()
 
 
 def send_email(to_address, subject, body, smtp_config=None):
+    from services.demo_mode import is_demo_mode
+
+    if is_demo_mode():
+        return
+
     config = smtp_config or smtp_config_from_settings()
     if not is_smtp_configured(config):
         raise ValueError("SMTP is not configured")

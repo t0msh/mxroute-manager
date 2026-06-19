@@ -1,0 +1,48 @@
+---
+description: Keep DEMO_MODE in sync when merging dev features into the demo branch
+alwaysApply: false
+globs: services/demo_*.py,services/mxroute.py,services/cloudflare.py,services/npm.py,services/mail.py,services/dns_health.py,routes/**/*.py,tests/test_demo_mode.py
+---
+
+# Demo mode maintenance
+
+The **`demo`** branch hosts a public-safe instance: `DEMO_MODE=true`, fictional domains only, no real MXroute/Cloudflare/NPM/SMTP calls.
+
+## Keep demo current with `dev`
+
+When merging **`dev` → `demo`** (or porting a feature onto `demo`):
+
+1. **Merge or cherry-pick the feature** from `dev` first; resolve conflicts in routes/UI as on any branch.
+2. **Extend the fake backend** if the feature adds or changes external API usage:
+   - MXroute paths → `services/demo_backend.py` (`demo_mx_request_raw`)
+   - Cloudflare → `demo_cf_request`
+   - NPM → `demo_npm_request`
+   - Live DNS → `demo_check_dns_health` (do not call public DNS in demo)
+   - SMTP → no-op in `services/mail.py` when `is_demo_mode()`
+3. **Add or update tests** in `tests/test_demo_mode.py` for new demo paths or response shapes the UI depends on.
+4. **Do not** require real `MX_*`, `CF_*`, or `NPM_*` credentials when `DEMO_MODE=true`.
+
+Choke points (intercept here — do not add parallel demo branches in routes):
+
+| Service | Interceptor |
+|---------|-------------|
+| MXroute | `mx_request_raw()` in `services/mxroute.py` |
+| Cloudflare | `cf_request()` / `cf_is_configured()` |
+| NPM | `npm_request()` / `npm_is_configured()` |
+| DNS health | `check_dns_health()` |
+| Password reset email | `send_email()` |
+
+## Demo instance config
+
+| Variable | Purpose |
+|----------|---------|
+| `DEMO_MODE=true` | Enable simulated backends |
+| `DEMO_RESET_MINUTES=10` | Reset in-memory + visitor SQLite data (default 10) |
+
+Fictional domain allowlist: `example.com`, `notarealsite.org`, `demo.net` (`services/demo_mode.py`).
+
+UI indicator: amber **DEMO** label in sidebar/login brand — not a page banner.
+
+## Release note
+
+Demo deploys from **`demo`** branch; app releases still follow `version-bump.mdc` on **`main`**. No separate demo version bump required.

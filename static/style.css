@@ -249,6 +249,22 @@ aside.sidebar {
     line-height: 1.35;
 }
 
+.brand-demo-label {
+    display: inline-block;
+    align-self: flex-start;
+    margin-top: 0.2rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    line-height: 1;
+    color: #f59e0b;
+    opacity: 0.85;
+}
+
+body[class*="-light"] .brand-demo-label {
+    color: #b45309;
+}
+
 .brand-title-block {
     display: flex;
     flex-direction: column;
@@ -264,7 +280,13 @@ aside.sidebar {
 }
 
 .login-brand--logo-only {
+    flex-direction: column;
     justify-content: center;
+    gap: 0.4rem;
+}
+
+.login-brand--logo-only .brand-demo-label {
+    align-self: center;
 }
 
 .login-brand .brand-title {

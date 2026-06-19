@@ -51,9 +51,18 @@ def _friendly_https_error(exc):
 
 
 def check_reset_portal_https(portal_host, timeout=10, retries=6, delay=5):
+    from services.demo_mode import is_demo_mode
+
     portal_host = (portal_host or "").lower().rstrip(".")
     if not portal_host:
         return {"status": "disabled", "message": "Portal host is not configured."}
+
+    if is_demo_mode():
+        return {
+            "status": "pass",
+            "message": "Demo mode — portal deploy is simulated.",
+            "url": f"https://{portal_host}/",
+        }
 
     url = f"https://{portal_host}/"
     last_result = None

@@ -817,7 +817,7 @@ async function loadAccountQuota({ force = false } = {}) {
         document.getElementById("quota-percentage").textContent = percent;
         document.getElementById("quota-used").dataset.loaded = "true";
 
-        if (data.grace_period) {
+        if (data.grace_period?.deadline) {
             document.getElementById("quota-grace").innerHTML = `<span style="color: var(--danger);">Quota Exceeded! Deadline: ${escapeHtml(data.grace_period.deadline)}</span>`;
         } else {
             document.getElementById("quota-grace").textContent = "Compliant";

@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 
 from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled, get_admin_user, get_reset_portal_by_host
 from app_meta import APP_VERSION, get_about_info, get_version_label
+from services.demo_mode import is_demo_mode
+from services.demo_reset import start_demo_reset_scheduler
 from utils.icons import icon
 from routes import (
     auth_bp,
@@ -117,6 +119,7 @@ def inject_app_meta():
         "app_version": APP_VERSION,
         "app_version_label": get_version_label(),
         "app_meta": get_about_info(),
+        "demo_mode": is_demo_mode(),
         "icon": icon,
         **branding,
     }
@@ -133,6 +136,7 @@ app.config.update(
 
 # Run database initialization
 init_db(app.logger)
+start_demo_reset_scheduler(app)
 
 
 # Route interceptor to enforce login globally

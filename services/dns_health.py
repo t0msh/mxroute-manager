@@ -120,6 +120,12 @@ def _dkim_matches(expected_value, found_values):
 
 def check_dns_health(domain, expected_dns, verification_record=None, dmarc_expected=None):
     """Compare live public DNS against MXroute-provided expectations."""
+    from services.demo_mode import is_demo_mode
+    from services.demo_backend import demo_check_dns_health
+
+    if is_demo_mode():
+        return demo_check_dns_health(domain, expected_dns, verification_record, dmarc_expected)
+
     domain = domain.lower().strip()
     checks = {}
 

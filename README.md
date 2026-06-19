@@ -44,6 +44,8 @@ docker compose up --build -d
 
 Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` and your `ADMIN_PASSWORD`.
 
+> **Password gotcha:** `ADMIN_PASSWORD` in `.env` is only hashed into the database on first startup. If you change it in `.env` later, login will still use the old hash until you reset it. See [Local admin password](docs/configuration.md#local-admin-password-how-the-database-is-seeded) in the configuration guide.
+
 For production, put the app behind a reverse proxy with HTTPS. See [docs/reverse-proxy.md](docs/reverse-proxy.md). Full configuration reference: [docs/configuration.md](docs/configuration.md).
 
 ### Local development (without Docker)

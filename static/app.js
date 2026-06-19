@@ -568,9 +568,44 @@ setupPasswordValidation("create-email-password", "create-email-requirements", "b
 setupPasswordValidation("modal-pass-input", "modal-pass-requirements", "btn-modal-pass-submit");
 
 
+// --- 2b. Mobile sidebar drawer ---
+function closeMobileSidebar() {
+    document.body.classList.remove("sidebar-open");
+    const toggle = document.getElementById("sidebar-toggle");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    if (toggle) {
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.setAttribute("aria-label", "Open menu");
+    }
+    if (backdrop) backdrop.hidden = true;
+}
+
+function initMobileSidebar() {
+    const toggle = document.getElementById("sidebar-toggle");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    if (!toggle) return;
+
+    toggle.addEventListener("click", () => {
+        const open = !document.body.classList.contains("sidebar-open");
+        document.body.classList.toggle("sidebar-open", open);
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+        toggle.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+        if (backdrop) backdrop.hidden = !open;
+    });
+
+    backdrop?.addEventListener("click", closeMobileSidebar);
+    document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeMobileSidebar();
+    });
+}
+
+initMobileSidebar();
+
 // --- 3. Tab Navigation Controller ---
 document.querySelectorAll(".nav-item").forEach(item => {
     item.addEventListener("click", () => {
+        closeMobileSidebar();
+
         // Toggle Nav States
         document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
         item.classList.add("active");

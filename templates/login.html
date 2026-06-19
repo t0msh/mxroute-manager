@@ -321,8 +321,11 @@
                             <div class="form-group">
                                 <label for="username"
                                     style="font-size: 0.85rem; font-weight: 500; color: var(--color-secondary);">Username / Email</label>
-                                <input type="text" id="username" name="username" placeholder="admin@example.com" required
+                                <input type="text" id="username" name="username" placeholder="{% if oidc_enabled %}admin@example.com{% else %}{{ admin_user }}{% endif %}" required
                                     autocomplete="username">
+                                {% if not oidc_enabled %}
+                                <p style="font-size: 0.75rem; color: var(--color-muted); margin-top: 0.35rem;">Sign in with the local admin username (<code>{{ admin_user }}</code>), not an OIDC email address.</p>
+                                {% endif %}
                             </div>
                             <div class="form-group">
                                 <label for="password"

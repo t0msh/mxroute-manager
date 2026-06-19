@@ -29,7 +29,7 @@ cp .env.example .env
 Edit `.env` — minimum:
 
 ```env
-MX_SERVER=your_mxroute_email_server
+MX_SERVER=yourmxserver.mxrouting.net
 MX_USER=your_mxroute_username
 MX_API_KEY=your_mxroute_api_key
 ADMIN_PASSWORD=choose_a_strong_password
@@ -43,6 +43,8 @@ docker compose up --build -d
 ```
 
 Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` and your `ADMIN_PASSWORD`.
+
+> **Password gotcha:** `ADMIN_PASSWORD` in `.env` is only hashed into the database on first startup. If you change it in `.env` later, login will still use the old hash until you reset it. See [Local admin password](docs/admin-password.md).
 
 For production, put the app behind a reverse proxy with HTTPS. See [docs/reverse-proxy.md](docs/reverse-proxy.md). Full configuration reference: [docs/configuration.md](docs/configuration.md).
 

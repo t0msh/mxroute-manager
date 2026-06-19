@@ -170,6 +170,30 @@ def migrate_settings_secrets(cursor):
                 (ADMIN_PASSWORD_HASH_KEY, generate_password_hash(env_password)),
             )
             cursor.execute("DELETE FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
+    elif get_env_config("ADMIN_PASSWORD_FORCE_SYNC", "").lower() in ("true", "1", "yes"):
+        # ponytail: one-shot recovery when ADMIN_PASSWORD in .env was changed after the
+        # hash was already stored. Remove the flag after a successful restart.
+        env_password = get_env_config("ADMIN_PASSWORD")
+        if env_password:
+            password_hash = generate_password_hash(env_password)
+            admin_email = get_admin_user().lower().strip()
+            cursor.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (ADMIN_PASSWORD_HASH_KEY, password_hash),
+            )
+            cursor.execute("DELETE FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
+            cursor.execute("SELECT id FROM users WHERE email = ?", (admin_email,))
+            row = cursor.fetchone()
+            if row:
+                cursor.execute(
+                    "UPDATE users SET password_hash = ?, is_admin = 1 WHERE id = ?",
+                    (password_hash, row[0]),
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
+                    (admin_email, password_hash),
+                )
     invalidate_settings_cache()
 
 
@@ -198,7 +222,7 @@ def mask_settings_for_response():
 
 # Dynamic Configuration Getters
 def is_oidc_enabled():
-    return get_config_value("OIDC_ENABLED", "true").lower() == "true"
+    return get_config_value("OIDC_ENABLED", "false").lower() == "true"
 
 
 def get_oidc_client_id():

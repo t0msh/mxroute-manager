@@ -91,3 +91,34 @@ def test_migrate_settings_secrets_removes_legacy_smtp_password_when_env_set(isol
         ).fetchone()
     assert row is None
     assert db_module.get_reset_smtp_password() == "from-env"
+
+
+def test_migrate_settings_secrets_force_syncs_admin_password(isolated_settings_db, monkeypatch):
+    from werkzeug.security import check_password_hash, generate_password_hash
+
+    old_hash = generate_password_hash("OldPass1!")
+    _set(isolated_settings_db, db_module.ADMIN_PASSWORD_HASH_KEY, old_hash)
+
+    with db_module.get_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
+            ("admin", old_hash),
+        )
+        conn.commit()
+
+    monkeypatch.setenv("ADMIN_PASSWORD", "NewPass2!")
+    monkeypatch.setenv("ADMIN_PASSWORD_FORCE_SYNC", "true")
+
+    with db_module.get_conn() as conn:
+        db_module.migrate_settings_secrets(conn.cursor())
+        conn.commit()
+
+    new_hash = db_module.get_admin_password_hash()
+    assert check_password_hash(new_hash, "NewPass2!")
+    assert not check_password_hash(new_hash, "OldPass1!")
+
+    with db_module.get_conn() as conn:
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE email = ?", ("admin",)
+        ).fetchone()
+    assert check_password_hash(row[0], "NewPass2!")

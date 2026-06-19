@@ -8,7 +8,7 @@ Copy `.env.example` to `.env` as a starting point.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `MX_SERVER` | Yes | — | MXroute server hostname (e.g. `your_mxroute_email_server`) |
+| `MX_SERVER` | Yes | — | MXroute server hostname (e.g. `yourmxserver.mxrouting.net`) |
 | `MX_USER` | Yes | — | MXroute account username |
 | `MX_API_KEY` | Yes | — | MXroute API key |
 
@@ -24,7 +24,7 @@ Copy `.env.example` to `.env` as a starting point.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `OIDC_ENABLED` | No | `true` | Set `false` for local username/password login only. |
+| `OIDC_ENABLED` | No | `false` | Set `true` to require OIDC/SSO sign-in (configure the OIDC variables below). |
 | `OIDC_CLIENT_ID` | If OIDC on | — | OIDC client ID |
 | `OIDC_CLIENT_SECRET` | If OIDC on | — | OIDC client secret (env only) |
 | `OIDC_DISCOVERY_URL` | If OIDC on | — | OpenID Provider discovery URL |
@@ -33,11 +33,14 @@ Copy `.env.example` to `.env` as a starting point.
 | `OIDC_ADMIN_USERS` | No | — | Comma-separated emails granted admin access |
 | `OIDC_ADMIN_GROUP` | No | `administrators` | Group claim value treated as admin |
 | `ADMIN_USER` | No | `admin` | Local admin username |
-| `ADMIN_PASSWORD` | Yes* | — | Initial local admin password (hashed in DB on first save; can stay in env) |
+| `ADMIN_PASSWORD` | Yes* | — | Initial local admin password (hashed in DB on first save; can stay in env). See [Local admin password](admin-password.md). |
+| `ADMIN_PASSWORD_FORCE_SYNC` | No | `false` | One-shot recovery flag — see [Resetting a forgotten password](admin-password.md#resetting-a-forgotten-password). |
 
 \*Required for local login when OIDC is disabled, or as a break-glass admin account when OIDC is enabled.
 
 Most OIDC and MXroute fields can also be edited in **Settings** (except env-only secrets).
+
+> **Local admin password:** `ADMIN_PASSWORD` in `.env` is only hashed on first startup. Changing it later does not update login until you reset the stored hash. Full details: [admin-password.md](admin-password.md).
 
 > **Note:** Settings saved in the UI are cached per worker process. When running multiple Gunicorn workers, a saved change is applied immediately in the worker that handled the save and propagates to other workers as their caches refresh; restart the app if you need every worker to pick up a change instantly.
 

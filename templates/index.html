@@ -18,6 +18,8 @@
 
 <body>
 
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+
     <!-- Sidebar Navigation -->
     {% include 'partials/sidebar.html' %}
 
@@ -25,6 +27,7 @@
     <main class="main-content">
         <!-- Content Header -->
         <header class="content-header">
+            <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="app-sidebar">{{ icon('list') }}</button>
             <div class="header-title">
                 <h2 id="page-title">Dashboard</h2>
                 <p id="page-subtitle">Overview of your hosted mail accounts, resources, and endpoints.</p>

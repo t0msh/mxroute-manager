@@ -1248,29 +1248,106 @@ tr:hover td {
 /* Grid helper for forms in cards */
 .grid-2 {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
     gap: 1.5rem;
+    align-items: start;
+}
+
+.grid-2 > .glass-card {
+    margin-bottom: 0;
+    min-width: 0;
+}
+
+/* Mobile sidebar toggle (hidden on desktop) */
+.sidebar-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: var(--glass-bg);
+    color: var(--color-primary);
+    cursor: pointer;
+    transition: background var(--transition-speed) ease, border-color var(--transition-speed) ease;
+}
+
+.sidebar-toggle:hover {
+    background: var(--glass-bg-hover);
+    border-color: rgba(255, 255, 255, 0.12);
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 90;
 }
 
 @media (max-width: 900px) {
+    .sidebar-toggle {
+        display: inline-flex;
+    }
+
+    header.content-header {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        grid-template-areas:
+            "toggle title"
+            "status status";
+        align-items: start;
+        gap: 0.75rem 1rem;
+    }
+
+    .sidebar-toggle {
+        grid-area: toggle;
+        align-self: center;
+    }
+
+    header.content-header .header-title {
+        grid-area: title;
+        min-width: 0;
+    }
+
+    header.content-header #dns-health-status {
+        grid-area: status;
+        justify-self: start;
+    }
+
     aside.sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-        border-right: none;
-        border-bottom: 1px solid var(--glass-border);
+        transform: translateX(-100%);
+        transition: transform var(--transition-speed) ease;
+        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.35);
     }
-    
-    body {
-        flex-direction: column;
+
+    body.sidebar-open aside.sidebar {
+        transform: translateX(0);
     }
-    
+
+    body.sidebar-open .sidebar-backdrop {
+        display: block;
+    }
+
+    body.sidebar-open {
+        overflow: hidden;
+    }
+
     main.main-content {
         margin-left: 0;
         padding: 1.5rem;
+        width: 100%;
     }
-    
-    .grid-2 {
+
+    .domain-selector-card {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .telemetry-details {
         grid-template-columns: 1fr;
     }
 }

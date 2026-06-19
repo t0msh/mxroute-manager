@@ -5,7 +5,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dotenv import load_dotenv
 
-from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled, get_reset_portal_by_host
+from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled, get_admin_user, get_reset_portal_by_host
 from app_meta import APP_VERSION, get_about_info, get_version_label
 from utils.icons import icon
 from routes import (
@@ -157,7 +157,11 @@ def generate_csrf_token():
 
 @app.context_processor
 def inject_global_vars():
-    return dict(csrf_token=session.get("csrf_token"), oidc_enabled=is_oidc_enabled())
+    return dict(
+        csrf_token=session.get("csrf_token"),
+        oidc_enabled=is_oidc_enabled(),
+        admin_user=get_admin_user(),
+    )
 
 
 @app.after_request

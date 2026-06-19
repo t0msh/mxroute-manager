@@ -1,6 +1,6 @@
 # Testing
 
-How the test suite works in this repo — what we check, how it's set up, and how to run or add tests. No MXroute, Cloudflare, or NPM credentials needed; everything hits a throwaway SQLite DB and mocked APIs.
+How the test suite works in this repo - what we check, how it's set up, and how to run or add tests. No MXroute, Cloudflare, or NPM credentials needed; everything hits a throwaway SQLite DB and mocked APIs.
 
 ## What we're trying to catch
 
@@ -23,7 +23,7 @@ pytest
 
 That single command also runs **JavaScript unit tests** (`static/js/*.test.js` via Node's built-in `node --test`). You need Node 18+ on your machine; CI installs it automatically.
 
-JS only (explicit test files — portable across Node versions):
+JS only (explicit test files - portable across Node versions):
 
 ```bash
 node --test static/js/*.test.js
@@ -42,21 +42,21 @@ pytest tests/test_emails.py -v
 pytest tests/test_emails.py::test_create_email_saves_recovery_on_success -v
 ```
 
-GitHub Actions runs this on every push and PR — see [`.github/workflows/test.yml`](../.github/workflows/test.yml).
+GitHub Actions runs this on every push and PR - see [`.github/workflows/test.yml`](../.github/workflows/test.yml).
 
 ## Three layers (fast → thorough)
 
-### Layer 1 — Pure logic
+### Layer 1 - Pure logic
 
 **Files:** `test_validators.py`, `test_auth_helpers.py`, `static/js/*.test.js`
 
 Plain functions, plain asserts. No DB, no HTTP, no mocks.
 
-Good for validation rules and permission math — when something fails, you know exactly which function misbehaved.
+Good for validation rules and permission math - when something fails, you know exactly which function misbehaved.
 
-Frontend helpers live in `static/js/` as ES modules (`permissions.js`, `utils.js`, `cache.js`). `browser-entry.js` loads them onto `window.Mxm` before `app.js` runs; `app.js` keeps thin wrappers so onclick handlers still work. Tests use Node's built-in runner — no `npm install`, no Vitest.
+Frontend helpers live in `static/js/` as ES modules (`permissions.js`, `utils.js`, `cache.js`). `browser-entry.js` loads them onto `window.Mxm` before `app.js` runs; `app.js` keeps thin wrappers so onclick handlers still work. Tests use Node's built-in runner - no `npm install`, no Vitest.
 
-### Layer 2 — Services with mocks
+### Layer 2 - Services with mocks
 
 **Files:** `test_cloudflare_idempotent.py`, `test_reset_portal_dns.py`, etc.
 
@@ -67,16 +67,16 @@ Good for "read before write" DNS logic and deploy orchestration without hitting 
 ```python
 with patch("services.cloudflare.cf_request") as mock_cf:
     result = cf_upsert_txt(...)
-mock_cf.assert_not_called()  # already correct — skip create
+mock_cf.assert_not_called()  # already correct - skip create
 ```
 
-### Layer 3 — HTTP through Flask
+### Layer 3 - HTTP through Flask
 
 **Files:** `test_auth_delegation.py`, `test_emails.py`, `test_forwarders.py`, `test_spam.py`, `test_reset_portal.py`
 
 `test_client()` sends real requests through auth, CSRF, decorators, and route handlers. MXroute/Cloudflare still mocked; SQLite is real.
 
-Good for wiring bugs — wrong decorator, CSRF forgotten, session shape wrong, DB side effect missing after a successful API call.
+Good for wiring bugs - wrong decorator, CSRF forgotten, session shape wrong, DB side effect missing after a successful API call.
 
 ## Shared plumbing
 
@@ -100,7 +100,7 @@ Runs before anything else:
 
 ### Cleaning up between tests
 
-Route tests often use an `autouse` fixture that wipes `users`, `delegations`, etc. before each test. We share one session DB file — without cleanup you get `UNIQUE constraint` explosions and weird cross-test pollution.
+Route tests often use an `autouse` fixture that wipes `users`, `delegations`, etc. before each test. We share one session DB file - without cleanup you get `UNIQUE constraint` explosions and weird cross-test pollution.
 
 ## Mocking externals
 
@@ -125,7 +125,7 @@ with patch("routes.emails.audited_mx", return_value=mx_json_response({"success":
     response = client.post("/api/domains/example.com/email-accounts", ...)
 ```
 
-`mx_json_response` builds a real Flask `Response` inside an app context — same shape production returns.
+`mx_json_response` builds a real Flask `Response` inside an app context - same shape production returns.
 
 ## Auth in tests
 
@@ -134,7 +134,7 @@ Protected routes need:
 1. A session user (`prime_authenticated_session` after inserting the user in SQLite)
 2. CSRF header on anything that mutates state
 
-Delegated users go in via `insert_user_with_grants()` — permissions should match what you'd set in the Access Control UI.
+Delegated users go in via `insert_user_with_grants()` - permissions should match what you'd set in the Access Control UI.
 
 OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the token and userinfo endpoints. `prime_oidc_state()` seeds the CSRF `state` the callback expects in session.
 
@@ -149,7 +149,7 @@ OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the tok
 | Mailboxes + recovery email | `test_emails.py` | 3 |
 | Forwarders, catch-all, pointers | `test_forwarders.py` | 3 |
 | Spam settings, lists | `test_spam.py` | 3 |
-| Password reset tokens (DB) | `test_password_reset.py` | 1–2 |
+| Password reset tokens (DB) | `test_password_reset.py` | 1-2 |
 | Public password-reset API | `test_password_reset_api.py` | 3 |
 | DNS health comparison | `test_dns_health.py` | 2 |
 | Domain admin routes | `test_domains.py` | 3 |
@@ -166,14 +166,14 @@ OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the tok
 
 Being upfront about gaps:
 
-- Most of `static/app.js` (DOM wiring, API orchestration — only extracted pure helpers are tested)
+- Most of `static/app.js` (DOM wiring, API orchestration - only extracted pure helpers are tested)
 - Load / concurrency stress
 
 PRs welcome in those areas; same patterns as above.
 
 ## Adding a test
 
-1. Pick the layer — don't use Flask if you don't need it.
+1. Pick the layer - don't use Flask if you don't need it.
 2. Use `conftest` fixtures + `tests/helpers.py`.
 3. Clean up DB state if your test writes rows.
 4. Mock externals; use `assert_not_called()` when validation should block before MXroute.
@@ -207,3 +207,12 @@ Status code → side effects → mock called or not. That's the usual shape.
 ## Keeping this doc honest
 
 If you add tests in a new area, tweak this file in the same PR so it still matches reality. Future-you (and anyone else poking around) will thank you.
+
+## Related guides
+
+| Guide | Topic |
+| --- | --- |
+| [Getting started](getting-started.md) | Local dev setup without Docker |
+| [Access control](access-control.md) | Delegation behaviour under test |
+| [Password reset](password-reset.md) | Reset API and portal test coverage |
+| [Configuration](configuration.md) | Env vars used by test fixtures |

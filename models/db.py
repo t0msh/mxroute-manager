@@ -222,7 +222,7 @@ def mask_settings_for_response():
 
 # Dynamic Configuration Getters
 def is_oidc_enabled():
-    return get_config_value("OIDC_ENABLED", "true").lower() == "true"
+    return get_config_value("OIDC_ENABLED", "false").lower() == "true"
 
 
 def get_oidc_client_id():

@@ -8,7 +8,7 @@ Copy `.env.example` to `.env` as a starting point.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `MX_SERVER` | Yes | — | MXroute server hostname (e.g. `your_mxroute_email_server`) |
+| `MX_SERVER` | Yes | — | MXroute server hostname (e.g. `yourmxserver.mxrouting.net`) |
 | `MX_USER` | Yes | — | MXroute account username |
 | `MX_API_KEY` | Yes | — | MXroute API key |
 
@@ -24,7 +24,7 @@ Copy `.env.example` to `.env` as a starting point.
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `OIDC_ENABLED` | No | `true` | Set `false` for local username/password login only. |
+| `OIDC_ENABLED` | No | `false` | Set `true` to require OIDC/SSO sign-in (configure the OIDC variables below). |
 | `OIDC_CLIENT_ID` | If OIDC on | — | OIDC client ID |
 | `OIDC_CLIENT_SECRET` | If OIDC on | — | OIDC client secret (env only) |
 | `OIDC_DISCOVERY_URL` | If OIDC on | — | OpenID Provider discovery URL |

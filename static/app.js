@@ -3174,7 +3174,7 @@ async function loadSettingsPage() {
                 const settings = res.data;
                 
                 // Populate forms
-                document.getElementById("setting-oidc-enabled").value = settings.OIDC_ENABLED || "true";
+                document.getElementById("setting-oidc-enabled").value = settings.OIDC_ENABLED || "false";
                 document.getElementById("setting-oidc-scopes").value = settings.OIDC_SCOPES || "openid email profile groups";
                 document.getElementById("setting-oidc-discovery-url").value = settings.OIDC_DISCOVERY_URL || "";
                 document.getElementById("setting-oidc-redirect-uri").value = settings.OIDC_REDIRECT_URI || "";

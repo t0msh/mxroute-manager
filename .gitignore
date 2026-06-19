@@ -4,6 +4,7 @@ logs/
 # Environment variables and secrets
 .env
 deploy.sh
+build_info.py
 
 # Local database and domain permissions configuration
 domain_mapping.json

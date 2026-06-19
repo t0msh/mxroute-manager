@@ -361,6 +361,49 @@ aside.sidebar {
     background: var(--danger);
 }
 
+.quota-bar.is-refreshing {
+    position: relative;
+}
+
+.quota-bar.is-refreshing .quota-bar-fill {
+    opacity: 0.3;
+    transition: none;
+}
+
+.quota-bar.is-refreshing::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -45%;
+    width: 45%;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(var(--accent-rgb), 0.45),
+        var(--accent),
+        rgba(var(--accent-rgb), 0.45),
+        transparent
+    );
+    animation: quota-bar-activity 1.1s ease-in-out infinite;
+}
+
+@keyframes quota-bar-activity {
+    0% { left: -45%; }
+    100% { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .quota-bar.is-refreshing::after {
+        animation: none;
+        left: 0;
+        width: 100%;
+        opacity: 0.35;
+        background: var(--accent);
+    }
+}
+
 /* Main Content Area */
 main.main-content {
     margin-left: var(--sidebar-width);
@@ -700,6 +743,64 @@ select:focus {
     border-radius: 8px;
     min-width: 34px;
     height: 34px;
+}
+
+.action-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.action-menu-panel {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    min-width: 11.5rem;
+    z-index: 60;
+    padding: 0.35rem;
+    border-radius: 10px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--modal-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.action-menu-panel[hidden] {
+    display: none !important;
+}
+
+.action-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--color-primary);
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.action-menu-item:hover,
+.action-menu-item:focus-visible {
+    background: var(--glass-bg-hover);
+    outline: none;
+}
+
+.action-menu-item-danger {
+    color: var(--danger);
+}
+
+.action-menu-item-danger:hover,
+.action-menu-item-danger:focus-visible {
+    background: var(--danger-glow);
+    color: var(--danger);
 }
 
 /* Tables styling */
@@ -1518,6 +1619,54 @@ tr:hover td {
 
 @keyframes bi-spin {
     to { transform: rotate(360deg); }
+}
+
+/* In-flight API feedback */
+.ui-activity-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    z-index: 10000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    overflow: hidden;
+    background: rgba(var(--accent-rgb), 0.08);
+}
+
+.ui-activity-bar.is-active {
+    opacity: 1;
+}
+
+.ui-activity-bar::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(var(--accent-rgb), 0.55),
+        var(--accent),
+        rgba(var(--accent-rgb), 0.55),
+        transparent
+    );
+    animation: ui-activity-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes ui-activity-sweep {
+    0% { left: -40%; }
+    100% { left: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ui-activity-bar.is-active::before {
+        animation: none;
+    }
 }
 
 .card-title .bi,

@@ -28,7 +28,7 @@ This is intentional: the database is the source of truth for credentials, and `.
 
 ## Resetting a forgotten password
 
-### Option 1 — Re-sync from `.env` (recommended)
+### Option 1 - Re-sync from `.env` (recommended)
 
 Set the new password in `.env`, enable the one-shot flag, and restart the app once:
 
@@ -46,7 +46,7 @@ For Docker:
 docker compose up -d
 ```
 
-### Option 2 — Python one-liner
+### Option 2 - Python one-liner
 
 From the app directory (or inside the container), with the same `DATABASE_FILE` the running app uses:
 
@@ -74,10 +74,19 @@ print('Admin password hash updated.')
 "
 ```
 
-### Option 3 — Already signed in
+### Option 3 - Already signed in
 
 If you still have an admin session (e.g. via OIDC), change the password in **Settings** without touching `.env`.
 
-### Option 4 — Nuclear reset (last resort)
+### Option 4 - Nuclear reset (last resort)
 
 Deleting the SQLite database (or the Docker volume) and restarting recreates an empty DB and re-seeds from the current `ADMIN_PASSWORD` in `.env`. You will lose delegations, settings saved in the UI, and other local data. Only use this on a fresh install or when you have backups.
+
+## Related guides
+
+| Guide | Topic |
+| --- | --- |
+| [Getting started](getting-started.md) | First deploy and initial login |
+| [Configuration](configuration.md) | `ADMIN_USER`, `ADMIN_PASSWORD`, and OIDC variables |
+| [Access control](access-control.md) | Local users and delegated access |
+| [Testing](testing.md) | Auth and delegation test coverage |

@@ -6,13 +6,13 @@
   <img src="static/logo-emerald.svg" alt="MXroute Manager logo" width="220" />
 </p>
 
-> [!IMPORTANT]
-> 
-> This app was 90% vibe coded with Cursor. It was to solve a particular annoyance I personally had with managing the domains I have with email services on MXroute. It was a way for me to learn more about JavaScript, Python and APIs. I got carried away, the AI kept pointing out my failures, and it turned into this.
+> [!NOTE]
 >
-> Nobody in their right mind is going to trust this tool to manage their production email environment. This repo is more of a show and tell, in case anyone finds it useful or got annoyed of having to remember their MXroute login to reset their parents' email password.
+> MXroute Manager began as a personal tool to simplify MXroute domain and mailbox management. Most of the codebase was built iteratively with AI-assisted development (Cursor), combined with hands-on work in Python, JavaScript, and third-party APIs.
 >
-> **Use it at your own risk!**
+> The project ships with an automated test suite (Python and JavaScript) covering authentication, delegations, DNS idempotency, and reset-portal isolation - without requiring live MXroute, Cloudflare, or NPM credentials in CI. Security-sensitive paths use CSRF protection, rate limiting, hashed credentials, server-side permission checks, and JSON-line audit logging.
+>
+> Run it on infrastructure you control, back up your SQLite database, and review [Getting started](docs/getting-started.md) before exposing the app to the internet.
 
 MXroute Manager is a self-hosted Flask application for managing MXroute domains, mailboxes, forwarders, DNS setup, delegated access, and branded password-reset portals from a single UI.
 
@@ -24,64 +24,25 @@ MXroute Manager is a self-hosted Flask application for managing MXroute domains,
 git clone https://github.com/t0msh/mxroute-manager.git
 cd mxroute-manager
 cp .env.example .env
-```
-
-Edit `.env` — minimum:
-
-```env
-MX_SERVER=yourmxserver.mxrouting.net
-MX_USER=your_mxroute_username
-MX_API_KEY=your_mxroute_api_key
-ADMIN_PASSWORD=choose_a_strong_password
-SECRET_KEY=generate_a_long_random_string
-```
-
-Start the app:
-
-```bash
+# Edit .env - see docs/getting-started.md
 docker compose up --build -d
 ```
 
-Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` and your `ADMIN_PASSWORD`.
+Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` (or `ADMIN_USER`) and your `ADMIN_PASSWORD`.
 
-> **Password gotcha:** `ADMIN_PASSWORD` in `.env` is only hashed into the database on first startup. If you change it in `.env` later, login will still use the old hash until you reset it. See [Local admin password](docs/admin-password.md).
-
-For production, put the app behind a reverse proxy with HTTPS. See [docs/reverse-proxy.md](docs/reverse-proxy.md). Full configuration reference: [docs/configuration.md](docs/configuration.md).
-
-### Local development (without Docker)
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env   # edit as above
-python app.py
-```
-
-### Running tests
-
-Tests run automatically in [GitHub Actions](.github/workflows/test.yml) on push and PR.
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
-pytest
-```
-
-Coverage if you want it:
-
-```bash
-pytest --cov=services --cov=models --cov=utils --cov-report=term-missing
-```
-
-No live MXroute/Cloudflare/NPM keys needed — tests use a temp SQLite file and mocked APIs. `pytest` also runs JS unit tests in `static/js/` (needs Node 18+). How it all fits together: [docs/testing.md](docs/testing.md).
+**Full setup walkthrough** (production TLS, Cloudflare, SMTP, portals): [docs/getting-started.md](docs/getting-started.md)
 
 ## Documentation
 
 | Guide | Description |
 | --- | --- |
+| [docs/getting-started.md](docs/getting-started.md) | First deploy, UI walkthrough, production checklist |
 | [docs/configuration.md](docs/configuration.md) | Environment variables and Settings |
-| [docs/reverse-proxy.md](docs/reverse-proxy.md) | TLS and branded reset portals (**Nginx Proxy Manager**) |
-| [docs/testing.md](docs/testing.md) | How tests work and how to add more |
+| [docs/admin-password.md](docs/admin-password.md) | Local admin credentials and recovery |
+| [docs/access-control.md](docs/access-control.md) | Delegated users and per-domain permissions |
+| [docs/password-reset.md](docs/password-reset.md) | Login-page and branded mailbox password reset |
+| [docs/reverse-proxy.md](docs/reverse-proxy.md) | TLS and branded reset portals (Nginx Proxy Manager) |
+| [docs/testing.md](docs/testing.md) | Test suite layout and how to run it |
 
 ## Features
 
@@ -89,7 +50,7 @@ No live MXroute/Cloudflare/NPM keys needed — tests use a temp SQLite file and 
 - Register and remove domains on MXroute
 - Provision mailboxes with password, quota, and send-limit controls
 - Optional recovery email per mailbox for self-service password reset
-- Suspend/activate, change password, update limits, and delete mailboxes
+- Change password, update limits, and delete mailboxes
 - Manage domain pointers and catch-all routing
 - Create and remove forwarders
 - Configure SpamAssassin threshold, whitelist, and blacklist
@@ -102,55 +63,63 @@ No live MXroute/Cloudflare/NPM keys needed — tests use a temp SQLite file and 
 
 ### Branded password-reset portals
 - Per-domain reset pages on a subdomain you choose (e.g. `reset.example.com`)
-- Logo and title branding
-- One-click deploy: Cloudflare CNAME + [Nginx Proxy Manager](docs/reverse-proxy.md) TLS
+- Logo, title, and theme branding
+- One-click **Deploy Portal**: saves settings, uploads logo, and publishes Cloudflare CNAME + [Nginx Proxy Manager](docs/reverse-proxy.md) TLS
 - Teardown removes DNS and NPM resources when a portal is disabled
 
 ### Access control and authentication
 - OIDC/SSO login flow with local credential fallback
-- Self-service mailbox password reset on the login page (recovery email + SMTP)
-- Per-domain permission matrix for delegated users
+- Per-domain permission matrix for delegated users - [docs/access-control.md](docs/access-control.md)
+- Self-service mailbox password reset (login page and branded portals) - [docs/password-reset.md](docs/password-reset.md)
 - Typed confirmations for destructive operations
 
 ### Settings and UX
 - In-app Settings for MXroute, OIDC, Cloudflare, SMTP, and local admin
-- Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk)
+- Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk, and light variants)
 - Client-side API caching with stale-while-revalidate behaviour
+- Global activity bar and responsive mailbox actions menu
 
 ### Security and observability
 - CSRF protection, secure cookies (`FORCE_HTTPS`), server-side permission checks
 - JSON-line audit logs for admin/user actions
 - Hashed single-use reset tokens and rate limiting
 
+## Development
+
+### Local (without Docker)
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python app.py
+```
+
+### Running tests
+
+Tests run automatically in [GitHub Actions](.github/workflows/test.yml) on push and PR.
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Coverage:
+
+```bash
+pytest --cov=services --cov=models --cov=utils --cov-report=term-missing
+```
+
+No live API keys needed - tests use a temp SQLite file and mocked APIs. Details: [docs/testing.md](docs/testing.md).
+
 ## Roadmap
 
 - [ ] Reverse proxy support beyond Nginx Proxy Manager (Caddy, Traefik, raw nginx)
 - [ ] Additional deployment examples (systemd, Kubernetes)
 
-## Delegated access
+## Related guides
 
-Admins configure access in the **Access Control** tab:
-
-| Permission | What it allows |
-| --- | --- |
-| Dashboard | Overview stats and DNS health |
-| Email Accounts | Mailbox management |
-| Forwarders | Forwarders, catch-all, and pointers |
-| Spam Controls | Spam score, whitelist, and blacklist |
-| DNS Records | Domain wizard and Cloudflare DNS fixes |
-
-Mail hosting toggles remain admin-only.
-
-## Mailbox password reset
-
-Mailbox owners reset passwords from the **Reset Mailbox Password** tab on the login page when:
-
-1. A **recovery email** is set on the mailbox
-2. **SMTP** is configured in Settings (or env)
-3. **Self-Service Reset** is enabled in Settings
-
-Reset requests use generic responses (no mailbox enumeration), rate limits, and single-use hashed tokens. See [docs/configuration.md](docs/configuration.md) for SMTP variables.
-
+See [docs/README.md](docs/README.md) for the full documentation index, typical setup paths, and links to every guide.
 
 ## License
 

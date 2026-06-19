@@ -108,7 +108,7 @@
     <!-- Password Reset Portal -->
     <div class="glass-card" id="reset-portal-card">
         <h3 class="card-title">{{ icon('shield-lock') }} Password Reset Portal</h3>
-        <p class="stat-card-subtitle mb-4">Expose a branded mailbox password reset page on a subdomain of the selected domain.</p>
+        <p class="stat-card-subtitle mb-4">Expose a branded mailbox password reset page on a subdomain. Configure branding below, then use one button to publish DNS and TLS.</p>
 
         <div class="telemetry-item mb-4">
             <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">Domain</div>
@@ -161,6 +161,7 @@
 
             <div class="form-group mb-4">
                 <label for="reset-portal-logo">Logo image</label>
+                <p class="stat-card-subtitle" style="margin: 0 0 0.5rem;">Optional — upload anytime; no need to save first.</p>
                 <div class="flex-row align-center" style="gap: 1rem; flex-wrap: wrap;">
                     <img id="reset-portal-logo-preview" alt="" style="display: none; max-width: 180px; max-height: 64px; object-fit: contain; border-radius: 8px; background: rgba(0,0,0,0.2); padding: 0.5rem;">
                     <div class="flex-row" style="gap: 0.5rem; flex-wrap: wrap;">
@@ -178,8 +179,7 @@
             </div>
 
             <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
-                <button type="button" class="btn btn-primary" id="btn-reset-portal-save">Save Portal Settings</button>
-                <button type="button" class="btn btn-secondary" id="btn-reset-portal-deploy-dns" style="display: none;">Deploy Portal (DNS + NPM)</button>
+                <button type="button" class="btn btn-primary" id="btn-reset-portal-save">Deploy Portal</button>
             </div>
             <p id="reset-portal-prefix-warning" class="stat-card-subtitle" style="display: none; margin-top: 1rem; color: var(--warning, #fbbf24);">
                 Changing the subdomain prefix requires redeploying DNS and may leave an old CNAME record to remove manually.

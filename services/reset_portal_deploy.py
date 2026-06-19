@@ -40,7 +40,7 @@ def check_reset_portal_https_quick(portal_host):
 def _friendly_https_error(exc):
     text = str(exc).lower()
     if "failed to resolve" in text or "name or service not known" in text or "nameresolution" in text:
-        return "Portal hostname does not resolve yet. Click Deploy Portal (DNS + NPM) if you have not already."
+        return "Portal hostname does not resolve yet. Click Deploy Portal if you have not already."
     if "timed out" in text or "timeout" in text:
         return "Portal did not respond in time. After deploy, certificate and DNS propagation can take a few minutes."
     if "connection refused" in text:

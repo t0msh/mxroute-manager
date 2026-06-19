@@ -271,9 +271,14 @@
                 </div>
             </div>
             <p class="stat-card-subtitle about-description">{{ app_meta.description }}</p>
-            {% if app_meta.build.describe %}
+            {% if app_meta.build.describe or app_meta.build.sha %}
             <p class="about-build">
-                Build: <code>{{ app_meta.build.describe }}</code>
+                Build:
+                {% if app_meta.build.describe %}
+                <code>{{ app_meta.build.describe }}</code>
+                {% else %}
+                <code>{{ app_meta.build.branch }}@{{ app_meta.build.sha }}</code>
+                {% endif %}
                 {% if app_meta.commit_url %}
                 · <a href="{{ app_meta.commit_url }}" target="_blank" rel="noopener noreferrer">view commit</a>
                 {% endif %}

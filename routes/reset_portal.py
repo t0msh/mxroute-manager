@@ -52,6 +52,15 @@ def _safe_status(check_fn, *args, **kwargs):
         return {"status": "unknown", "message": "Status check failed."}
 
 
+def _ensure_reset_portal_draft(domain):
+    """Create a disabled portal row so branding (e.g. logo) can be saved before deploy."""
+    portal = get_reset_portal(domain)
+    if portal:
+        return portal
+    upsert_reset_portal(domain, False, "", "", DEFAULT_THEME)
+    return get_reset_portal(domain)
+
+
 def _portal_response(portal, include_live_checks=True):
     if not portal:
         return {
@@ -157,9 +166,9 @@ def upload_reset_portal_logo(domain):
     if not validate_domain(domain):
         return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
 
-    portal = get_reset_portal(domain)
+    portal = _ensure_reset_portal_draft(domain)
     if not portal:
-        return jsonify({"success": False, "error": {"message": "Save portal settings before uploading a logo."}}), 400
+        return jsonify({"success": False, "error": {"message": "Failed to initialize portal settings."}}), 500
 
     upload = request.files.get("logo")
     if not upload or not upload.filename:

@@ -132,6 +132,45 @@ def test_portal_request_rejects_other_domain_mailbox(fresh_db, client):
     assert response.get_json()["success"] is True
 
 
+def test_logo_upload_without_prior_save(fresh_db, client, db_connection):
+    db_connection.execute(
+        "INSERT OR IGNORE INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
+        ("admin@local", "not-used"),
+    )
+    db_connection.execute(
+        """
+        INSERT OR IGNORE INTO delegations (user_id, domain, permissions)
+        SELECT id, 'example.com', '["dns"]' FROM users WHERE email = 'admin@local'
+        """
+    )
+    db_connection.commit()
+
+    csrf_token = csrf_token_from_response(client, path="/login", host="localhost")
+    assert csrf_token
+    with client.session_transaction() as sess:
+        sess["user"] = {
+            "email": "admin@local",
+            "is_admin": True,
+            "delegated_domains": ["example.com"],
+            "domain_grants": {"example.com": ["dns"]},
+        }
+
+    assert fresh_db.get_reset_portal("example.com") is None
+
+    tiny_file = io.BytesIO(b"\x89PNG\r\n\x1a\n")
+    response = client.post(
+        "/api/domains/example.com/reset-portal/logo",
+        headers={"X-CSRF-Token": csrf_token},
+        data={"logo": (tiny_file, "logo.png")},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200
+    portal = fresh_db.get_reset_portal("example.com")
+    assert portal is not None
+    assert portal["enabled"] is False
+    assert portal["logo_filename"] == "logo.png"
+
+
 def test_logo_upload_validation(fresh_db, client, db_connection):
     fresh_db.upsert_reset_portal("example.com", True, "reset", "")
 

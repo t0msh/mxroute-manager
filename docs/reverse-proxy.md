@@ -11,7 +11,7 @@ MXroute Manager listens on **port 5000** (HTTP inside the container). In product
 | Traefik | Planned | — |
 | Raw nginx | Planned | Manual config only for now |
 
-Branded reset portals (`reset.yourdomain.com`) use the NPM API to create proxy hosts and Let's Encrypt certificates (Cloudflare DNS-01). You can still run the main app behind any reverse proxy manually; only the **Deploy Portal (DNS + NPM)** button requires NPM.
+Branded reset portals (`reset.yourdomain.com`) use the NPM API to create proxy hosts and Let's Encrypt certificates (Cloudflare DNS-01). You can still run the main app behind any reverse proxy manually; only the **Deploy Portal** button requires NPM.
 
 ## Main app behind NPM
 

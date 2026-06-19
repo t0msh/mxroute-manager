@@ -22,7 +22,52 @@ function bi(name, extraClass = "") {
 
 function btnLabel(iconName, text, loading = false) {
     const spin = loading ? " bi-spin" : "";
-    return `${bi(iconName, spin)} ${text}`;
+    return `${bi(iconName, spin)} ${escapeHtml(text)}`;
+}
+
+let pendingApiActivity = 0;
+
+function setApiActivityActive(active) {
+    const bar = document.getElementById("ui-activity-bar");
+    if (!bar) return;
+    bar.hidden = !active;
+    bar.classList.toggle("is-active", active);
+    bar.setAttribute("aria-hidden", active ? "false" : "true");
+}
+
+function bumpApiActivity(delta) {
+    pendingApiActivity = Math.max(0, pendingApiActivity + delta);
+    setApiActivityActive(pendingApiActivity > 0);
+}
+
+function loadingRowHtml(colspan, text) {
+    return `<tr><td colspan="${colspan}" style="text-align: center; color: var(--color-muted);">${escapeHtml(text)}</td></tr>`;
+}
+
+function rememberBtnIdle(btn) {
+    if (btn && !btn.dataset.idleHtml) {
+        btn.dataset.idleHtml = btn.innerHTML;
+    }
+}
+
+function restoreBtnIdle(btn) {
+    if (!btn?.dataset.idleHtml) return;
+    btn.innerHTML = btn.dataset.idleHtml;
+    delete btn.dataset.idleHtml;
+}
+
+function setBtnLoading(btn, loading, { icon = "arrow-clockwise", text = "Working..." } = {}) {
+    if (!btn) return;
+    if (loading) {
+        rememberBtnIdle(btn);
+        btn.disabled = true;
+        btn.innerHTML = btnLabel(icon, text, true);
+        btn.setAttribute("aria-busy", "true");
+        return;
+    }
+    btn.disabled = false;
+    restoreBtnIdle(btn);
+    btn.removeAttribute("aria-busy");
 }
 
 function userHasPermission(permission, domain = activeDomain) {
@@ -189,7 +234,8 @@ async function apiRequest(url, method = "GET", body = null) {
             options.headers["X-CSRF-Token"] = csrfToken;
         }
     }
-    
+
+    bumpApiActivity(1);
     try {
         const response = await fetch(url, options);
         let result;
@@ -207,6 +253,8 @@ async function apiRequest(url, method = "GET", body = null) {
     } catch (err) {
         console.error(`API Request failed on ${url}:`, err);
         throw err;
+    } finally {
+        bumpApiActivity(-1);
     }
 }
 
@@ -269,6 +317,13 @@ function setCellRefreshing(cellEl, refreshing) {
     } else if (indicator) {
         indicator.remove();
     }
+}
+
+function setSidebarQuotaRefreshing(refreshing) {
+    const barTrack = document.querySelector("#sidebar-quota-container .quota-bar");
+    if (!barTrack) return;
+    barTrack.classList.toggle("is-refreshing", refreshing);
+    barTrack.setAttribute("aria-busy", refreshing ? "true" : "false");
 }
 
 // Shared skeleton for table loaders: loading placeholder -> cachedFetch (with
@@ -740,7 +795,6 @@ document.getElementById("btn-refresh-data").addEventListener("click", async () =
 async function loadAccountQuota({ force = false } = {}) {
     if (currentUser && !currentUser.is_admin) return;
     const card = document.getElementById("dash-quota-card");
-    const sidebar = document.getElementById("sidebar-quota-container");
     const firstLoad = !hasLoadedContent(document.getElementById("quota-used"));
 
     const renderQuota = (result) => {
@@ -775,11 +829,11 @@ async function loadAccountQuota({ force = false } = {}) {
             force,
             onRefreshStart: () => {
                 setElementRefreshing(card, true);
-                setElementRefreshing(sidebar, true);
+                setSidebarQuotaRefreshing(true);
             },
             onRefreshEnd: () => {
                 setElementRefreshing(card, false);
-                setElementRefreshing(sidebar, false);
+                setSidebarQuotaRefreshing(false);
             },
             onUpdated: renderQuota,
         });
@@ -939,7 +993,7 @@ async function loadDomainsList({ force = false } = {}) {
     const firstLoad = !hasRows;
 
     if (firstLoad) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">Querying domains...</td></tr>';
+        tbody.innerHTML = loadingRowHtml(4, "Querying domains...");
     }
 
     try {
@@ -1103,6 +1157,7 @@ async function populateSetupDomainSelect() {
 let resetPortalDomain = "";
 let resetPortalLoadedPrefix = "";
 let resetPortalSelectedTheme = "emerald";
+let resetPortalDeployConfigured = false;
 
 function highlightResetPortalTheme(themeId) {
     const theme = themeId || "emerald";
@@ -1153,6 +1208,80 @@ function updateResetPortalUrlPreview() {
     preview.textContent = `https://${prefix}.${domain}`;
 }
 
+function getResetPortalFormValues() {
+    return {
+        enabled: document.getElementById("reset-portal-enabled")?.checked ?? false,
+        subdomain_prefix: document.getElementById("reset-portal-prefix")?.value.trim().toLowerCase() || "",
+        portal_title: document.getElementById("reset-portal-title")?.value.trim() || "",
+        portal_theme: resetPortalSelectedTheme,
+    };
+}
+
+function updateResetPortalSubmitButton() {
+    const btn = document.getElementById("btn-reset-portal-save");
+    if (!btn || btn.disabled) return;
+    const { enabled } = getResetPortalFormValues();
+    if (!enabled) {
+        btn.textContent = "Save";
+        return;
+    }
+    btn.textContent = resetPortalDeployConfigured ? "Deploy Portal" : "Save Portal Settings";
+}
+
+async function uploadResetPortalLogoFile(file) {
+    if (!resetPortalDomain || !file) return null;
+    const formData = new FormData();
+    formData.append("logo", file);
+    bumpApiActivity(1);
+    try {
+        const response = await fetch(`/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/logo`, {
+            method: "POST",
+            headers: { "X-CSRF-Token": getCookie("csrf_token") || "" },
+            body: formData,
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.error?.message || "Logo upload failed.");
+        }
+        return result.data;
+    } finally {
+        bumpApiActivity(-1);
+    }
+}
+
+async function deployResetPortalDns() {
+    const controller = new AbortController();
+    const deployTimeout = window.setTimeout(() => controller.abort(), 180000);
+    bumpApiActivity(1);
+    try {
+        const response = await fetch(
+            `/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/deploy-dns`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRF-Token": getCookie("csrf_token") || "",
+                },
+                body: JSON.stringify({}),
+                signal: controller.signal,
+            }
+        );
+        const result = await parseJsonResponse(response);
+        if (!response.ok || !result.success) {
+            throw new Error(result.error?.message || "Deploy failed.");
+        }
+        return result.data;
+    } catch (err) {
+        if (err.name === "AbortError") {
+            throw new Error("Deploy timed out after 3 minutes. Check NPM and try again.");
+        }
+        throw err;
+    } finally {
+        window.clearTimeout(deployTimeout);
+        bumpApiActivity(-1);
+    }
+}
+
 function renderResetPortalForm(data) {
     const form = document.getElementById("reset-portal-form");
     if (!form) return;
@@ -1180,7 +1309,8 @@ function renderResetPortalForm(data) {
     const dnsStatus = document.getElementById("reset-portal-dns-status");
     const httpsStatus = document.getElementById("reset-portal-https-status");
     const deployMissing = document.getElementById("reset-portal-deploy-missing");
-    const deployBtn = document.getElementById("btn-reset-portal-deploy-dns");
+
+    resetPortalDeployConfigured = !!data.deploy_configured;
 
     if (deployMissing) {
         const missing = data.deploy_missing || [];
@@ -1188,10 +1318,7 @@ function renderResetPortalForm(data) {
         const list = document.getElementById("reset-portal-deploy-missing-list");
         if (list) list.textContent = missing.join(", ");
     }
-    if (deployBtn) {
-        deployBtn.style.display = data.deploy_configured ? "inline-flex" : "none";
-        deployBtn.disabled = !data.enabled || !data.subdomain_prefix;
-    }
+    updateResetPortalSubmitButton();
 
     if (dnsStatus && data.dns) {
         dnsStatus.style.display = "block";
@@ -1250,6 +1377,8 @@ function initResetPortal() {
         }
     });
 
+    document.getElementById("reset-portal-enabled")?.addEventListener("change", updateResetPortalSubmitButton);
+
     document.querySelectorAll("#reset-portal-theme-grid .portal-theme-card").forEach(card => {
         card.addEventListener("click", () => {
             highlightResetPortalTheme(card.getAttribute("data-portal-theme"));
@@ -1261,27 +1390,57 @@ function initResetPortal() {
             showAlert("warning", "Select a domain first.");
             return;
         }
-        const enabled = document.getElementById("reset-portal-enabled").checked;
-        const subdomain_prefix = document.getElementById("reset-portal-prefix").value.trim().toLowerCase();
-        const portal_title = document.getElementById("reset-portal-title").value.trim();
-        const portal_theme = resetPortalSelectedTheme;
+        const { enabled, subdomain_prefix, portal_title, portal_theme } = getResetPortalFormValues();
         if (enabled && !subdomain_prefix) {
             showAlert("warning", "Subdomain prefix is required when the portal is enabled.");
             return;
         }
+
+        const btn = document.getElementById("btn-reset-portal-save");
+        const loadingLabel = enabled && resetPortalDeployConfigured ? "Deploying..." : "Saving...";
+        setBtnLoading(btn, true, { icon: "rocket-takeoff", text: loadingLabel });
+
         try {
+            const pendingLogo = document.getElementById("reset-portal-logo")?.files?.[0];
+            if (pendingLogo) {
+                await uploadResetPortalLogoFile(pendingLogo);
+                const logoInput = document.getElementById("reset-portal-logo");
+                if (logoInput) logoInput.value = "";
+            }
+
             const result = await apiRequest(
                 `/api/domains/${resetPortalDomain}/reset-portal`,
                 "PATCH",
                 { enabled, subdomain_prefix, portal_title, portal_theme }
             );
-            showAlert("success", "Reset portal settings saved.");
-            if (result.data?.teardown_steps?.length) {
-                showAlert("info", result.data.teardown_steps.join(" · "));
+
+            let portalData = result.data;
+            if (enabled && resetPortalDeployConfigured) {
+                setBtnLoading(btn, true, { icon: "rocket-takeoff", text: "Deploying..." });
+                const deployResult = await deployResetPortalDns();
+                const https = deployResult?.https;
+                if (https?.status === "pass") {
+                    showAlert("success", "Reset portal deployed and HTTPS is live.");
+                } else {
+                    showAlert(
+                        "success",
+                        "Portal settings saved. DNS and NPM configured — HTTPS may take a few minutes to become live."
+                    );
+                }
+                await loadResetPortalSettings(resetPortalDomain);
+                return;
             }
-            renderResetPortalForm(result.data);
+
+            showAlert("success", enabled ? "Reset portal settings saved." : "Reset portal disabled.");
+            if (portalData?.teardown_steps?.length) {
+                showAlert("info", portalData.teardown_steps.join(" · "));
+            }
+            renderResetPortalForm(portalData);
         } catch (err) {
             showAlert("error", err.message);
+        } finally {
+            setBtnLoading(btn, false);
+            updateResetPortalSubmitButton();
         }
     });
 
@@ -1289,20 +1448,10 @@ function initResetPortal() {
         if (!resetPortalDomain) return;
         const file = event.target.files?.[0];
         if (!file) return;
-        const formData = new FormData();
-        formData.append("logo", file);
         try {
-            const response = await fetch(`/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/logo`, {
-                method: "POST",
-                headers: { "X-CSRF-Token": getCookie("csrf_token") || "" },
-                body: formData,
-            });
-            const result = await response.json();
-            if (!response.ok || !result.success) {
-                throw new Error(result.error?.message || "Logo upload failed.");
-            }
+            const data = await uploadResetPortalLogoFile(file);
             showAlert("success", "Logo uploaded.");
-            renderResetPortalForm(result.data);
+            renderResetPortalForm(data);
         } catch (err) {
             showAlert("error", err.message);
         } finally {
@@ -1321,56 +1470,6 @@ function initResetPortal() {
             renderResetPortalForm(result.data);
         } catch (err) {
             showAlert("error", err.message);
-        }
-    });
-
-    document.getElementById("btn-reset-portal-deploy-dns")?.addEventListener("click", async () => {
-        if (!resetPortalDomain) return;
-        const btn = document.getElementById("btn-reset-portal-deploy-dns");
-        if (btn) {
-            btn.disabled = true;
-            btn.textContent = "Deploying...";
-        }
-        try {
-            const controller = new AbortController();
-            const deployTimeout = window.setTimeout(() => controller.abort(), 180000);
-            const response = await fetch(
-                `/api/domains/${encodeURIComponent(resetPortalDomain)}/reset-portal/deploy-dns`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRF-Token": getCookie("csrf_token") || "",
-                    },
-                    body: JSON.stringify({}),
-                    signal: controller.signal,
-                }
-            );
-            window.clearTimeout(deployTimeout);
-            const result = await parseJsonResponse(response);
-            if (!response.ok || !result.success) {
-                throw new Error(result.error?.message || "Deploy failed.");
-            }
-            const https = result.data?.https;
-            if (https?.status === "pass") {
-                showAlert("success", "Reset portal deployed and HTTPS is live.");
-            } else {
-                showAlert(
-                    "success",
-                    "DNS and NPM configured. HTTPS may take a few minutes — refresh this page to recheck."
-                );
-            }
-            await loadResetPortalSettings(resetPortalDomain);
-        } catch (err) {
-            const message = err.name === "AbortError"
-                ? "Deploy timed out after 3 minutes. Check NPM and try again."
-                : err.message;
-            showAlert("error", message);
-        } finally {
-            if (btn) {
-                btn.disabled = false;
-                btn.textContent = "Deploy Portal (DNS + NPM)";
-            }
         }
     });
 }
@@ -1683,7 +1782,7 @@ async function loadPointersList(domain, { force = false } = {}) {
     await fetchCachedList({
         url: `/api/domains/${domain}/pointers`,
         tbody, card, force, firstLoad, render: renderPointers,
-        loadingHtml: '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Loading pointers...</td></tr>',
+        loadingHtml: loadingRowHtml(3, "Loading pointers..."),
         errorHtml: '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load pointers</td></tr>',
     });
 }
@@ -1867,6 +1966,10 @@ async function loadDnsHealth(domain, { force = false } = {}) {
         setElementRefreshing(headerStatus, refreshing);
     };
 
+    if (firstLoad && checksEl) {
+        checksEl.innerHTML = '<div style="text-align: center; padding: 0.75rem 0; color: var(--color-muted);">Checking DNS records...</div>';
+    }
+
     try {
         const result = await cachedFetch(url, {
             force,
@@ -1897,6 +2000,100 @@ function maskRecoveryEmail(email) {
     const [local, domain] = email.split("@");
     if (local.length <= 1) return `*@${domain}`;
     return `${local[0]}${"*".repeat(Math.min(3, local.length - 1))}@${domain}`;
+}
+
+function mailboxActionsMenuHtml(account) {
+    const username = escapeHtml(account.username);
+    const recoveryEmail = escapeHtml(account.recovery_email || "");
+
+    return `
+        <div class="action-menu" data-action-menu>
+            <button type="button" class="btn btn-secondary btn-sm action-menu-toggle" aria-haspopup="menu" aria-expanded="false">
+                ${bi("three-dots-vertical")} Actions
+            </button>
+            <div class="action-menu-panel" role="menu" hidden>
+                <button type="button" class="action-menu-item" role="menuitem"
+                    data-action="recovery" data-username="${username}" data-recovery-email="${recoveryEmail}">
+                    ${bi("envelope")} Recovery email
+                </button>
+                <button type="button" class="action-menu-item" role="menuitem"
+                    data-action="password" data-username="${username}">
+                    ${bi("key")} Change password
+                </button>
+                <button type="button" class="action-menu-item" role="menuitem"
+                    data-action="limits" data-username="${username}"
+                    data-quota="${Number(account.quota)}" data-limit="${Number(account.limit)}">
+                    ${bi("gear")} Limits
+                </button>
+                <button type="button" class="action-menu-item action-menu-item-danger" role="menuitem"
+                    data-action="delete" data-username="${username}">
+                    ${bi("trash")} Delete
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function closeMailboxActionMenus() {
+    document.querySelectorAll("[data-action-menu].is-open").forEach(menu => {
+        menu.classList.remove("is-open");
+        const toggle = menu.querySelector(".action-menu-toggle");
+        const panel = menu.querySelector(".action-menu-panel");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+        if (panel) panel.hidden = true;
+    });
+}
+
+function initMailboxActionMenus() {
+    const tbody = document.getElementById("emails-list-tbody");
+    if (!tbody || tbody.dataset.actionMenuInit === "true") return;
+    tbody.dataset.actionMenuInit = "true";
+
+    if (!document.body.dataset.mailboxActionMenuDocInit) {
+        document.body.dataset.mailboxActionMenuDocInit = "true";
+        document.addEventListener("click", closeMailboxActionMenus);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeMailboxActionMenus();
+        });
+    }
+
+    tbody.addEventListener("click", (event) => {
+        const toggle = event.target.closest(".action-menu-toggle");
+        if (toggle) {
+            event.stopPropagation();
+            const menu = toggle.closest("[data-action-menu]");
+            const wasOpen = menu?.classList.contains("is-open");
+            closeMailboxActionMenus();
+            if (menu && !wasOpen) {
+                menu.classList.add("is-open");
+                toggle.setAttribute("aria-expanded", "true");
+                const panel = menu.querySelector(".action-menu-panel");
+                if (panel) panel.hidden = false;
+            }
+            return;
+        }
+
+        const item = event.target.closest(".action-menu-item");
+        if (!item) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        closeMailboxActionMenus();
+
+        const username = item.dataset.username;
+        const action = item.dataset.action;
+        if (!username || !action) return;
+
+        if (action === "recovery") {
+            openRecoveryModal(username, item.dataset.recoveryEmail || "");
+        } else if (action === "password") {
+            openPasswordModal(username);
+        } else if (action === "limits") {
+            openQuotaModal(username, Number(item.dataset.quota), Number(item.dataset.limit));
+        } else if (action === "delete") {
+            handleDeleteEmail(username);
+        }
+    });
 }
 
 function renderEmailsList(result, domain) {
@@ -1945,13 +2142,7 @@ function renderEmailsList(result, domain) {
                     </div>
                 </td>
                 <td style="text-align: right;">
-                    <div class="flex-row" style="justify-content: flex-end; gap: 0.5rem;">
-                        <button class="btn btn-secondary btn-sm" onclick="openRecoveryModal(${jsAttrString(account.username)}, ${jsAttrString(account.recovery_email || "")})">${bi("envelope")} Recovery</button>
-                        <button class="btn btn-secondary btn-sm" onclick="openPasswordModal(${jsAttrString(account.username)})">${bi("key")} Pass</button>
-                        <button class="btn btn-secondary btn-sm" onclick="openQuotaModal(${jsAttrString(account.username)}, ${Number(account.quota)}, ${Number(account.limit)})">${bi("gear")} Limit</button>
-                        <button class="btn btn-secondary btn-sm" onclick="handleToggleSuspend(${jsAttrString(account.username)}, ${account.suspended ? "true" : "false"})">${account.suspended ? `${bi("check-circle")} Activate` : `${bi("slash-circle")} Suspend`}</button>
-                        <button class="btn btn-danger btn-sm" onclick="handleDeleteEmail(${jsAttrString(account.username)})">${bi("trash")} Delete</button>
-                    </div>
+                    ${mailboxActionsMenuHtml(account)}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -1971,7 +2162,7 @@ async function loadEmailsList(domain, { force = false } = {}) {
         url: `/api/domains/${domain}/email-accounts`,
         tbody, card, force, firstLoad,
         render: (result) => renderEmailsList(result, domain),
-        loadingHtml: '<tr><td colspan="5" style="text-align: center; color: var(--color-muted);">Querying mailboxes...</td></tr>',
+        loadingHtml: loadingRowHtml(5, "Querying mailboxes..."),
         errorHtml: (err) => `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${escapeHtml(err.message)}</td></tr>`,
     });
 }
@@ -2126,28 +2317,6 @@ async function handleDeleteEmail(username) {
     }
 }
 
-// Toggle Email Account Suspension
-async function handleToggleSuspend(username, isSuspended) {
-    const suspended = isSuspended === true || isSuspended === "true";
-    const actionText = suspended ? "activate" : "suspend";
-    const emailAddress = `${username}@${activeDomain}`;
-    const confirmed = await showConfirm({
-        title: suspended ? "Activate Mailbox" : "Suspend Mailbox",
-        message: `Are you sure you want to ${actionText} ${emailAddress}?`,
-        confirmLabel: suspended ? "Activate" : "Suspend",
-        variant: suspended ? "primary" : "danger"
-    });
-    if (!confirmed) return;
-    
-    try {
-        await apiRequest(`/api/domains/${activeDomain}/email-accounts/${username}`, "PATCH", { suspended: !suspended });
-        showAlert("success", `Mailbox ${username}@${activeDomain} ${actionText}d successfully.`);
-        await loadEmailsList(activeDomain, { force: true });
-    } catch (err) {
-        showAlert("error", err.message);
-    }
-}
-
 // Password Modal Controllers
 function openPasswordModal(username) {
     document.getElementById("modal-pass-username").value = username;
@@ -2288,7 +2457,7 @@ async function loadForwardersList(domain, { force = false } = {}) {
         url: `/api/domains/${domain}/forwarders`,
         tbody, card, force, firstLoad,
         render: (result) => renderForwardersList(result, domain),
-        loadingHtml: '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Loading forwarders...</td></tr>',
+        loadingHtml: loadingRowHtml(3, "Loading forwarders..."),
         errorHtml: (err) => `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load forwarders: ${escapeHtml(err.message)}</td></tr>`,
     });
 }
@@ -2416,7 +2585,7 @@ async function loadSpamList(domain, type, { force = false } = {}) {
     await fetchCachedList({
         url: `/api/domains/${domain}/spam/${type}`,
         tbody, card, force, firstLoad, render,
-        loadingHtml: `<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">Loading ${type}...</td></tr>`,
+        loadingHtml: loadingRowHtml(2, `Loading ${type}...`),
         errorHtml: `<tr><td colspan="2" style="text-align: center; color: var(--danger);">Error loading ${type}</td></tr>`,
     });
 }
@@ -2944,6 +3113,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 3. Populate domains dropdown
     await initDomainDropdowns();
     initResetPortal();
+    initMailboxActionMenus();
     
     // 4. Domain DNS wizard (admin or users with dns permission)
     const canManageDns = currentUser?.is_admin || getUserPermissionUnion().has("dns");

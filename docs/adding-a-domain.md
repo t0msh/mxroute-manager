@@ -44,16 +44,13 @@ You may see other checks (MX, SPF, DKIM, DMARC) marked as not required yet. That
 
 ![Step 2: initial DNS health check](images/adding-a-domain/02-step2-dns-health-initial.png)
 
-### Fix verification in Cloudflare
+### Verification Record in Cloudflare
 
-If verification is missing or wrong:
+The TXT verification record in Cloudflare hasn't been created yet:
 
-1. Find the **Domain Verification (TXT)** row.
-2. Click **Fix in Cloudflare** on that row (or use the per-record button shown in the grid).
-3. Watch the **Setup Progress** log at the bottom of Step 2. It should report the TXT record as added or already correct.
-4. Click **Recheck** if you want to refresh the grid after DNS propagates.
-
-![Before fixing verification TXT](images/adding-a-domain/05-step2-before-fix-verification.png)
+1. Click **Fix in Cloudflare** (or use the "**Fix All Missing**" button, it will give you a message about the other records not being able to be created yet, but that's fine).
+2. Watch the **Setup Progress** log at the bottom of Step 2. It should report the TXT record as added.
+3. Click **Recheck** if you want to refresh the grid after DNS propagates.
 
 ![After verification TXT is deployed](images/adding-a-domain/06-step2-after-fix-verification.png)
 
@@ -93,13 +90,12 @@ The wizard is idempotent: re-running fixes is safe. Existing correct records are
 
 When everything looks good, click **Finish Setup**.
 
-## Enable mail hosting
+## Enabling mail hosting
 
-Registration and DNS do not turn on mail routing by themselves. On the **Dashboard**, select the domain and use **Mail Hosting Status → Toggle** to enable hosting for that domain.
+If mail routing isn't turned on by itself, though after registration of a domain with MXroute it usually is on the **Dashboard**, select the domain and use **Mail Hosting Status** toggle button to enable hosting for that domain.
 
 ![Mail hosting enabled on the Dashboard](images/adding-a-domain/13-mail-hosting-enabled.png)
 
-With hosting enabled you can provision mailboxes under **Email Accounts**, configure forwarders, and use spam controls for that domain.
 
 ## Quick reference
 
@@ -108,8 +104,8 @@ With hosting enabled you can provision mailboxes under **Email Accounts**, confi
 | 1 | Enter domain, continue | Wizard opens Step 2 |
 | 2 (first) | Fix verification TXT | Domain Verification check passes |
 | 3 | Register Domain on MXroute | Success message on Step 3 |
-| 2 (second) | Fix All Missing for mail DNS | MX, SPF, DKIM, DMARC all healthy |
-| Dashboard | Toggle mail hosting on | **Enabled** badge on Dashboard |
+| 2 (again) | Fix All Missing for mail DNS | MX, SPF, DKIM, DMARC all healthy |
+
 
 ## Troubleshooting
 

@@ -13,6 +13,7 @@
 
 | Guide | Description |
 | --- | --- |
+| [Adding a domain](adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
 | [Access control](access-control.md) | Delegated users, permissions, admin vs delegated operations |
 | [Mailbox password reset](password-reset.md) | Login-page reset and branded per-domain portals |
 

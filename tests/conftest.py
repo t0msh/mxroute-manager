@@ -15,6 +15,10 @@ if ROOT not in sys.path:
 _TEST_DB = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _TEST_DB.close()
 os.environ["DATABASE_FILE"] = _TEST_DB.name
+# load_dotenv() in app.py does not override existing keys — blank these before import
+# so a developer's .env cannot seed admin users or force-sync passwords during tests.
+os.environ["ADMIN_PASSWORD"] = ""
+os.environ["ADMIN_PASSWORD_FORCE_SYNC"] = ""
 os.environ.setdefault("RESET_PORTAL_CNAME_TARGET", "manager.example.com")
 os.environ.setdefault("CF_API_TOKEN", "test-cf-token")
 os.environ.setdefault("CF_ACCOUNT_ID", "test-cf-account")

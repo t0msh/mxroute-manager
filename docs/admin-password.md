@@ -6,7 +6,7 @@ Environment variable reference: [Authentication](configuration.md#authentication
 
 ## How the database is seeded
 
-On first startup, `init_db()` reads `ADMIN_PASSWORD` from the environment and stores a **bcrypt hash** in SQLite (`ADMIN_PASSWORD_HASH` in the `settings` table). If no admin user exists yet, it also creates a row in `users` for `ADMIN_USER` with that same hash.
+On first startup, `init_db()` reads `ADMIN_PASSWORD` from the environment and stores a **hashed password** in SQLite (`ADMIN_PASSWORD_HASH` in the `settings` table; Werkzeug `pbkdf2:sha256` or `scrypt`). If no admin user exists yet, it also creates a row in `users` for `ADMIN_USER` with that same hash.
 
 After that initial seed:
 

@@ -125,7 +125,7 @@ Both paths share these controls:
 | --- | --- |
 | **No enumeration** | Request endpoint always returns the same generic success message whether the mailbox exists, has no recovery email, or is rate-limited |
 | **Rate limiting** | Per client IP (5/hour) and per mailbox address (3/hour); uses real client IP behind trusted proxies (`TRUSTED_PROXY_COUNT`) |
-| **Tokens** | Random raw token in the email; only a bcrypt hash is stored server-side |
+| **Tokens** | Random raw token in the email; only a SHA-256 hash is stored server-side |
 | **Single use** | Token is marked used after a successful password change |
 | **Expiry** | Tokens expire after one hour |
 | **Audit** | `mailbox.reset_requested` and `mailbox.reset_completed` logged (actor `public`) |

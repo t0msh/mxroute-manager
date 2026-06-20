@@ -812,6 +812,15 @@ select:focus {
     background: rgba(0, 0, 0, 0.2);
 }
 
+/* ponytail: :has() unclips dropdowns; fixed positioning breaks under tab-panel transform */
+.table-container:has(.action-menu.is-open) {
+    overflow: visible;
+}
+
+.action-menu.is-open {
+    z-index: 100;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

@@ -1,6 +1,6 @@
 # App tour
 
-A visual overview of MXroute Manager after login. Screenshots use the **Emerald Glass** workspace theme unless noted. For all login and theme variants, see [Themes](themes.md).
+A visual overview of MXroute Manager after login. Screenshots were taken using a couple of differnt workspace themes. For all login and theme variants, see [Themes](themes.md).
 
 The **global domain selector** at the top of most tabs sets which domain you are managing. Dashboard, Email Accounts, Forwarders, and Spam Controls all respect that selection.
 

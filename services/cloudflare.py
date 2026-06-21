@@ -13,6 +13,17 @@ from services.mxroute import (
 
 MAIL_DNS_RECORD_TYPES = ("mx", "spf", "dkim", "dmarc")
 DNS_RECORD_TYPES = ("verification",) + MAIL_DNS_RECORD_TYPES
+# webmail is deployable/checkable but opt-in: never auto-included by fix-all.
+DEPLOYABLE_RECORD_TYPES = DNS_RECORD_TYPES + ("webmail",)
+
+
+def webmail_host(domain):
+    return f"webmail.{domain.lower().strip()}"
+
+
+def get_webmail_target():
+    """MXroute server hostname the webmail CNAME points at (DNS-only)."""
+    return (get_config_value("MX_SERVER") or "").strip().lower().rstrip(".")
 
 PENDING_MAIL_CHECK = {
     "status": "pending",
@@ -113,6 +124,10 @@ def build_setup_health(domain):
 
     if on_mxroute:
         health = apply_mail_hosting_context(health, get_domain_mail_hosting(domain))
+        if cf_is_configured():
+            # Optional, opt-in record: added after overall is computed so it never
+            # degrades health or gets swept up by fix-all.
+            health["checks"]["webmail"] = _webmail_health_check(domain)
 
     health["on_mxroute"] = on_mxroute
     health["cf_configured"] = cf_is_configured()
@@ -121,6 +136,32 @@ def build_setup_health(domain):
     _, mx_status = mx_request_raw("GET", "/domains")
     health["mxroute_reachable"] = mx_status == 200
     return health
+
+
+def _webmail_health_check(domain):
+    """Webmail CNAME state: pass (deployed + resolves), pending (in CF, not live yet),
+    or skipped (optional, not deployed). Never fails."""
+    host = webmail_host(domain)
+    target = get_webmail_target()
+    base = {"label": "Webmail (CNAME)", "expected_host": host, "expected": target}
+    if not target:
+        return {**base, "status": "skipped", "message": "MX_SERVER not configured — webmail CNAME unavailable."}
+
+    zone_id = find_cf_zone_id(domain)
+    records = fetch_cf_dns_sets(zone_id)[2] if zone_id else []
+    cname = next(
+        (rec for rec in records
+         if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == host),
+        None,
+    )
+    if not cname:
+        return {**base, "status": "skipped", "message": f"Optional — webmail.{domain} not deployed."}
+
+    found = cname.get("content", "").lower().rstrip(".")
+    if _public_dns_resolves(host):
+        return {**base, "status": "pass", "found": [found], "message": f"Webmail CNAME {host} → {found} (live)."}
+    return {**base, "status": "pending", "found": [found],
+            "message": f"Webmail CNAME {host} → {found} in Cloudflare; waiting for public DNS to resolve."}
 
 
 def find_cf_zone_id(domain):
@@ -457,6 +498,17 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
     """Deploy a single DNS record type to Cloudflare. Returns 'added' or 'skipped'."""
     domain_lower = domain.lower()
 
+    if record_type == "webmail":
+        target = get_webmail_target()
+        if not target:
+            if steps is not None:
+                steps.append("MX_SERVER not configured; skipping webmail CNAME")
+            return "skipped"
+        return cf_upsert_cname(
+            zone_id, "webmail", webmail_host(domain), target,
+            existing_records, steps, proxied=False,
+        )
+
     if record_type == "verification":
         if not verification_record:
             raise ValueError("Failed to get verification key from MXroute")
@@ -583,7 +635,7 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
     fixed = []
     skipped = []
     for record_type in record_types:
-        if record_type not in DNS_RECORD_TYPES:
+        if record_type not in DEPLOYABLE_RECORD_TYPES:
             continue
         check = health["checks"].get(record_type, {})
         if check.get("status") == "pass":

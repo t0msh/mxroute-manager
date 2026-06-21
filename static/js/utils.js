@@ -6,6 +6,7 @@ export const DNS_CHECK_SHORT = {
     dkim: "DKIM",
     dmarc: "DMARC",
     verification: "Verify",
+    webmail: "Webmail",
 };
 
 export function escapeHtml(value) {

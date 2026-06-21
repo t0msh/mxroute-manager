@@ -1,9 +1,9 @@
 <!-- Tab Panel 2: Domain Management -->
 <div class="tab-panel" id="tab-domains">
-    <!-- Domain & DNS Setup Wizard -->
+    <!-- Domain & DNS Setup Wizard (new domains only) -->
     <div class="glass-card" id="domain-setup-wizard">
-        <h3 class="card-title">{{ icon('globe') }} Domain &amp; DNS Setup</h3>
-        <p class="stat-card-subtitle mb-4">Configure MXroute hosting and Cloudflare DNS records in three guided steps.</p>
+        <h3 class="card-title">{{ icon('globe') }} Add a New Domain</h3>
+        <p class="stat-card-subtitle mb-4">Register a new domain on MXroute and deploy its Cloudflare DNS records in four guided steps. To fix DNS on an existing domain, use its Actions menu below.</p>
 
         <div class="setup-wizard-steps">
             <div class="setup-wizard-step active" data-step="1">
@@ -12,62 +12,94 @@
             </div>
             <div class="setup-wizard-step" data-step="2">
                 <span class="setup-wizard-step-num">2</span>
-                <span>DNS Health &amp; Fix</span>
+                <span>Verify Domain</span>
             </div>
             <div class="setup-wizard-step" data-step="3">
                 <span class="setup-wizard-step-num">3</span>
                 <span>MXroute Registration</span>
             </div>
+            <div class="setup-wizard-step" data-step="4">
+                <span class="setup-wizard-step-num">4</span>
+                <span>Mail DNS &amp; Webmail</span>
+            </div>
         </div>
 
-        <!-- Step 1 -->
+        <!-- Step 1: Choose Domain -->
         <div class="setup-wizard-panel" id="setup-step-1">
+            <div class="alert-banner info mb-4">
+                Before you start, the domain's nameservers must already point to <strong>Cloudflare</strong>. DNS records deployed here will only take effect once Cloudflare is authoritative for the zone.
+            </div>
             <div class="telemetry-item mb-4">
-                <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">Select or enter a domain</div>
-                <div class="setup-domain-mode mt-4">
-                    <label class="setup-mode-option">
-                        <input type="radio" name="setup-domain-mode" value="existing" checked>
-                        <span>Existing MXroute domain</span>
-                    </label>
-                    <label class="setup-mode-option">
-                        <input type="radio" name="setup-domain-mode" value="new">
-                        <span>New domain</span>
-                    </label>
-                </div>
-                <div id="setup-existing-container" class="mt-4">
-                    <select id="setup-domain-select" style="width: 100%;">
-                        <option value="">Loading domains...</option>
-                    </select>
-                </div>
-                <div id="setup-new-container" class="mt-4" style="display: none;">
-                    <input type="text" id="setup-domain-input" placeholder="my-awesome-domain.com" style="width: 100%;">
+                <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">New domain</div>
+                <div class="mt-4">
+                    <input type="text" id="setup-domain-input" placeholder="my-awesome-domain.com" style="width: 100%;" autocomplete="off">
                 </div>
             </div>
-            <button class="btn btn-primary" id="btn-setup-step1-next">Continue to DNS Checks</button>
+            <button class="btn btn-primary" id="btn-setup-step1-next">Continue to Verification</button>
         </div>
 
-        <!-- Step 2 -->
+        <!-- Step 2: Verify Domain -->
         <div class="setup-wizard-panel" id="setup-step-2" style="display: none;">
-            <div id="setup-domain-label" class="setup-domain-banner mb-4"></div>
+            <div id="setup-verify-domain-label" class="setup-domain-banner mb-4"></div>
 
             <div id="setup-cf-missing" class="alert-banner info mb-4" style="display: none;">
-                Cloudflare is not configured. Set <code>CF_API_TOKEN</code> and <code>CF_ACCOUNT_ID</code> in Settings to enable automatic DNS fixes.
+                Cloudflare is not configured. Set <code>CF_API_TOKEN</code> and <code>CF_ACCOUNT_ID</code> in Settings to enable automatic DNS deployment.
             </div>
 
-            <div id="setup-mxroute-pending-notice" class="alert-banner info mb-4" style="display: none;">
-                <strong>Mail DNS records (MX, SPF, DKIM, DMARC)</strong> are provided by MXroute <em>after</em> the domain is registered.
-                DKIM keys in particular are generated per-domain at registration time — complete Step 3, then return here to add them.
+            <p class="stat-card-subtitle mb-4">
+                MXroute provides a verification TXT record to prove you control this domain. It is deployed to Cloudflare automatically below.
+            </p>
+
+            <div class="flex-row justify-between align-center mb-4">
+                <span class="stat-card-subtitle" style="margin: 0;">Domain verification</span>
+                <button class="btn btn-secondary btn-sm" id="btn-setup-verify-recheck">Recheck</button>
             </div>
 
-            <div id="setup-mxroute-complete-notice" class="alert-banner info mb-4" style="display: none;">
-                Domain is registered on MXroute. DKIM and mail DNS values are now available — fix any remaining records below.
+            <div id="setup-verify-checks" class="dns-health-grid mb-4"></div>
+
+            <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
+                <button class="btn btn-secondary" id="btn-setup-step2-back">Back</button>
+                <button class="btn btn-primary" id="btn-setup-step2-next">Continue to Registration</button>
             </div>
+        </div>
+
+        <!-- Step 3: MXroute Registration -->
+        <div class="setup-wizard-panel" id="setup-step-3" style="display: none;">
+            <div id="setup-register-domain-label" class="setup-domain-banner mb-4"></div>
+
+            <div class="telemetry-item mb-4">
+                <p class="stat-card-subtitle" style="margin-bottom: 1rem;">
+                    Register this domain on MXroute to enable mail hosting. Once registered, MXroute generates
+                    DKIM keys and mail DNS values — continue to Step 4 to deploy those records at Cloudflare.
+                </p>
+                <div id="setup-mxroute-status" class="mb-4"></div>
+                <button class="btn btn-primary" id="btn-setup-register-mxroute">Register Domain on MXroute</button>
+            </div>
+
+            <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;">
+                <button class="btn btn-secondary" id="btn-setup-step3-back">Back to Verification</button>
+                <button class="btn btn-primary" id="btn-setup-step3-next" style="display: none;">Continue to Mail DNS</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Mail DNS & Webmail -->
+        <div class="setup-wizard-panel" id="setup-step-4" style="display: none;">
+            <div id="setup-step4-domain-label" class="setup-domain-banner mb-4"></div>
+
+            <div id="setup-mxroute-complete-notice" class="alert-banner info mb-4">
+                Domain is registered on MXroute. Deploy the mail DNS records below — the checklist refreshes automatically until everything is live.
+            </div>
+
+            <label class="setup-mode-option mb-4" style="display: flex; align-items: center; gap: 0.6rem;">
+                <input type="checkbox" id="setup-webmail-enabled" checked>
+                <span>Also create <code>webmail.<span id="setup-webmail-domain">your-domain</span></code> pointing to the MXroute mail server (DNS-only)</span>
+            </label>
 
             <div class="flex-row justify-between align-center mb-4">
                 <span class="stat-card-subtitle" style="margin: 0;">Public DNS health check</span>
                 <div class="flex-row" style="gap: 0.5rem;">
                     <button class="btn btn-secondary btn-sm" id="btn-setup-recheck-dns">Recheck</button>
-                    <button class="btn btn-primary btn-sm" id="btn-setup-fix-all-dns" style="display: none;">Fix All Missing</button>
+                    <button class="btn btn-primary btn-sm" id="btn-setup-deploy-all">Deploy All Records</button>
                 </div>
             </div>
 
@@ -79,28 +111,8 @@
             </div>
 
             <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
-                <button class="btn btn-secondary" id="btn-setup-step2-back">Back</button>
-                <button class="btn btn-primary" id="btn-setup-step2-mxroute" style="display: none;">Continue to MXroute Registration</button>
-                <button class="btn btn-primary" id="btn-setup-step2-done" style="display: none;">Finish Setup</button>
-            </div>
-        </div>
-
-        <!-- Step 3 -->
-        <div class="setup-wizard-panel" id="setup-step-3" style="display: none;">
-            <div id="setup-step3-domain-label" class="setup-domain-banner mb-4"></div>
-
-            <div class="telemetry-item mb-4">
-                <p class="stat-card-subtitle" style="margin-bottom: 1rem;">
-                    Register this domain on MXroute to enable mail hosting. Once registered, MXroute will generate
-                    DKIM keys and mail DNS values — return to Step 2 to add those records at Cloudflare.
-                </p>
-                <div id="setup-mxroute-status" class="mb-4"></div>
-                <button class="btn btn-primary" id="btn-setup-register-mxroute">Register Domain on MXroute</button>
-            </div>
-
-            <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;">
-                <button class="btn btn-secondary" id="btn-setup-step3-back">Back to DNS Checks</button>
-                <button class="btn btn-primary" id="btn-setup-step3-dns" style="display: none;">Return to Step 2 — Add Mail DNS</button>
+                <button class="btn btn-secondary" id="btn-setup-step4-back">Back to Registration</button>
+                <button class="btn btn-primary" id="btn-setup-step4-done">Finish Setup</button>
             </div>
         </div>
     </div>

@@ -111,10 +111,9 @@ function applyDashboardSectionVisibility() {
 
 function applyDomainsSectionVisibility() {
     const isAdmin = !!currentUser?.is_admin;
-    const newModeOption = document.querySelector('input[name="setup-domain-mode"][value="new"]')?.closest(".setup-mode-option");
-    if (newModeOption) newModeOption.style.display = isAdmin ? "" : "none";
-    const step3 = document.querySelector(".setup-wizard-step[data-step=\"3\"]");
-    if (step3) step3.style.display = isAdmin ? "" : "none";
+    // Adding a new domain registers it on MXroute, which is admin-only.
+    const wizard = document.getElementById("domain-setup-wizard");
+    if (wizard) wizard.style.display = isAdmin ? "" : "none";
 }
 
 function applyUserPermissionsUI() {
@@ -855,19 +854,69 @@ function dnsNeedsFix(health) {
     return window.Mxm.utils.dnsNeedsFix(health);
 }
 
+function domainActionsMenuHtml(domain, { fixDnsVisible, mailOn, webmailReady, cfConfigured, isAdmin, canDns }) {
+    const items = [];
+    if (canDns && fixDnsVisible) {
+        items.push(`<button type="button" class="action-menu-item" role="menuitem" data-action="fix-dns">${bi("wrench")} Fix DNS entries</button>`);
+    }
+    if (webmailReady) {
+        items.push(`<button type="button" class="action-menu-item" role="menuitem" data-action="webmail-open">${bi("box-arrow-up-right")} Open webmail</button>`);
+    } else if (canDns && cfConfigured) {
+        items.push(`<button type="button" class="action-menu-item" role="menuitem" data-action="webmail-deploy">${bi("envelope-open")} Set up webmail</button>`);
+    }
+    if (isAdmin) {
+        const routingLabel = mailOn ? "Disable Routing" : "Enable Routing";
+        const routingIcon = mailOn ? "toggle-on" : "toggle-off";
+        items.push(`<button type="button" class="action-menu-item" role="menuitem" data-action="toggle-routing">${bi(routingIcon)} ${routingLabel}</button>`);
+        items.push(`<button type="button" class="action-menu-item action-menu-item-danger" role="menuitem" data-action="delete">${bi("trash")} Delete</button>`);
+    }
+    if (!items.length) {
+        return `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`;
+    }
+    return `
+        <div class="action-menu" data-action-menu data-domain="${escapeHtml(domain)}">
+            <button type="button" class="btn btn-secondary btn-sm action-menu-toggle" aria-haspopup="menu" aria-expanded="false">
+                ${bi("three-dots-vertical")} Actions
+            </button>
+            <div class="action-menu-panel" role="menu" hidden>
+                ${items.join("\n")}
+            </div>
+        </div>
+    `;
+}
+
+function renderDomainActionsCell(domain) {
+    const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
+    const cell = document.getElementById(`domain-actions-${safeId}`);
+    if (!cell) return;
+    const cached = domainRowCache.get(domain) || {};
+    const isAdmin = !!currentUser?.is_admin;
+    cell.innerHTML = domainActionsMenuHtml(domain, {
+        fixDnsVisible: cached.fixDnsVisible ?? false,
+        mailOn: cached.mailOn ?? true,
+        webmailReady: cached.webmailReady ?? false,
+        cfConfigured: cached.cfConfigured ?? false,
+        isAdmin,
+        canDns: isAdmin || userHasPermission("dns", domain),
+    });
+}
+
 function applyDomainRowDetails(domain, detailsResult, healthResult) {
     const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
     const mailCell = document.getElementById(`domain-mail-${safeId}`);
     const dnsCell = document.getElementById(`domain-dns-${safeId}`);
-    const fixDnsBtn = document.getElementById(`domain-fix-dns-${safeId}`);
     if (!mailCell || !dnsCell) return;
 
+    const prev = domainRowCache.get(domain) || {};
     let mailHtml = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
     let dnsHtml = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
-    let fixDnsVisible = true;
+    let fixDnsVisible = prev.fixDnsVisible ?? false;
+    let mailOn = prev.mailOn ?? null;
+    let webmailReady = prev.webmailReady ?? false;
+    let cfConfigured = prev.cfConfigured ?? false;
 
     if (detailsResult?.success && detailsResult.data) {
-        const mailOn = detailsResult.data.mail_hosting;
+        mailOn = !!detailsResult.data.mail_hosting;
         mailHtml = mailOn
             ? `<span class="status-indicator success"><span class="dot"></span> Enabled</span>`
             : `<span class="status-indicator danger"><span class="dot"></span> Disabled</span>`;
@@ -877,13 +926,15 @@ function applyDomainRowDetails(domain, detailsResult, healthResult) {
         const health = healthResult.data;
         dnsHtml = renderDnsStatusBadge(health);
         fixDnsVisible = dnsNeedsFix(health);
+        webmailReady = health.checks?.webmail?.status === "pass";
+        cfConfigured = !!health.cf_configured;
     }
 
     mailCell.innerHTML = mailHtml;
     dnsCell.innerHTML = dnsHtml;
-    if (fixDnsBtn) fixDnsBtn.style.display = fixDnsVisible ? "inline-flex" : "none";
 
-    domainRowCache.set(domain, { mailHtml, dnsHtml, fixDnsVisible });
+    domainRowCache.set(domain, { mailHtml, dnsHtml, fixDnsVisible, mailOn, webmailReady, cfConfigured });
+    renderDomainActionsCell(domain);
 }
 
 async function refreshDomainRowDetails(domain, { force = false } = {}) {
@@ -899,8 +950,7 @@ async function refreshDomainRowDetails(domain, { force = false } = {}) {
     if (rowCached) {
         mailCell.innerHTML = rowCached.mailHtml;
         dnsCell.innerHTML = rowCached.dnsHtml;
-        const fixDnsBtn = document.getElementById(`domain-fix-dns-${safeId}`);
-        if (fixDnsBtn) fixDnsBtn.style.display = rowCached.fixDnsVisible ? "inline-flex" : "none";
+        renderDomainActionsCell(domain);
     }
 
     const needsRefresh = force || !isCacheFresh(detailsUrl) || !isCacheFresh(healthUrl);
@@ -948,12 +998,10 @@ function renderDomainsTableRows(domains) {
             <td><strong>${escapeHtml(domain)}</strong></td>
             <td id="domain-mail-${safeId}">${cached?.mailHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`}</td>
             <td id="domain-dns-${safeId}">${cached?.dnsHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`}</td>
-            <td style="text-align: right;">
-                <button class="btn btn-secondary btn-sm" id="domain-fix-dns-${safeId}" style="display: ${cached?.fixDnsVisible ? "inline-flex" : "none"};" onclick="openDomainDnsSetup(${jsAttrString(domain)})">Fix DNS</button>
-                ${currentUser?.is_admin ? `<button class="btn btn-danger btn-sm" onclick="handleDeleteDomain(${jsAttrString(domain)})">Delete</button>` : ""}
-            </td>
+            <td style="text-align: right;" id="domain-actions-${safeId}"></td>
         `;
         tbody.appendChild(tr);
+        renderDomainActionsCell(domain);
     });
 }
 
@@ -1106,18 +1154,17 @@ document.getElementById("btn-toggle-mail-hosting").addEventListener("click", asy
     }
 });
 
-// --- Domain & DNS Setup Wizard ---
+// --- Domain & DNS Setup Wizard (new domains only) ---
 let setupWizardDomain = "";
 let setupWizardStep = 1;
 let setupCfConfigured = false;
 let setupCurrentHealth = null;
+let setupHealthPollTimer = null;
+let setupHealthPollInFlight = false;
+let setupHealthPollDeadline = 0;
 
 function getSetupDomainValue() {
-    const mode = document.querySelector('input[name="setup-domain-mode"]:checked')?.value;
-    if (mode === "new") {
-        return document.getElementById("setup-domain-input")?.value.trim().toLowerCase() || "";
-    }
-    return document.getElementById("setup-domain-select")?.value || "";
+    return document.getElementById("setup-domain-input")?.value.trim().toLowerCase() || "";
 }
 
 function setSetupWizardStep(step) {
@@ -1126,31 +1173,16 @@ function setSetupWizardStep(step) {
         el.classList.toggle("active", parseInt(el.dataset.step, 10) === step);
         el.classList.toggle("completed", parseInt(el.dataset.step, 10) < step);
     });
-    document.getElementById("setup-step-1").style.display = step === 1 ? "block" : "none";
-    document.getElementById("setup-step-2").style.display = step === 2 ? "block" : "none";
-    document.getElementById("setup-step-3").style.display = step === 3 ? "block" : "none";
+    for (let i = 1; i <= 4; i++) {
+        const panel = document.getElementById(`setup-step-${i}`);
+        if (panel) panel.style.display = step === i ? "block" : "none";
+    }
+    if (step !== 4) stopSetupHealthPolling();
 }
 
-async function populateSetupDomainSelect() {
-    const select = document.getElementById("setup-domain-select");
-    if (!select) return;
-    select.innerHTML = '<option value="">Loading domains...</option>';
-    try {
-        const result = await apiRequest("/api/domains");
-        select.innerHTML = "";
-        if (result.success && result.data && result.data.length > 0) {
-            result.data.forEach(domain => {
-                const option = document.createElement("option");
-                option.value = domain;
-                option.textContent = domain;
-                select.appendChild(option);
-            });
-        } else {
-            select.innerHTML = '<option value="">No domains on MXroute yet</option>';
-        }
-    } catch {
-        select.innerHTML = '<option value="">Error loading domains</option>';
-    }
+function setSetupDomainLabel(id) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
 }
 
 // --- Password Reset Portal ---
@@ -1474,87 +1506,163 @@ function initResetPortal() {
     });
 }
 
+function renderDnsCheckItem(key, check, { fixLabel = "Fix in Cloudflare" } = {}) {
+    const statusClass = check.status === "pass" ? "pass" : check.status === "pending" ? "pending" : check.status === "skipped" ? "skipped" : check.status;
+    const statusIcon = window.Mxm?.icons?.dnsStatusIcon(check.status) ?? "";
+    const canFix = setupCfConfigured && (check.status === "warn" || check.status === "fail");
+    const item = document.createElement("div");
+    item.className = `dns-health-item ${statusClass}`;
+    item.innerHTML = `
+        <div class="dns-health-item-title">${statusIcon} ${escapeHtml(check.label)}</div>
+        <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
+        ${canFix ? `<button class="btn btn-secondary btn-sm setup-fix-btn" data-record="${escapeHtml(key)}" style="margin-top: 0.6rem;">${escapeHtml(fixLabel)}</button>` : ""}
+    `;
+    return item;
+}
+
+// Step 4: mail DNS + webmail checks (verification is shown in Step 2).
 function renderSetupDnsChecks(health) {
     const checksEl = document.getElementById("setup-dns-checks");
-    const fixAllBtn = document.getElementById("btn-setup-fix-all-dns");
     if (!checksEl) return;
-
     checksEl.innerHTML = "";
     setupCurrentHealth = health;
 
-    const fixable = [];
     Object.entries(health.checks || {}).forEach(([key, check]) => {
-        const item = document.createElement("div");
-        const statusClass = check.status === "pass" ? "pass" : check.status === "pending" ? "pending" : check.status === "skipped" ? "skipped" : check.status;
-        const statusIcon = window.Mxm?.icons?.dnsStatusIcon(check.status) ?? "";
-        const canFix = setupCfConfigured && (check.status === "warn" || check.status === "fail");
-        if (canFix) fixable.push(key);
-
-        item.className = `dns-health-item ${statusClass}`;
-        item.innerHTML = `
-            <div class="dns-health-item-title">${statusIcon} ${escapeHtml(check.label)}</div>
-            <div class="dns-health-item-message">${escapeHtml(check.message)}</div>
-            ${canFix ? `<button class="btn btn-secondary btn-sm setup-fix-btn" data-record="${escapeHtml(key)}" style="margin-top: 0.6rem;">Fix in Cloudflare</button>` : ""}
-        `;
-        checksEl.appendChild(item);
+        if (key === "verification") return;
+        checksEl.appendChild(renderDnsCheckItem(key, check));
     });
 
     checksEl.querySelectorAll(".setup-fix-btn").forEach(btn => {
         btn.addEventListener("click", () => handleFixDnsRecord(btn.dataset.record));
     });
+}
 
-    if (fixAllBtn) {
-        fixAllBtn.style.display = fixable.length > 0 ? "inline-flex" : "none";
+// Step 2: verification check only.
+function renderSetupVerifyCheck(health) {
+    const el = document.getElementById("setup-verify-checks");
+    if (!el) return;
+    el.innerHTML = "";
+    const check = (health.checks || {}).verification;
+    if (!check) {
+        el.innerHTML = `<div class="dns-health-item skipped"><div class="dns-health-item-message">Verification record is not available from MXroute yet.</div></div>`;
+        return;
     }
+    const item = renderDnsCheckItem("verification", check, { fixLabel: "Deploy verification TXT" });
+    el.appendChild(item);
+    const fixBtn = item.querySelector(".setup-fix-btn");
+    if (fixBtn) fixBtn.addEventListener("click", () => handleFixDnsRecord("verification", { verify: true }));
+}
 
-    const pendingNotice = document.getElementById("setup-mxroute-pending-notice");
-    const completeNotice = document.getElementById("setup-mxroute-complete-notice");
-    const step2MxrouteBtn = document.getElementById("btn-setup-step2-mxroute");
-    const step2DoneBtn = document.getElementById("btn-setup-step2-done");
-
-    if (pendingNotice) pendingNotice.style.display = health.on_mxroute ? "none" : "block";
-    if (completeNotice) completeNotice.style.display = health.on_mxroute ? "block" : "none";
-
-    const hasPendingMail = Object.values(health.checks || {}).some(c => c.status === "pending");
-    const hasIssues = Object.values(health.checks || {}).some(c => c.status === "warn" || c.status === "fail");
-
-    if (step2MxrouteBtn) {
-        step2MxrouteBtn.style.display = !health.on_mxroute && currentUser?.is_admin ? "inline-flex" : "none";
+async function fetchSetupHealth() {
+    const result = await apiRequest(`/api/domains/${setupWizardDomain}/dns/setup-health`);
+    if (!result.success || !result.data) {
+        throw new Error(result.error?.message || "Health check failed");
     }
-    if (step2DoneBtn) {
-        step2DoneBtn.style.display = health.on_mxroute && !hasIssues && !hasPendingMail ? "inline-flex" : "none";
+    if (result.data.cf_configured !== undefined) {
+        setupCfConfigured = !!result.data.cf_configured;
+        const cfMissing = document.getElementById("setup-cf-missing");
+        if (cfMissing) cfMissing.style.display = setupCfConfigured ? "none" : "block";
+    }
+    return result.data;
+}
+
+async function loadSetupVerifyHealth() {
+    if (!setupWizardDomain) return null;
+    setSetupDomainLabel("setup-verify-domain-label");
+    const el = document.getElementById("setup-verify-checks");
+    if (el) el.innerHTML = '<div style="color: var(--color-muted); padding: 1rem;">Checking domain verification...</div>';
+    try {
+        const health = await fetchSetupHealth();
+        renderSetupVerifyCheck(health);
+        return health;
+    } catch (err) {
+        if (el) el.innerHTML = `<div class="dns-health-item fail"><div class="dns-health-item-message">${escapeHtml(err.message)}</div></div>`;
+        showAlert("error", err.message);
+        return null;
     }
 }
 
-async function loadSetupDnsHealth() {
-    if (!setupWizardDomain) return;
-    const label = document.getElementById("setup-domain-label");
-    if (label) {
-        label.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
-    }
-
+async function loadSetupDnsHealth({ silent = false } = {}) {
+    if (!setupWizardDomain) return null;
+    setSetupDomainLabel("setup-step4-domain-label");
     const checksEl = document.getElementById("setup-dns-checks");
-    if (checksEl) {
+    if (checksEl && !silent) {
         checksEl.innerHTML = '<div style="color: var(--color-muted); padding: 1rem;">Running DNS health check...</div>';
     }
-
     try {
-        const result = await apiRequest(`/api/domains/${setupWizardDomain}/dns/setup-health`);
-        if (!result.success || !result.data) {
-            throw new Error(result.error?.message || "Health check failed");
-        }
-        if (result.data?.cf_configured !== undefined) {
-            setupCfConfigured = !!result.data.cf_configured;
-            const cfMissing = document.getElementById("setup-cf-missing");
-            if (cfMissing) cfMissing.style.display = setupCfConfigured ? "none" : "block";
-        }
-        renderSetupDnsChecks(result.data);
+        const health = await fetchSetupHealth();
+        renderSetupDnsChecks(health);
+        return health;
     } catch (err) {
         if (checksEl) {
             checksEl.innerHTML = `<div class="dns-health-item fail"><div class="dns-health-item-message">${escapeHtml(err.message)}</div></div>`;
         }
-        showAlert("error", err.message);
+        if (!silent) showAlert("error", err.message);
+        return null;
     }
+}
+
+// Auto-deploy verification TXT on entering Step 2, then show its status.
+async function enterVerifyStep() {
+    const health = await loadSetupVerifyHealth();
+    const verify = health?.checks?.verification;
+    if (health?.cf_configured && verify && verify.status !== "pass") {
+        try {
+            await apiRequest(`/api/domains/${setupWizardDomain}/dns/fix`, "POST", { records: ["verification"] });
+            await loadSetupVerifyHealth();
+        } catch (err) {
+            showAlert("error", err.message);
+        }
+    }
+}
+
+async function enterMailDnsStep() {
+    setSetupDomainLabel("setup-step4-domain-label");
+    const wd = document.getElementById("setup-webmail-domain");
+    if (wd) wd.textContent = setupWizardDomain;
+    await loadSetupDnsHealth();
+}
+
+function setupHealthComplete(health) {
+    return !Object.values(health?.checks || {}).some(
+        c => c.status === "warn" || c.status === "fail" || c.status === "pending"
+    );
+}
+
+function stopSetupHealthPolling() {
+    if (setupHealthPollTimer) {
+        clearTimeout(setupHealthPollTimer);
+        setupHealthPollTimer = null;
+    }
+}
+
+// Poll setup-health every ~15s, live-updating the checklist, until everything
+// passes or a ~3 minute deadline. Single in-flight request at a time.
+function startSetupHealthPolling() {
+    stopSetupHealthPolling();
+    setupHealthPollDeadline = Date.now() + 180000;
+    const tick = async () => {
+        if (setupWizardStep !== 4) return;
+        if (setupHealthPollInFlight) {
+            setupHealthPollTimer = setTimeout(tick, 15000);
+            return;
+        }
+        setupHealthPollInFlight = true;
+        let health = null;
+        try {
+            health = await loadSetupDnsHealth({ silent: true });
+        } finally {
+            setupHealthPollInFlight = false;
+        }
+        if (setupWizardStep !== 4) return;
+        if (health && setupHealthComplete(health)) {
+            showAlert("success", `DNS for ${setupWizardDomain} is fully live.`);
+            return;
+        }
+        if (Date.now() >= setupHealthPollDeadline) return;
+        setupHealthPollTimer = setTimeout(tick, 15000);
+    };
+    setupHealthPollTimer = setTimeout(tick, 15000);
 }
 
 function showSetupDnsProgress(steps, isError = false) {
@@ -1571,7 +1679,7 @@ function showSetupDnsProgress(steps, isError = false) {
     }
 }
 
-async function handleFixDnsRecord(recordType) {
+async function handleFixDnsRecord(recordType, { verify = false } = {}) {
     if (!setupWizardDomain) return;
     try {
         const result = await apiRequest(
@@ -1586,35 +1694,39 @@ async function handleFixDnsRecord(recordType) {
         } else {
             showAlert("info", "Record already exists or was not applicable.");
         }
-        await loadSetupDnsHealth();
         invalidateDomainCache(setupWizardDomain);
         await loadDomainsList({ force: true });
+        if (verify) await loadSetupVerifyHealth();
+        else await loadSetupDnsHealth();
     } catch (err) {
         if (err.steps) showSetupDnsProgress(err.steps, true);
         showAlert("error", err.message);
     }
 }
 
-async function handleFixAllDns() {
+async function handleSetupDeployAll() {
     if (!setupWizardDomain) return;
-    const btn = document.getElementById("btn-setup-fix-all-dns");
+    const btn = document.getElementById("btn-setup-deploy-all");
+    const records = ["mx", "spf", "dkim", "dmarc"];
+    if (document.getElementById("setup-webmail-enabled")?.checked) records.push("webmail");
     if (btn) btn.disabled = true;
     try {
         const result = await apiRequest(
             `/api/domains/${setupWizardDomain}/dns/fix`,
             "POST",
-            {}
+            { records }
         );
         if (result.data?.steps) showSetupDnsProgress(result.data.steps);
         const fixed = result.data?.fixed || [];
         if (fixed.length > 0) {
-            showAlert("success", `Fixed: ${fixed.join(", ").toUpperCase()}. DNS propagation may take a few minutes.`);
+            showAlert("success", `Deployed: ${fixed.join(", ").toUpperCase()}. DNS propagation may take a few minutes.`);
         } else {
-            showAlert("info", "No missing records to fix.");
+            showAlert("info", "All records already in place.");
         }
-        await loadSetupDnsHealth();
         invalidateDomainCache(setupWizardDomain);
         await loadDomainsList({ force: true });
+        await loadSetupDnsHealth();
+        startSetupHealthPolling();
     } catch (err) {
         if (err.steps) showSetupDnsProgress(err.steps, true);
         showAlert("error", err.message);
@@ -1623,84 +1735,75 @@ async function handleFixAllDns() {
     }
 }
 
-function openDomainDnsSetup(domain, startStep = 2) {
-    setupWizardDomain = domain.toLowerCase().trim();
-    document.querySelector('input[name="setup-domain-mode"][value="existing"]').checked = true;
-    document.getElementById("setup-existing-container").style.display = "block";
-    document.getElementById("setup-new-container").style.display = "none";
-
-    populateSetupDomainSelect().then(() => {
-        const select = document.getElementById("setup-domain-select");
-        if (select) select.value = setupWizardDomain;
-        setSetupWizardStep(startStep);
-        if (startStep >= 2) loadSetupDnsHealth();
-        if (startStep === 3) updateSetupStep3State();
-        document.getElementById("domain-setup-wizard")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-}
-
 async function updateSetupStep3State() {
-    const label = document.getElementById("setup-step3-domain-label");
     const statusEl = document.getElementById("setup-mxroute-status");
     const registerBtn = document.getElementById("btn-setup-register-mxroute");
-    const returnBtn = document.getElementById("btn-setup-step3-dns");
+    const nextBtn = document.getElementById("btn-setup-step3-next");
 
-    if (label) label.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
+    setSetupDomainLabel("setup-register-domain-label");
 
     try {
         const result = await apiRequest(`/api/domains/${setupWizardDomain}/dns/setup-health`);
         const onMxroute = result.data?.on_mxroute;
         if (statusEl) {
             statusEl.innerHTML = onMxroute
-                ? `<span class="status-indicator success"><span class="dot"></span> Already registered on MXroute</span>`
+                ? `<span class="status-indicator success"><span class="dot"></span> Registered on MXroute</span>`
                 : `<span class="status-indicator warning"><span class="dot"></span> Not yet registered on MXroute</span>`;
         }
         if (registerBtn) registerBtn.style.display = onMxroute ? "none" : "inline-flex";
-        if (returnBtn) returnBtn.style.display = onMxroute ? "inline-flex" : "none";
+        if (nextBtn) nextBtn.style.display = onMxroute ? "inline-flex" : "none";
     } catch (err) {
         if (statusEl) statusEl.innerHTML = `<span style="color: var(--danger);">${escapeHtml(err.message)}</span>`;
     }
 }
 
-function initSetupWizard() {
-    document.querySelectorAll('input[name="setup-domain-mode"]').forEach(radio => {
-        radio.addEventListener("change", () => {
-            const isNew = radio.value === "new" && radio.checked;
-            document.getElementById("setup-existing-container").style.display = isNew ? "none" : "block";
-            document.getElementById("setup-new-container").style.display = isNew ? "block" : "none";
-        });
-    });
+function isLikelyDomain(value) {
+    return /^(?=.{1,253}$)([a-z0-9](-?[a-z0-9])*\.)+[a-z]{2,}$/i.test(value);
+}
 
+function initSetupWizard() {
     document.getElementById("btn-setup-step1-next")?.addEventListener("click", async () => {
         const domain = getSetupDomainValue();
-        if (!domain) {
-            showAlert("warning", "Please select or enter a domain name.");
+        if (!domain || !isLikelyDomain(domain)) {
+            showAlert("warning", "Please enter a valid domain name (e.g. example.com).");
             return;
         }
         setupWizardDomain = domain;
         setSetupWizardStep(2);
-        await loadSetupDnsHealth();
+        await enterVerifyStep();
     });
 
+    document.getElementById("btn-setup-verify-recheck")?.addEventListener("click", loadSetupVerifyHealth);
+
     document.getElementById("btn-setup-step2-back")?.addEventListener("click", () => setSetupWizardStep(1));
-    document.getElementById("btn-setup-step2-mxroute")?.addEventListener("click", async () => {
+    document.getElementById("btn-setup-step2-next")?.addEventListener("click", async () => {
         setSetupWizardStep(3);
         await updateSetupStep3State();
     });
-    document.getElementById("btn-setup-step2-done")?.addEventListener("click", () => {
-        showAlert("success", `DNS setup complete for ${setupWizardDomain}.`);
-        setSetupWizardStep(1);
-    });
-    document.getElementById("btn-setup-recheck-dns")?.addEventListener("click", loadSetupDnsHealth);
-    document.getElementById("btn-setup-fix-all-dns")?.addEventListener("click", handleFixAllDns);
 
     document.getElementById("btn-setup-step3-back")?.addEventListener("click", async () => {
         setSetupWizardStep(2);
-        await loadSetupDnsHealth();
+        await loadSetupVerifyHealth();
     });
-    document.getElementById("btn-setup-step3-dns")?.addEventListener("click", async () => {
-        setSetupWizardStep(2);
-        await loadSetupDnsHealth();
+    document.getElementById("btn-setup-step3-next")?.addEventListener("click", async () => {
+        setSetupWizardStep(4);
+        await enterMailDnsStep();
+    });
+
+    document.getElementById("btn-setup-recheck-dns")?.addEventListener("click", () => loadSetupDnsHealth());
+    document.getElementById("btn-setup-deploy-all")?.addEventListener("click", handleSetupDeployAll);
+
+    document.getElementById("btn-setup-step4-back")?.addEventListener("click", async () => {
+        setSetupWizardStep(3);
+        await updateSetupStep3State();
+    });
+    document.getElementById("btn-setup-step4-done")?.addEventListener("click", () => {
+        stopSetupHealthPolling();
+        showAlert("success", `Setup complete for ${setupWizardDomain}.`);
+        const input = document.getElementById("setup-domain-input");
+        if (input) input.value = "";
+        setupWizardDomain = "";
+        setSetupWizardStep(1);
     });
 
     document.getElementById("btn-setup-register-mxroute")?.addEventListener("click", async () => {
@@ -1711,12 +1814,13 @@ function initSetupWizard() {
         }
         try {
             await apiRequest("/api/domains", "POST", { domain: setupWizardDomain });
-            showAlert("success", `${setupWizardDomain} registered on MXroute. Return to Step 2 to add DKIM and mail DNS records.`);
+            showAlert("success", `${setupWizardDomain} registered on MXroute. Continue to deploy mail DNS records.`);
             invalidateApiCache("/api/domains");
             await initDomainDropdowns();
             await loadDomainsList({ force: true });
             await updateSetupStep3State();
-            document.getElementById("btn-setup-step3-dns").style.display = "inline-flex";
+            const nextBtn = document.getElementById("btn-setup-step3-next");
+            if (nextBtn) nextBtn.style.display = "inline-flex";
         } catch (err) {
             showAlert("error", err.message);
         } finally {
@@ -1726,8 +1830,6 @@ function initSetupWizard() {
             }
         }
     });
-
-    populateSetupDomainSelect();
 }
 
 // Delete Domain
@@ -2094,6 +2196,114 @@ function initMailboxActionMenus() {
             handleDeleteEmail(username);
         }
     });
+}
+
+// --- Active Account Domains row actions menu ---
+function initDomainActionMenus() {
+    const tbody = document.getElementById("domains-list-tbody");
+    if (!tbody || tbody.dataset.actionMenuInit === "true") return;
+    tbody.dataset.actionMenuInit = "true";
+
+    if (!document.body.dataset.mailboxActionMenuDocInit) {
+        document.body.dataset.mailboxActionMenuDocInit = "true";
+        document.addEventListener("click", closeMailboxActionMenus);
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") closeMailboxActionMenus();
+        });
+    }
+
+    tbody.addEventListener("click", (event) => {
+        const toggle = event.target.closest(".action-menu-toggle");
+        if (toggle) {
+            event.stopPropagation();
+            const menu = toggle.closest("[data-action-menu]");
+            const wasOpen = menu?.classList.contains("is-open");
+            closeMailboxActionMenus();
+            if (menu && !wasOpen) {
+                menu.classList.add("is-open");
+                toggle.setAttribute("aria-expanded", "true");
+                const panel = menu.querySelector(".action-menu-panel");
+                if (panel) panel.hidden = false;
+            }
+            return;
+        }
+
+        const item = event.target.closest(".action-menu-item");
+        if (!item) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        closeMailboxActionMenus();
+
+        const menu = item.closest("[data-action-menu]");
+        const domain = menu?.dataset.domain;
+        const action = item.dataset.action;
+        if (!domain || !action) return;
+        handleDomainAction(domain, action);
+    });
+}
+
+function handleDomainAction(domain, action) {
+    switch (action) {
+        case "webmail-open":
+            window.open(`https://webmail.${domain}`, "_blank", "noopener");
+            return;
+        case "fix-dns":
+            return handleDomainFixDns(domain);
+        case "webmail-deploy":
+            return handleDomainWebmailDeploy(domain);
+        case "toggle-routing":
+            return handleDomainToggleRouting(domain);
+        case "delete":
+            return handleDeleteDomain(domain);
+    }
+}
+
+async function handleDomainFixDns(domain) {
+    try {
+        const result = await apiRequest(`/api/domains/${domain}/dns/fix`, "POST", {});
+        const fixed = result.data?.fixed || [];
+        showAlert(
+            fixed.length ? "success" : "info",
+            fixed.length
+                ? `Fixed ${fixed.join(", ").toUpperCase()} for ${domain}. DNS propagation may take a few minutes.`
+                : `No missing records to fix for ${domain}.`
+        );
+        invalidateDomainCache(domain);
+        await refreshDomainRowDetails(domain, { force: true });
+    } catch (err) {
+        showAlert("error", err.message);
+    }
+}
+
+async function handleDomainWebmailDeploy(domain) {
+    try {
+        const result = await apiRequest(`/api/domains/${domain}/dns/fix`, "POST", { records: ["webmail"] });
+        const fixed = result.data?.fixed || [];
+        showAlert(
+            fixed.length ? "success" : "info",
+            fixed.length
+                ? `Webmail CNAME deployed for ${domain}. It may take a few minutes to resolve.`
+                : `Webmail for ${domain} is already set up or unavailable (check MX_SERVER).`
+        );
+        invalidateDomainCache(domain);
+        await refreshDomainRowDetails(domain, { force: true });
+    } catch (err) {
+        showAlert("error", err.message);
+    }
+}
+
+async function handleDomainToggleRouting(domain) {
+    const cached = domainRowCache.get(domain) || {};
+    const nextState = !(cached.mailOn ?? true);
+    try {
+        await apiRequest(`/api/domains/${domain}/mail-status`, "PATCH", { enabled: nextState });
+        showAlert("success", `Mail routing ${nextState ? "enabled" : "disabled"} for ${domain}.`);
+        invalidateDomainCache(domain);
+        await refreshDomainRowDetails(domain, { force: true });
+    } catch (err) {
+        showAlert("error", err.message);
+    }
 }
 
 function renderEmailsList(result, domain) {
@@ -3114,6 +3324,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await initDomainDropdowns();
     initResetPortal();
     initMailboxActionMenus();
+    initDomainActionMenus();
     
     // 4. Domain DNS wizard (admin or users with dns permission)
     const canManageDns = currentUser?.is_admin || getUserPermissionUnion().has("dns");
@@ -3128,7 +3339,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (cfMissing) {
                     cfMissing.style.display = setupCfConfigured ? "none" : "block";
                 }
-                if (setupWizardStep === 2 && setupCurrentHealth) {
+                if (setupWizardStep === 4 && setupCurrentHealth) {
                     renderSetupDnsChecks(setupCurrentHealth);
                 }
             } catch (e) {

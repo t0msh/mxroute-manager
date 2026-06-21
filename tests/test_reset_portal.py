@@ -8,7 +8,7 @@ import pytest
 from services.reset_portal import get_portal_branding_context
 from utils.themes import normalize_theme
 from utils.validators import validate_subdomain_prefix
-from tests.helpers import csrf_token_from_response
+from tests.helpers import csrf_token_from_response, insert_user_with_grants, prime_authenticated_session, auth_post_headers
 
 
 @pytest.fixture(autouse=True)
@@ -216,3 +216,52 @@ def test_logo_upload_validation(fresh_db, client, db_connection):
     assert response.status_code == 200
     portal = fresh_db.get_reset_portal("example.com")
     assert portal["logo_filename"] == "logo.png"
+
+
+def test_deploy_reset_portal_uses_current_user_contact_email(fresh_db, client, db_connection):
+    from unittest.mock import patch
+
+    fresh_db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")
+    insert_user_with_grants(
+        db_connection,
+        "dean@local",
+        grants=[{"domain": "cleaver.click", "permissions": ["dns"]}],
+    )
+    fresh_db.set_user_contact_email("dean@local", "dean.personal@gmail.com")
+    token = prime_authenticated_session(client, "dean@local")
+
+    with patch("routes.reset_portal.deploy_reset_portal") as mock_deploy:
+        mock_deploy.return_value = {"steps": ["ok"], "host": "reset.cleaver.click"}
+        response = client.post(
+            "/api/domains/cleaver.click/reset-portal/deploy-dns",
+            headers=auth_post_headers(token),
+        )
+
+    assert response.status_code == 200
+    mock_deploy.assert_called_once_with(
+        "cleaver.click",
+        "reset",
+        admin_email="dean.personal@gmail.com",
+    )
+
+
+def test_deploy_reset_portal_rejects_user_without_contact_email(fresh_db, client, db_connection):
+    from unittest.mock import patch
+
+    fresh_db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")
+    insert_user_with_grants(
+        db_connection,
+        "dean",
+        grants=[{"domain": "cleaver.click", "permissions": ["dns"]}],
+    )
+    token = prime_authenticated_session(client, "dean")
+
+    with patch("routes.reset_portal.deploy_reset_portal") as mock_deploy:
+        response = client.post(
+            "/api/domains/cleaver.click/reset-portal/deploy-dns",
+            headers=auth_post_headers(token),
+        )
+
+    assert response.status_code == 400
+    assert "contact email" in response.get_json()["error"]["message"].lower()
+    mock_deploy.assert_not_called()

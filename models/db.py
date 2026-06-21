@@ -611,6 +611,11 @@ def resolve_notification_email(login_identifier, contact_email=None):
     return None
 
 
+def get_admin_notification_email():
+    """Deliverable contact for ADMIN_USER when no logged-in user context exists."""
+    return resolve_notification_email(get_admin_user())
+
+
 def set_user_contact_email(login_identifier, contact_email, is_admin=None):
     login_identifier = (login_identifier or "").strip().lower()
     if not login_identifier:

@@ -21,6 +21,16 @@ def test_missing_deploy_config_empty_when_ready():
     assert missing_deploy_config() == []
 
 
+def test_deploy_reset_portal_requires_contact_email(fresh_db):
+    fresh_db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")
+
+    try:
+        deploy_reset_portal("cleaver.click", "reset", admin_email="")
+        assert False, "expected ValueError"
+    except ValueError as exc:
+        assert "contact email is required" in str(exc).lower()
+
+
 def test_friendly_https_error_messages():
     assert "resolve" in _friendly_https_error(Exception("Failed to resolve 'reset.example.com'")).lower()
     assert "time" in _friendly_https_error(Exception("Read timed out. (read timeout=8)")).lower()
@@ -54,9 +64,11 @@ def test_deploy_reset_portal_orchestration(fresh_db):
     with patch("services.reset_portal_deploy.deploy_reset_portal_cname", return_value=dns_result), \
          patch("services.reset_portal_deploy.deploy_reset_portal_proxy_letsencrypt", return_value=npm_result), \
          patch("services.reset_portal_deploy.cf_origin_ca_is_configured", return_value=False), \
+         patch("services.reset_portal_deploy.ensure_reset_sender_forwarder", return_value="added") as mock_forwarder, \
          patch("services.reset_portal_deploy.audit"):
-        result = deploy_reset_portal("cleaver.click", "reset")
+        result = deploy_reset_portal("cleaver.click", "reset", admin_email="admin@example.com")
 
+    mock_forwarder.assert_called_once_with("cleaver.click", "admin@example.com", result["steps"])
     assert result["host"] == "reset.cleaver.click"
     assert result["npm"]["certificate_mode"] == "letsencrypt_dns"
     assert result["https"]["status"] == "pending"

@@ -1322,10 +1322,12 @@ async function populateResetPortalDomainSelect() {
 function updateResetPortalUrlPreview() {
     const preview = document.getElementById("reset-portal-url-preview");
     const prefixInput = document.getElementById("reset-portal-prefix");
+    const senderDomain = document.getElementById("reset-portal-sender-domain");
     if (!preview || !prefixInput) return;
     const prefix = prefixInput.value.trim().toLowerCase() || "reset";
     const domain = resetPortalDomain || "example.com";
     preview.textContent = `https://${prefix}.${domain}`;
+    if (senderDomain) senderDomain.textContent = domain;
 }
 
 function getResetPortalFormValues() {

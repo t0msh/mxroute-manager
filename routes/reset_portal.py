@@ -27,7 +27,8 @@ from services.reset_portal import (
     logo_path_for_portal,
 )
 from utils.validators import validate_domain, validate_subdomain_prefix
-from utils.auth_helpers import require_permission
+from models.db import get_user_contact_email, resolve_notification_email
+from utils.auth_helpers import require_permission, get_current_user
 from utils.themes import normalize_theme, DEFAULT_THEME
 
 reset_portal_bp = Blueprint("reset_portal", __name__)
@@ -231,8 +232,26 @@ def deploy_reset_portal_dns(domain):
             },
         }), 400
 
+    current_user = get_current_user()
+    login_identifier = (current_user or {}).get("email", "").strip().lower()
+    admin_email = resolve_notification_email(
+        login_identifier,
+        get_user_contact_email(login_identifier),
+    )
+    if not admin_email:
+        return jsonify({
+            "success": False,
+            "error": {
+                "message": (
+                    "No deliverable contact email for your account. "
+                    "Add a contact email in Settings or Access Control, "
+                    "or sign in with an email-based login."
+                ),
+            },
+        }), 400
+
     try:
-        result = deploy_reset_portal(domain, portal["subdomain_prefix"])
+        result = deploy_reset_portal(domain, portal["subdomain_prefix"], admin_email=admin_email)
         return jsonify({"success": True, "data": result})
     except Exception as exc:
         return jsonify({"success": False, "error": {"message": str(exc)}}), 400

@@ -72,6 +72,30 @@ def test_reset_request_sends_email_when_recovery_exists(fresh_db, client, db_con
     assert response.status_code == 200
     mock_send.assert_called_once()
     assert mock_send.call_args[0][0] == RECOVERY
+    assert mock_send.call_args.kwargs.get("from_address") is None
+
+
+def test_reset_request_uses_branded_from_when_portal_enabled(fresh_db, client, db_connection):
+    fresh_db.upsert_reset_portal("example.com", True, "reset", "Example Org")
+    db_connection.execute(
+        "INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at) VALUES (?, ?, ?)",
+        (MAILBOX, RECOVERY, "2026-01-01T00:00:00+00:00"),
+    )
+    db_connection.commit()
+
+    with patch("routes.password_reset.is_password_reset_available", return_value=True), \
+         patch("routes.password_reset.send_password_reset_email") as mock_send, \
+         patch("routes.password_reset.write_audit_log"):
+        csrf = _public_csrf(client)
+        response = client.post(
+            "/api/public/password-reset/request",
+            headers=auth_post_headers(csrf),
+            json={"mailbox_email": MAILBOX},
+        )
+
+    assert response.status_code == 200
+    mock_send.assert_called_once()
+    assert mock_send.call_args.kwargs["from_address"] == "Example Org <reset@example.com>"
 
 
 def test_reset_confirm_rejects_weak_password(fresh_db, client):

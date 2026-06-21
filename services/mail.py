@@ -95,7 +95,20 @@ def send_email(to_address, subject, body, smtp_config=None):
         raise
 
 
-def send_password_reset_email(recovery_email, mailbox_email, reset_url, smtp_config=None):
+def smtp_config_with_from(smtp_config=None, from_address=None):
+    config = dict(smtp_config or smtp_config_from_settings())
+    if from_address:
+        config["from_address"] = from_address
+    return config
+
+
+def send_password_reset_email(
+    recovery_email,
+    mailbox_email,
+    reset_url,
+    smtp_config=None,
+    from_address=None,
+):
     body = "\n".join([
         "You requested a password reset for your mailbox.",
         "",
@@ -110,7 +123,7 @@ def send_password_reset_email(recovery_email, mailbox_email, reset_url, smtp_con
         recovery_email,
         "Reset your mailbox password",
         body,
-        smtp_config=smtp_config,
+        smtp_config=smtp_config_with_from(smtp_config, from_address),
     )
 
 

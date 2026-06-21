@@ -4,6 +4,7 @@
     <div class="glass-card" id="domain-setup-wizard">
         <h3 class="card-title">{{ icon('globe') }} Add a New Domain</h3>
         <p class="stat-card-subtitle mb-4">Register a new domain on MXroute and deploy its Cloudflare DNS records in four guided steps. To fix DNS on an existing domain, use its Actions menu below.</p>
+        <p class="status-banner info mb-4" style="font-size: 0.85rem;">Nameservers must already point to <strong>Cloudflare</strong>; DNS deployed here only applies once Cloudflare is authoritative for the zone.</p>
 
         <div class="setup-wizard-steps">
             <div class="setup-wizard-step active" data-step="1">
@@ -26,9 +27,6 @@
 
         <!-- Step 1: Choose Domain -->
         <div class="setup-wizard-panel" id="setup-step-1">
-            <div class="alert-banner info mb-4">
-                Before you start, the domain's nameservers must already point to <strong>Cloudflare</strong>. DNS records deployed here will only take effect once Cloudflare is authoritative for the zone.
-            </div>
             <div class="telemetry-item mb-4">
                 <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">New domain</div>
                 <div class="mt-4">
@@ -42,7 +40,7 @@
         <div class="setup-wizard-panel" id="setup-step-2" style="display: none;">
             <div id="setup-verify-domain-label" class="setup-domain-banner mb-4"></div>
 
-            <div id="setup-cf-missing" class="alert-banner info mb-4" style="display: none;">
+            <div id="setup-cf-missing" class="status-banner info mb-4" style="display: none;">
                 Cloudflare is not configured. Set <code>CF_API_TOKEN</code> and <code>CF_ACCOUNT_ID</code> in Settings to enable automatic DNS deployment.
             </div>
 
@@ -86,8 +84,8 @@
         <div class="setup-wizard-panel" id="setup-step-4" style="display: none;">
             <div id="setup-step4-domain-label" class="setup-domain-banner mb-4"></div>
 
-            <div id="setup-mxroute-complete-notice" class="alert-banner info mb-4">
-                Domain is registered on MXroute. Deploy the mail DNS records below — the checklist refreshes automatically until everything is live.
+            <div id="setup-mxroute-complete-notice" class="status-banner info mb-4">
+                Domain is registered on MXroute. Deploy the mail DNS records below. The checklist refreshes automatically until everything is live.
             </div>
 
             <label class="setup-mode-option mb-4" style="display: flex; align-items: center; gap: 0.6rem;">
@@ -120,7 +118,7 @@
     <!-- Password Reset Portal -->
     <div class="glass-card" id="reset-portal-card">
         <h3 class="card-title">{{ icon('shield-lock') }} Password Reset Portal</h3>
-        <p class="stat-card-subtitle mb-4">Expose a branded mailbox password reset page on a subdomain. Configure branding below, then use one button to publish DNS and TLS.</p>
+        <p class="stat-card-subtitle mb-4">Expose a branded mailbox password reset page on a subdomain. Configure branding below, then use one button to publish DNS and TLS. Reset emails for this domain are sent from <code>reset@<span id="reset-portal-sender-domain">example.com</span></code>; deploy creates a forwarder to your contact email for MXroute sender verification.</p>
 
         <div class="telemetry-item mb-4">
             <div class="telemetry-item-label" style="font-weight: 600; color: var(--accent);">Domain</div>

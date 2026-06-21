@@ -8,6 +8,7 @@ from models.db import (
     create_reset_token,
     consume_reset_token,
     get_recovery_email,
+    get_active_reset_portal_for_mailbox_domain,
     is_mailbox_reset_enabled,
     parse_mailbox_email,
     build_reset_portal_url,
@@ -15,6 +16,7 @@ from models.db import (
 from services.mail import is_password_reset_available, is_smtp_configured, send_password_reset_email
 from services.mxroute import mx_request_raw
 from services.reset_portal import get_portal_branding_context
+from services.reset_portal_mail import build_portal_reset_from_address
 from utils.audit_log import write_audit_log
 from utils.validators import is_email_identifier, validate_mailbox_password
 
@@ -110,7 +112,14 @@ def password_reset_request():
         )
 
     try:
-        send_password_reset_email(recovery_email, mailbox_email, reset_url)
+        portal = get_active_reset_portal_for_mailbox_domain(domain)
+        from_address = build_portal_reset_from_address(portal, domain) if portal else None
+        send_password_reset_email(
+            recovery_email,
+            mailbox_email,
+            reset_url,
+            from_address=from_address,
+        )
         _audit_public("mailbox.reset_requested", target=mailbox_email)
     except Exception:
         pass

@@ -85,13 +85,17 @@ A branded portal is a **dedicated hostname** for one mail domain (e.g. `reset.cu
 
 ### Admin setup
 
-1. Configure [SMTP and enable self-service reset](#shared-requirements).
+1. Configure [SMTP and enable self-service reset](#shared-requirements). Set **your contact email** in Settings (admins) or Access Control (delegated users); portal deploy uses the logged-in user's contact email for the `reset@{domain}` forwarder.
 2. Configure Cloudflare and [Nginx Proxy Manager](reverse-proxy.md) (`CF_*`, `NPM_*`, `RESET_PORTAL_CNAME_TARGET`).
 3. Open **Domains**, select the domain, and expand **Password Reset Portal**.
 4. Set subdomain prefix (e.g. `reset`), title, theme, and optional logo.
-5. Click **Deploy Portal** to save settings, publish the Cloudflare CNAME, and create the NPM proxy host with TLS.
+5. Click **Deploy Portal** to save settings, create the `reset@{domain}` forwarder on MXroute, publish the Cloudflare CNAME, and create the NPM proxy host with TLS.
 
-Disabling the portal or running teardown removes DNS and NPM resources when automation is configured.
+**Branded From address:** When a portal is enabled for a domain, password reset emails use `reset@{domain}` as the sender (display name = portal title, or “Password Reset”). MXroute requires that address to exist locally; deploy creates `reset@{domain}` as a forwarder to **your** contact email unless the domain already has a catch-all that satisfies sender verification. The global `RESET_SMTP_*` credentials are still used for SMTP authentication.
+
+See [MXroute sender verification](#mxroute-sender-verification-from-addresses) for why this is required and how the app handles it.
+
+Disabling the portal or running teardown removes DNS and NPM resources when automation is configured. The `reset@{domain}` forwarder is left in place; delete it manually under **Forwarders** if you no longer need it.
 
 Detailed deploy steps: [Reverse proxy - Branded reset portals](reverse-proxy.md#branded-reset-portals).
 
@@ -100,6 +104,37 @@ Detailed deploy steps: [Reverse proxy - Branded reset portals](reverse-proxy.md#
 Requests to the portal hostname are resolved in middleware (`get_reset_portal_by_host`). Only public reset paths are allowed on that host - the main admin UI is not exposed on `reset.example.com`.
 
 Allowed paths include `/`, `/reset-password`, password-reset APIs, and the public logo endpoint.
+
+### MXroute sender verification (From addresses)
+
+When you send mail through MXroute SMTP, the server checks whether the **From** address can be delivered **locally** on that MXroute account. If it cannot, SMTP returns **Sender verify failed**. MX records and external mail hosting do not matter; only mailboxes, forwarders, and catch-all routing on the MXroute server count.
+
+See [MXroute: Fixing "Sender verify failed" errors](https://docs.mxroute.com/docs/troubleshooting/sender-verify-failed.html) for the upstream explanation.
+
+#### What MXroute Manager sends
+
+| Reset path | From address | SMTP authentication |
+| --- | --- | --- |
+| Login-page reset (no portal for that domain) | Global `RESET_SMTP_FROM` from Settings | Global `RESET_SMTP_USER` / `RESET_SMTP_PASSWORD` |
+| Branded portal (portal enabled for that domain) | `reset@{domain}` (display name = portal title or “Password Reset”) | Same global `RESET_SMTP_*` credentials |
+
+The SMTP username does not have to match the From address. Sender verification only requires that the From address exists on the domain in MXroute.
+
+#### How we satisfy sender verify for branded portals
+
+On **Deploy Portal**, the app idempotently ensures MXroute can deliver to `reset@{domain}`:
+
+1. **Catch-all shortcut:** If the domain already has catch-all set to **Address** (forward to a mailbox) or **Blackhole**, any local address including `reset@{domain}` already passes sender verify. No extra forwarder is created; deploy logs that catch-all covers it.
+2. **Forwarder (default):** Otherwise the app creates or updates `reset@{domain}` as a forwarder to the **contact email of the user deploying the portal** (Settings for admins, Access Control for delegated users). Bounces and mistaken replies land there.
+3. **Teardown:** Disabling the portal does **not** delete the forwarder (harmless if you re-enable later). Remove it manually under **Forwarders** if you no longer need it.
+
+You need a deliverable contact email on your account before deploy will run (same requirement as **Send Test Email** in Settings).
+
+#### What we do not auto-provision
+
+- A full **mailbox** for `reset@{domain}` (unnecessary quota use; a forwarder is enough).
+- A new **catch-all** just for reset mail (too broad; only reuse an existing catch-all).
+- Per-domain SMTP passwords (global `RESET_SMTP_*` stays the single auth path).
 
 ---
 
@@ -112,6 +147,7 @@ Allowed paths include `/`, `/reset-password`, password-reset APIs, and the publi
 | **Domain scope** | Any mailbox on the account (if recovery email set) | Only mailboxes on the portal’s domain |
 | **Infrastructure** | SMTP only | SMTP + Cloudflare + NPM |
 | **Email link target** | Main app, unless portal enabled for domain | Portal hostname when enabled |
+| **Email From address** | Global `RESET_SMTP_FROM` | `reset@{domain}` when portal enabled |
 
 A domain can use a branded portal while other domains on the same installation still use the main-app reset link.
 
@@ -143,6 +179,8 @@ Failed SMTP sends do not reveal errors to the end user; the request still return
 | No email received | Recovery email set, SMTP test in Settings, spam folder, audit log for `smtp.send_failed` |
 | Link goes to wrong host | Branded portal enabled/disabled for that domain; `FORCE_HTTPS` and public URL |
 | Portal deploy button missing | `CF_*`, `NPM_*`, `RESET_PORTAL_CNAME_TARGET` - [Configuration](configuration.md#branded-reset-portals) |
+| Portal deploy fails on contact email | Add a contact email for your account in Settings or Access Control, or sign in with an email-based login |
+| Reset email From rejected by MXroute | Ensure `reset@{domain}` forwarder exists (re-deploy portal) or domain has catch-all; see [MXroute sender verify](https://docs.mxroute.com/docs/troubleshooting/sender-verify-failed.html) |
 | “Invalid or expired reset link” | Token older than 1 hour, already used, or wrong portal domain |
 
 ---

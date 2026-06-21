@@ -6,6 +6,7 @@ from models.db import build_portal_host
 from services.cf_origin_ca import cf_origin_ca_is_configured, create_origin_certificate
 from services.cloudflare import cf_is_configured, deploy_reset_portal_cname, check_reset_portal_dns, remove_reset_portal_cname
 from services.mxroute import audit
+from services.reset_portal_mail import ensure_reset_sender_forwarder
 from services.npm import (
     npm_is_configured,
     deploy_reset_portal_proxy,
@@ -123,7 +124,7 @@ def _provision_npm_tls(portal_host, steps):
     return deploy_reset_portal_proxy_letsencrypt(portal_host, steps)
 
 
-def deploy_reset_portal(domain, prefix):
+def deploy_reset_portal(domain, prefix, admin_email=None):
     missing = missing_deploy_config()
     if missing:
         raise ValueError("Reset portal deploy is not fully configured: " + ", ".join(missing))
@@ -135,6 +136,16 @@ def deploy_reset_portal(domain, prefix):
     domain = domain.lower().strip()
     portal_host = build_portal_host(prefix, domain)
     steps = []
+
+    admin_email = (admin_email or "").strip().lower()
+    if not admin_email:
+        raise ValueError(
+            "A contact email is required before deploying a reset portal. "
+            "Add one in Settings or Access Control (or sign in with an email-based login)."
+        )
+
+    steps.append("Ensuring reset@ sender forwarder on MXroute...")
+    ensure_reset_sender_forwarder(domain, admin_email, steps)
 
     steps.append("Deploying Cloudflare CNAME...")
     dns_result = deploy_reset_portal_cname(domain, prefix)

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
     dnsNeedsFix,
     escapeHtml,
+    formatAuditLogDetailsHtml,
     formatMailboxCredentialsText,
     jsAttrString,
     renderDnsStatusBadge,
@@ -38,6 +39,32 @@ describe("formatMailboxCredentialsText", () => {
         assert.match(text, /IMAP Hostname: imap\.example\.com/);
         assert.match(text, /SMTP Hostname: smtp\.example\.com/);
         assert.match(text, /Webmail Link: https:\/\/webmail\.example\.com/);
+    });
+
+    it("omits webmail when URL is absent", () => {
+        const text = formatMailboxCredentialsText({
+            email: "u@example.com",
+            password: "secret",
+            imapHost: "imap.example.com",
+            smtpHost: "smtp.example.com",
+        });
+        assert.doesNotMatch(text, /Webmail Link/);
+    });
+});
+
+describe("formatAuditLogDetailsHtml", () => {
+    it("renders key-value pairs instead of raw JSON", () => {
+        const html = formatAuditLogDetailsHtml({ recovery_email: "a@b.com", outcome: "updated" });
+        assert.match(html, /Recovery Email:/);
+        assert.match(html, /a@b\.com/);
+        assert.match(html, /Outcome:/);
+        assert.match(html, /updated/);
+        assert.doesNotMatch(html, /\{/);
+    });
+
+    it("shows em dash for empty details", () => {
+        const html = formatAuditLogDetailsHtml({});
+        assert.match(html, /—/);
     });
 });
 

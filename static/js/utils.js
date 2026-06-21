@@ -24,13 +24,51 @@ export function jsAttrString(value) {
 }
 
 export function formatMailboxCredentialsText(creds) {
-    return [
+    const lines = [
         `Username (Email): ${creds.email}`,
         `Password: ${creds.password}`,
         `IMAP Hostname: ${creds.imapHost} (Port 993, SSL/TLS)`,
         `SMTP Hostname: ${creds.smtpHost} (Port 465, SSL/TLS)`,
-        `Webmail Link: ${creds.webmailUrl}`,
-    ].join("\n");
+    ];
+    if (creds.webmailUrl) {
+        lines.push(`Webmail Link: ${creds.webmailUrl}`);
+    }
+    return lines.join("\n");
+}
+
+function formatAuditDetailValue(value) {
+    if (value === null || value === undefined) return "—";
+    if (Array.isArray(value)) {
+        return value.map((item) => (typeof item === "object" ? JSON.stringify(item) : String(item))).join(", ");
+    }
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+}
+
+function formatAuditDetailLabel(key) {
+    return String(key)
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/** Human-readable audit log details for table display. */
+export function formatAuditLogDetailsHtml(details) {
+    if (details === null || details === undefined) {
+        return '<span style="color: var(--color-muted);">—</span>';
+    }
+    if (typeof details !== "object" || Array.isArray(details)) {
+        return `<span>${escapeHtml(formatAuditDetailValue(details))}</span>`;
+    }
+    const entries = Object.entries(details);
+    if (!entries.length) {
+        return '<span style="color: var(--color-muted);">—</span>';
+    }
+    const rows = entries.map(([key, value]) => {
+        const label = formatAuditDetailLabel(key);
+        const display = formatAuditDetailValue(value);
+        return `<div><span style="color: var(--color-muted);">${escapeHtml(label)}:</span> ${escapeHtml(display)}</div>`;
+    }).join("");
+    return `<div style="font-size: 0.75rem; line-height: 1.45; color: var(--color-secondary); max-width: 500px;">${rows}</div>`;
 }
 
 export function dnsNeedsFix(health) {

@@ -803,6 +803,11 @@ select:focus {
     color: var(--danger);
 }
 
+.action-menu-item:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 /* Tables styling */
 .table-container {
     width: 100%;
@@ -1407,8 +1412,7 @@ tr:hover td {
         display: grid;
         grid-template-columns: auto 1fr;
         grid-template-areas:
-            "toggle title"
-            "status status";
+            "toggle title";
         align-items: start;
         gap: 0.75rem 1rem;
     }
@@ -1421,11 +1425,6 @@ tr:hover td {
     header.content-header .header-title {
         grid-area: title;
         min-width: 0;
-    }
-
-    header.content-header #dns-health-status {
-        grid-area: status;
-        justify-self: start;
     }
 
     aside.sidebar {

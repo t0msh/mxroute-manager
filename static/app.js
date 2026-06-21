@@ -549,7 +549,13 @@ function showMailboxCredentials(creds) {
     document.getElementById("out-email-pass").textContent = creds.password;
     document.getElementById("out-imap-host").textContent = creds.imapHost;
     document.getElementById("out-smtp-host").textContent = creds.smtpHost;
-    document.getElementById("out-webmail-url").textContent = creds.webmailUrl;
+    const webmailRow = document.getElementById("out-webmail-row");
+    if (creds.webmailUrl) {
+        document.getElementById("out-webmail-url").textContent = creds.webmailUrl;
+        if (webmailRow) webmailRow.style.display = "";
+    } else if (webmailRow) {
+        webmailRow.style.display = "none";
+    }
     document.getElementById("credentials-output-card").style.display = "block";
     document.getElementById("credentials-output-card").scrollIntoView({ behavior: "smooth" });
 }
@@ -854,6 +860,87 @@ function dnsNeedsFix(health) {
     return window.Mxm.utils.dnsNeedsFix(health);
 }
 
+function actionMenuHtml(items) {
+    const menuItems = items.map(({ action, label, icon, danger = false, dataset = {}, disabled = false, title = "" }) => {
+        const dataAttrs = Object.entries(dataset)
+            .map(([key, value]) => `data-${escapeHtml(key)}="${escapeHtml(String(value ?? ""))}"`)
+            .join(" ");
+        const disabledAttr = disabled ? " disabled" : "";
+        const titleAttr = title ? ` title="${escapeHtml(title)}"` : "";
+        return `<button type="button" class="action-menu-item${danger ? " action-menu-item-danger" : ""}" role="menuitem" data-action="${escapeHtml(action)}" ${dataAttrs}${disabledAttr}${titleAttr}>${bi(icon)} ${escapeHtml(label)}</button>`;
+    }).join("");
+    return `
+        <div class="action-menu" data-action-menu>
+            <button type="button" class="btn btn-secondary btn-sm action-menu-toggle" aria-haspopup="menu" aria-expanded="false">
+                ${bi("three-dots-vertical")} Actions
+            </button>
+            <div class="action-menu-panel" role="menu" hidden>
+                ${menuItems}
+            </div>
+        </div>
+    `;
+}
+
+function closeActionMenus() {
+    document.querySelectorAll("[data-action-menu].is-open").forEach(menu => {
+        menu.classList.remove("is-open");
+        const toggle = menu.querySelector(".action-menu-toggle");
+        const panel = menu.querySelector(".action-menu-panel");
+        if (toggle) toggle.setAttribute("aria-expanded", "false");
+        if (panel) panel.hidden = true;
+    });
+}
+
+function ensureActionMenuDocListeners() {
+    if (document.body.dataset.actionMenuDocInit) return;
+    document.body.dataset.actionMenuDocInit = "true";
+    document.addEventListener("click", closeActionMenus);
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") closeActionMenus();
+    });
+}
+
+function initTableActionMenus(tbodyId, onItemAction) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody || tbody.dataset.actionMenuInit === "true") return;
+    tbody.dataset.actionMenuInit = "true";
+    ensureActionMenuDocListeners();
+
+    tbody.addEventListener("click", (event) => {
+        const toggle = event.target.closest(".action-menu-toggle");
+        if (toggle) {
+            event.stopPropagation();
+            const menu = toggle.closest("[data-action-menu]");
+            const wasOpen = menu?.classList.contains("is-open");
+            closeActionMenus();
+            if (menu && !wasOpen) {
+                menu.classList.add("is-open");
+                toggle.setAttribute("aria-expanded", "true");
+                const panel = menu.querySelector(".action-menu-panel");
+                if (panel) panel.hidden = false;
+            }
+            return;
+        }
+
+        const item = event.target.closest(".action-menu-item");
+        if (!item || item.disabled) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        closeActionMenus();
+        onItemAction(item);
+    });
+}
+
+function prefetchDomainsListStatus(domains) {
+    if (!domains?.length) return;
+    void window.Mxm.utils.mapWithConcurrency(
+        domains,
+        5,
+        (domain) => refreshDomainRowDetails(domain)
+    ).catch(() => {});
+}
+
 function domainActionsMenuHtml(domain, { fixDnsVisible, mailOn, webmailReady, cfConfigured, isAdmin, canDns }) {
     const items = [];
     if (canDns && fixDnsVisible) {
@@ -1073,6 +1160,7 @@ async function loadDomainsList({ force = false } = {}) {
         if (!sameList) {
             renderDomainsTableRows(domains);
         }
+        prefetchDomainsListStatus(domains);
     } catch (err) {
         if (firstLoad || !hasRows) {
             tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: 500;">Failed to load domains: ${escapeHtml(err.message)}</td></tr>`;
@@ -1194,7 +1282,7 @@ let resetPortalDeployConfigured = false;
 function highlightResetPortalTheme(themeId) {
     const theme = themeId || "emerald";
     resetPortalSelectedTheme = theme;
-    document.querySelectorAll("#reset-portal-theme-grid .portal-theme-card").forEach(card => {
+    document.querySelectorAll(".portal-theme-card[data-portal-theme]").forEach(card => {
         card.classList.toggle("active", card.getAttribute("data-portal-theme") === theme);
     });
 }
@@ -1411,7 +1499,7 @@ function initResetPortal() {
 
     document.getElementById("reset-portal-enabled")?.addEventListener("change", updateResetPortalSubmitButton);
 
-    document.querySelectorAll("#reset-portal-theme-grid .portal-theme-card").forEach(card => {
+    document.querySelectorAll(".portal-theme-card[data-portal-theme]").forEach(card => {
         card.addEventListener("click", () => {
             highlightResetPortalTheme(card.getAttribute("data-portal-theme"));
         });
@@ -1871,7 +1959,7 @@ async function loadPointersList(domain, { force = false } = {}) {
                     <td><strong>${escapeHtml(pointer.pointer)}</strong></td>
                     <td><span class="badge" style="font-size:0.75rem; padding:0.1rem 0.4rem; background:rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius:4px;">${escapeHtml(pointer.type)}</span></td>
                     <td style="text-align: right;">
-                        <button class="btn btn-danger btn-sm btn-icon" onclick="handleDeletePointer(${jsAttrString(pointer.pointer)})">×</button>
+                        ${actionMenuHtml([{ action: "delete", label: "Remove", icon: "trash", danger: true, dataset: { pointer: pointer.pointer } }])}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -1997,34 +2085,10 @@ document.getElementById("form-catch-all").addEventListener("submit", async (e) =
     }
 });
 
-function updateDnsHealthHeader(health) {
-    const statusEl = document.getElementById("dns-health-status");
-    const textEl = document.getElementById("dns-health-status-text");
-    if (!statusEl || !textEl) return;
-
-    if (!health) {
-        statusEl.className = "status-indicator";
-        textEl.textContent = "No domain selected";
-        return;
-    }
-
-    const labels = {
-        healthy: { className: "status-indicator success", text: "DNS Healthy" },
-        degraded: { className: "status-indicator warning", text: "DNS Degraded" },
-        unhealthy: { className: "status-indicator danger", text: "DNS Issues Detected" }
-    };
-    const cfg = labels[health.overall] || labels.degraded;
-    const mxrouteNote = health.mxroute_reachable === false ? " · MXroute unreachable" : "";
-    statusEl.className = cfg.className;
-    textEl.textContent = `${cfg.text}${mxrouteNote}`;
-}
-
 function renderDnsHealth(health) {
     const summaryEl = document.getElementById("dns-health-summary");
     const checksEl = document.getElementById("dns-health-checks");
     if (!health) return;
-
-    updateDnsHealthHeader(health);
 
     if (summaryEl) {
         const summaryMap = {
@@ -2052,20 +2116,15 @@ function renderDnsHealth(health) {
 }
 
 async function loadDnsHealth(domain, { force = false } = {}) {
-    if (!domain) {
-        updateDnsHealthHeader(null);
-        return;
-    }
+    if (!domain) return;
 
     const card = document.getElementById("dns-health-card");
-    const headerStatus = document.getElementById("dns-health-status");
     const checksEl = document.getElementById("dns-health-checks");
     const firstLoad = !hasLoadedContent(checksEl);
     const url = `/api/domains/${domain}/dns/health`;
 
     const onRefresh = (refreshing) => {
         setElementRefreshing(card, refreshing);
-        setElementRefreshing(headerStatus, refreshing);
     };
 
     if (firstLoad && checksEl) {
@@ -2088,7 +2147,6 @@ async function loadDnsHealth(domain, { force = false } = {}) {
         renderDnsHealth(result.data);
     } catch (err) {
         if (firstLoad || force) {
-            updateDnsHealthHeader({ overall: "unhealthy", mxroute_reachable: false });
             const summaryEl = document.getElementById("dns-health-summary");
             if (summaryEl) summaryEl.textContent = `DNS health check failed: ${err.message}`;
             if (checksEl && firstLoad) checksEl.innerHTML = "";
@@ -2136,28 +2194,11 @@ function mailboxActionsMenuHtml(account) {
     `;
 }
 
-function closeMailboxActionMenus() {
-    document.querySelectorAll("[data-action-menu].is-open").forEach(menu => {
-        menu.classList.remove("is-open");
-        const toggle = menu.querySelector(".action-menu-toggle");
-        const panel = menu.querySelector(".action-menu-panel");
-        if (toggle) toggle.setAttribute("aria-expanded", "false");
-        if (panel) panel.hidden = true;
-    });
-}
-
 function initMailboxActionMenus() {
     const tbody = document.getElementById("emails-list-tbody");
     if (!tbody || tbody.dataset.actionMenuInit === "true") return;
     tbody.dataset.actionMenuInit = "true";
-
-    if (!document.body.dataset.mailboxActionMenuDocInit) {
-        document.body.dataset.mailboxActionMenuDocInit = "true";
-        document.addEventListener("click", closeMailboxActionMenus);
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") closeMailboxActionMenus();
-        });
-    }
+    ensureActionMenuDocListeners();
 
     tbody.addEventListener("click", (event) => {
         const toggle = event.target.closest(".action-menu-toggle");
@@ -2165,7 +2206,7 @@ function initMailboxActionMenus() {
             event.stopPropagation();
             const menu = toggle.closest("[data-action-menu]");
             const wasOpen = menu?.classList.contains("is-open");
-            closeMailboxActionMenus();
+            closeActionMenus();
             if (menu && !wasOpen) {
                 menu.classList.add("is-open");
                 toggle.setAttribute("aria-expanded", "true");
@@ -2180,7 +2221,7 @@ function initMailboxActionMenus() {
 
         event.preventDefault();
         event.stopPropagation();
-        closeMailboxActionMenus();
+        closeActionMenus();
 
         const username = item.dataset.username;
         const action = item.dataset.action;
@@ -2198,19 +2239,45 @@ function initMailboxActionMenus() {
     });
 }
 
-// --- Active Account Domains row actions menu ---
+function initSecondaryTableActionMenus() {
+    initTableActionMenus("forwarders-list-tbody", (item) => {
+        if (item.dataset.action === "delete") handleDeleteForwarder(item.dataset.alias);
+    });
+    initTableActionMenus("pointers-tbody", (item) => {
+        if (item.dataset.action === "delete") handleDeletePointer(item.dataset.pointer);
+    });
+    initTableActionMenus("whitelist-tbody", (item) => {
+        if (item.dataset.action === "remove") handleRemoveSpamList("whitelist", item.dataset.entry);
+    });
+    initTableActionMenus("blacklist-tbody", (item) => {
+        if (item.dataset.action === "remove") handleRemoveSpamList("blacklist", item.dataset.entry);
+    });
+    initTableActionMenus("delegations-list-tbody", (item) => {
+        if (item.dataset.action === "edit") {
+            let grants = [];
+            try {
+                grants = JSON.parse(item.dataset.grants || "[]");
+            } catch {
+                grants = [];
+            }
+            handleEditDelegation(
+                item.dataset.email,
+                grants,
+                item.dataset.isAdmin === "1",
+                item.dataset.contactEmail || ""
+            );
+        } else if (item.dataset.action === "revoke") {
+            handleDeleteDelegation(item.dataset.email);
+        }
+    });
+}
+
+// --- Active Domains row actions menu ---
 function initDomainActionMenus() {
     const tbody = document.getElementById("domains-list-tbody");
     if (!tbody || tbody.dataset.actionMenuInit === "true") return;
     tbody.dataset.actionMenuInit = "true";
-
-    if (!document.body.dataset.mailboxActionMenuDocInit) {
-        document.body.dataset.mailboxActionMenuDocInit = "true";
-        document.addEventListener("click", closeMailboxActionMenus);
-        document.addEventListener("keydown", (event) => {
-            if (event.key === "Escape") closeMailboxActionMenus();
-        });
-    }
+    ensureActionMenuDocListeners();
 
     tbody.addEventListener("click", (event) => {
         const toggle = event.target.closest(".action-menu-toggle");
@@ -2218,7 +2285,7 @@ function initDomainActionMenus() {
             event.stopPropagation();
             const menu = toggle.closest("[data-action-menu]");
             const wasOpen = menu?.classList.contains("is-open");
-            closeMailboxActionMenus();
+            closeActionMenus();
             if (menu && !wasOpen) {
                 menu.classList.add("is-open");
                 toggle.setAttribute("aria-expanded", "true");
@@ -2233,7 +2300,7 @@ function initDomainActionMenus() {
 
         event.preventDefault();
         event.stopPropagation();
-        closeMailboxActionMenus();
+        closeActionMenus();
 
         const menu = item.closest("[data-action-menu]");
         const domain = menu?.dataset.domain;
@@ -2457,14 +2524,23 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
         if (recoveryEmail) payload.recovery_email = recoveryEmail;
 
         await apiRequest(`/api/domains/${activeDomain}/email-accounts`, "POST", payload);
-        
-        // Show Credentials card
+
+        let webmailUrl = null;
+        try {
+            const health = await cachedFetch(`/api/domains/${activeDomain}/dns/setup-health`);
+            if (health?.success && health.data?.checks?.webmail?.status === "pass") {
+                webmailUrl = `https://webmail.${activeDomain}`;
+            }
+        } catch {
+            // ponytail: skip webmail line when health check unavailable
+        }
+
         showMailboxCredentials({
             email: `${username}@${activeDomain}`,
             password,
             imapHost: `mail.${activeDomain}`,
             smtpHost: `mail.${activeDomain}`,
-            webmailUrl: `https://webmail.${activeDomain}`,
+            webmailUrl,
         });
         
         showAlert("success", `Mailbox ${username}@${activeDomain} created successfully!`);
@@ -2647,7 +2723,7 @@ function renderForwardersList(result, domain) {
                 <td><strong>${escapeHtml(forwarder.alias)}@${escapeHtml(domain)}</strong></td>
                 <td>${destHtml}</td>
                 <td style="text-align: right;">
-                    <button class="btn btn-danger btn-sm" onclick="handleDeleteForwarder(${jsAttrString(forwarder.alias)})">Remove</button>
+                    ${actionMenuHtml([{ action: "delete", label: "Remove", icon: "trash", danger: true, dataset: { alias: forwarder.alias } }])}
                 </td>
             `;
             tbody.appendChild(tr);
@@ -2781,7 +2857,7 @@ async function loadSpamList(domain, type, { force = false } = {}) {
                 tr.innerHTML = `
                     <td><strong>${escapeHtml(entry)}</strong></td>
                     <td style="text-align: right;">
-                        <button class="btn btn-danger btn-sm btn-icon" onclick="handleRemoveSpamList('${type}', ${jsAttrString(entry)})">×</button>
+                        ${actionMenuHtml([{ action: "remove", label: "Remove", icon: "trash", danger: true, dataset: { entry } }])}
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -3049,41 +3125,30 @@ async function loadDelegationsPage(options = {}) {
                 
                 const actionTd = document.createElement("td");
                 actionTd.style.textAlign = "right";
-                
-                const wrapper = document.createElement("div");
-                wrapper.className = "flex-row";
-                wrapper.style.justifyContent = "flex-end";
-                wrapper.style.gap = "0.5rem";
-                
-                const editBtn = document.createElement("button");
-                editBtn.className = "btn btn-secondary btn-sm";
-                editBtn.innerHTML = btnLabel("gear", "Edit");
-                editBtn.addEventListener("click", () => {
-                    handleEditDelegation(
-                        item.email,
-                        item.grants || [],
-                        item.is_admin || item.domains.includes("*"),
-                        item.contact_email || ""
-                    );
-                });
-                wrapper.appendChild(editBtn);
-                
-                const revokeBtn = document.createElement("button");
-                revokeBtn.className = "btn btn-danger btn-sm";
-                revokeBtn.innerHTML = "Revoke";
-                if (currentUser && currentUser.email.toLowerCase() === item.email.toLowerCase()) {
-                    revokeBtn.disabled = true;
-                    revokeBtn.title = "You cannot revoke your own access.";
-                    revokeBtn.style.opacity = "0.5";
-                    revokeBtn.style.cursor = "not-allowed";
-                } else {
-                    revokeBtn.addEventListener("click", () => {
-                        handleDeleteDelegation(item.email);
-                    });
-                }
-                wrapper.appendChild(revokeBtn);
-                
-                actionTd.appendChild(wrapper);
+                const isSelf = currentUser && currentUser.email.toLowerCase() === item.email.toLowerCase();
+                const isAdminGrant = item.is_admin || item.domains.includes("*");
+                actionTd.innerHTML = actionMenuHtml([
+                    {
+                        action: "edit",
+                        label: "Edit",
+                        icon: "gear",
+                        dataset: {
+                            email: item.email,
+                            grants: JSON.stringify(item.grants || []),
+                            "is-admin": isAdminGrant ? "1" : "0",
+                            "contact-email": item.contact_email || "",
+                        },
+                    },
+                    {
+                        action: "revoke",
+                        label: "Revoke",
+                        icon: "trash",
+                        danger: true,
+                        dataset: { email: item.email },
+                        disabled: isSelf,
+                        title: isSelf ? "You cannot revoke your own access." : "",
+                    },
+                ]);
                 tr.appendChild(actionTd);
                 listBody.appendChild(tr);
             });
@@ -3325,6 +3390,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     initResetPortal();
     initMailboxActionMenus();
     initDomainActionMenus();
+    initSecondaryTableActionMenus();
     
     // 4. Domain DNS wizard (admin or users with dns permission)
     const canManageDns = currentUser?.is_admin || getUserPermissionUnion().has("dns");
@@ -3688,7 +3754,7 @@ function renderLogsTable() {
             <td><strong>${escapeHtml(log.user)}</strong></td>
             <td><span class="badge" style="font-size: 0.8rem; font-weight: 500; font-family: monospace; background: rgba(255,255,255,0.05); padding: 0.15rem 0.4rem; border-radius: 4px;">${escapeHtml(log.action)}</span></td>
             <td><code style="word-break: break-all;">${escapeHtml(log.target)}</code></td>
-            <td><pre style="font-size: 0.75rem; margin: 0; background: rgba(0,0,0,0.2); padding: 0.4rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; font-family: monospace; color: var(--color-secondary); max-width: 500px;">${escapeHtml(JSON.stringify(log.details))}</pre></td>
+            <td>${window.Mxm.utils.formatAuditLogDetailsHtml(log.details)}</td>
         `;
         tbody.appendChild(tr);
     });

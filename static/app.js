@@ -127,12 +127,18 @@ function applyUserPermissionsUI() {
         spam: document.querySelector('.nav-item[data-tab="spam"]'),
         delegations: document.getElementById("nav-tab-delegations"),
         logs: document.getElementById("nav-tab-logs"),
+        notifications: document.getElementById("nav-tab-notifications"),
         settings: document.getElementById("nav-tab-settings"),
     };
 
     if (currentUser.is_admin) {
         Object.values(navTabs).forEach(tab => {
-            if (tab) tab.style.display = tab.id === "nav-tab-delegations" || tab.id === "nav-tab-logs" ? "flex" : "";
+            if (!tab) return;
+            if (tab.id === "nav-tab-delegations" || tab.id === "nav-tab-logs" || tab.id === "nav-tab-notifications") {
+                tab.style.display = "flex";
+            } else {
+                tab.style.display = "";
+            }
         });
         document.getElementById("sidebar-quota-container").style.display = "";
         document.getElementById("dash-quota-card").style.display = "";
@@ -142,6 +148,8 @@ function applyUserPermissionsUI() {
 
     document.getElementById("nav-tab-delegations").style.display = "none";
     document.getElementById("nav-tab-logs").style.display = "none";
+    const notificationsTab = document.getElementById("nav-tab-notifications");
+    if (notificationsTab) notificationsTab.style.display = "none";
     document.getElementById("sidebar-quota-container").style.display = "none";
     document.getElementById("dash-quota-card").style.display = "none";
 
@@ -387,6 +395,15 @@ async function cachedFetch(url, options = {}) {
     } finally {
         onRefreshEnd?.();
     }
+}
+
+function setSettingsBoolToggle(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.checked = value === true || value === "true";
+}
+
+function getSettingsBoolToggle(id) {
+    return document.getElementById(id)?.checked ? "true" : "false";
 }
 
 function hasLoadedContent(el) {
@@ -677,7 +694,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
         
         // Show/hide global domain selector (not needed on Domains, Access Control, or Settings pages)
         const domainSelector = document.getElementById("global-domain-selector");
-        if (tab === "domains" || tab === "delegations" || tab === "settings" || tab === "logs") {
+        if (tab === "domains" || tab === "delegations" || tab === "settings" || tab === "logs" || tab === "notifications") {
             domainSelector.style.display = "none";
         } else {
             domainSelector.style.display = "";
@@ -692,6 +709,7 @@ document.querySelectorAll(".nav-item").forEach(item => {
             spam: { title: "Spam & Whitelist Controls", subtitle: "Configure SpamAssassin thresholds and manage list records." },
             delegations: { title: "Access Control", subtitle: "Delegate email domain management rights to specific users." },
             logs: { title: "System Logs", subtitle: "View system actions, administrator operations, and authentication audits." },
+            notifications: { title: "Notifications", subtitle: "Alert on audit events via ntfy, webhooks, email, and other Apprise-supported services." },
             settings: { title: "Settings", subtitle: "Configure global system parameters, authentication methods, and user interface options." }
         };
         
@@ -718,7 +736,7 @@ async function triggerDataRefresh(options = {}) {
     const activeNav = document.querySelector(".nav-item.active");
     if (!activeNav) return;
     const activeTab = activeNav.getAttribute("data-tab");
-    if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains" && activeTab !== "settings" && activeTab !== "logs") return;
+    if (!activeDomain && activeTab !== "delegations" && activeTab !== "domains" && activeTab !== "settings" && activeTab !== "logs" && activeTab !== "notifications") return;
     
     try {
         switch (activeTab) {
@@ -767,6 +785,9 @@ async function triggerDataRefresh(options = {}) {
                 break;
             case "logs":
                 await loadLogsPage();
+                break;
+            case "notifications":
+                await loadNotificationsPage();
                 break;
             case "settings":
                 await loadSettingsPage();
@@ -934,11 +955,14 @@ function initTableActionMenus(tbodyId, onItemAction) {
 
 function prefetchDomainsListStatus(domains) {
     if (!domains?.length) return;
-    void window.Mxm.utils.mapWithConcurrency(
-        domains,
-        5,
-        (domain) => refreshDomainRowDetails(domain)
-    ).catch(() => {});
+    // ponytail: defer so interactive requests (reset portal, dropdowns) get browser connection slots first
+    window.setTimeout(() => {
+        void window.Mxm.utils.mapWithConcurrency(
+            domains,
+            3,
+            (domain) => refreshDomainRowDetails(domain)
+        ).catch(() => {});
+    }, 400);
 }
 
 function domainActionsMenuHtml(domain, { fixDnsVisible, mailOn, webmailReady, cfConfigured, isAdmin, canDns }) {
@@ -3438,7 +3462,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             submitBtn.innerHTML = btnLabel("save", "Saving Settings...", true);
             
             const payload = {
-                OIDC_ENABLED: document.getElementById("setting-oidc-enabled").value,
+                OIDC_ENABLED: getSettingsBoolToggle("setting-oidc-enabled"),
                 OIDC_SCOPES: document.getElementById("setting-oidc-scopes").value.trim(),
                 OIDC_DISCOVERY_URL: document.getElementById("setting-oidc-discovery-url").value.trim(),
                 OIDC_REDIRECT_URI: document.getElementById("setting-oidc-redirect-uri").value.trim(),
@@ -3449,12 +3473,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 MX_USER: document.getElementById("setting-mx-user").value.trim(),
                 CF_ACCOUNT_ID: document.getElementById("setting-cf-account-id").value.trim(),
                 ADMIN_USER: document.getElementById("setting-admin-user").value.trim(),
-                MAILBOX_RESET_ENABLED: document.getElementById("setting-mailbox-reset-enabled").value,
+                MAILBOX_RESET_ENABLED: getSettingsBoolToggle("setting-mailbox-reset-enabled"),
                 RESET_SMTP_HOST: document.getElementById("setting-reset-smtp-host").value.trim(),
                 RESET_SMTP_PORT: document.getElementById("setting-reset-smtp-port").value.trim(),
                 RESET_SMTP_USER: document.getElementById("setting-reset-smtp-user").value.trim(),
                 RESET_SMTP_FROM: document.getElementById("setting-reset-smtp-from").value.trim(),
-                RESET_SMTP_USE_TLS: document.getElementById("setting-reset-smtp-use-tls").value,
+                RESET_SMTP_USE_TLS: getSettingsBoolToggle("setting-reset-smtp-use-tls"),
             };
 
             const newAdminPassword = document.getElementById("setting-admin-password").value;
@@ -3580,7 +3604,7 @@ function collectSmtpTestPayload() {
         RESET_SMTP_PORT: document.getElementById("setting-reset-smtp-port").value.trim(),
         RESET_SMTP_USER: document.getElementById("setting-reset-smtp-user").value.trim(),
         RESET_SMTP_FROM: document.getElementById("setting-reset-smtp-from").value.trim(),
-        RESET_SMTP_USE_TLS: document.getElementById("setting-reset-smtp-use-tls").value,
+        RESET_SMTP_USE_TLS: getSettingsBoolToggle("setting-reset-smtp-use-tls"),
     };
     return payload;
 }
@@ -3609,6 +3633,503 @@ async function saveAdminContactEmail() {
     return false;
 }
 
+// --- Notifications settings ---
+let notificationTargets = [];
+let notificationActionGroups = [];
+let notificationBuilderServices = [];
+let notificationCompiledResult = null;
+let notificationEditIndex = null;
+let notificationCredEnvMap = {};
+let notificationResetSmtpConfigured = false;
+let notificationEventsBound = false;
+
+function renderNotificationTargets() {
+    const container = document.getElementById("notification-targets-list");
+    if (!container) return;
+    if (!notificationTargets.length) {
+        container.innerHTML = '<p class="stat-card-subtitle" style="margin:0;">No targets configured yet.</p>';
+        return;
+    }
+    container.innerHTML = notificationTargets.map((target, index) => {
+        const credNote = target.cred_env
+            ? `<div class="target-url">Token: <code>${escapeHtml(target.cred_env)}</code>${target.cred_env_configured ? "" : " (set in .env)"}</div>`
+            : "";
+        return `
+        <div class="notification-target-row" data-index="${index}">
+            <div><strong>${escapeHtml(target.label || "Target")}</strong></div>
+            <div>${escapeHtml(target.service || "")}</div>
+            <div>
+                <div class="target-url">${escapeHtml(target.url || "")}</div>
+                ${credNote}
+            </div>
+            <div style="display:flex; gap:0.5rem;">
+                <button type="button" class="btn btn-secondary btn-sm btn-edit-notification-target" data-index="${index}">Edit</button>
+                <button type="button" class="btn btn-danger btn-sm btn-remove-notification-target" data-index="${index}">Remove</button>
+            </div>
+        </div>
+    `;
+    }).join("");
+}
+
+function renderNotificationActionsGrid(selectedActions = []) {
+    const container = document.getElementById("notification-actions-grid");
+    if (!container) return;
+    const selected = new Set(selectedActions);
+    const parts = [];
+    for (const group of notificationActionGroups) {
+        parts.push(`<div class="notification-action-group-title">${escapeHtml(group.group)}</div>`);
+        for (const action of group.actions) {
+            const checked = selected.has(action.id) ? "checked" : "";
+            parts.push(`
+                <label class="notification-action-item">
+                    <input type="checkbox" class="notification-action-checkbox" value="${escapeHtml(action.id)}" ${checked}>
+                    <span>${escapeHtml(action.label)}</span>
+                </label>
+            `);
+        }
+    }
+    container.innerHTML = parts.join("");
+}
+
+function getSelectedNotificationActions() {
+    return Array.from(document.querySelectorAll(".notification-action-checkbox:checked"))
+        .map((input) => input.value);
+}
+
+function setSelectedNotificationActions(actionIds) {
+    const selected = new Set(actionIds || []);
+    document.querySelectorAll(".notification-action-checkbox").forEach((input) => {
+        input.checked = selected.has(input.value);
+    });
+}
+
+function renderNotificationBuilderFields(serviceId, initialFields = {}) {
+    const fieldsContainer = document.getElementById("notification-builder-fields");
+    const service = notificationBuilderServices.find((item) => item.id === serviceId);
+    const initial = initialFields || {};
+    if (!fieldsContainer || !service) {
+        if (fieldsContainer) fieldsContainer.innerHTML = "";
+        return;
+    }
+    fieldsContainer.innerHTML = service.fields.map((field) => {
+        if (field.id === "use_reset_smtp" && !notificationResetSmtpConfigured) {
+            return `
+                <div class="form-group mb-3">
+                    <span style="font-size: 0.8rem; color: var(--color-secondary);">
+                        Configure Mailbox Password Reset SMTP in Settings to enable shared SMTP for email notifications.
+                    </span>
+                </div>
+            `;
+        }
+        const inputId = `notification-field-${field.id}`;
+        const initialValue = initial[field.id];
+        if (field.type === "select") {
+            const options = (field.options || []).map((option) => {
+                const defaultValue = initialValue !== undefined ? initialValue : (field.default || "");
+                const selected = option === defaultValue ? "selected" : "";
+                return `<option value="${escapeHtml(option)}" ${selected}>${escapeHtml(option)}</option>`;
+            }).join("");
+            return `
+                <div class="form-group mb-3">
+                    <label for="${inputId}">${escapeHtml(field.label)}</label>
+                    <select id="${inputId}" data-field-id="${escapeHtml(field.id)}">${options}</select>
+                </div>
+            `;
+        }
+        if (field.type === "checkbox") {
+            const checkedValue = initialValue !== undefined ? initialValue : field.default;
+            const checked = checkedValue === true || checkedValue === "true" ? "checked" : "";
+            return `
+                <div class="form-group mb-3">
+                    <label class="notification-action-item">
+                        <input type="checkbox" id="${inputId}" data-field-id="${escapeHtml(field.id)}" ${checked}>
+                        <span>${escapeHtml(field.label)}</span>
+                    </label>
+                </div>
+            `;
+        }
+        const inputType = field.type === "secret" ? "password" : "text";
+        const value = initialValue !== undefined && initialValue !== null ? String(initialValue) : "";
+        return `
+            <div class="form-group mb-3">
+                <label for="${inputId}">${escapeHtml(field.label)}</label>
+                <input type="${inputType}" id="${inputId}" data-field-id="${escapeHtml(field.id)}"
+                    value="${escapeHtml(value)}"
+                    placeholder="${escapeHtml(field.placeholder || "")}" ${field.required ? "required" : ""}>
+            </div>
+        `;
+    }).join("");
+}
+
+function collectNotificationBuilderFields() {
+    const fields = {};
+    document.querySelectorAll("#notification-builder-fields [data-field-id]").forEach((input) => {
+        const key = input.getAttribute("data-field-id");
+        if (input.type === "checkbox") {
+            fields[key] = input.checked;
+        } else {
+            fields[key] = input.value.trim();
+        }
+    });
+    return fields;
+}
+
+function showNotificationCompilePreview(result) {
+    notificationCompiledResult = result;
+    const preview = document.getElementById("notification-compile-preview");
+    const urlPreview = document.getElementById("notification-compiled-url-preview");
+    const envSnippet = document.getElementById("notification-env-snippet");
+    const storeTokenRow = document.getElementById("notification-store-token-row");
+    const serviceId = result.service || document.getElementById("notification-builder-service")?.value;
+    const canStoreInEnv = Boolean(notificationCredEnvMap[serviceId]);
+    if (!preview || !urlPreview) return;
+    preview.style.display = "block";
+    urlPreview.textContent = result.masked_url || result.url || "";
+    if (storeTokenRow) {
+        storeTokenRow.style.display = canStoreInEnv ? "block" : "none";
+    }
+    const restartHint = document.getElementById("notification-env-restart-hint");
+    if (restartHint) {
+        restartHint.style.display = canStoreInEnv ? "block" : "none";
+    }
+    const storeTokenEnv = document.getElementById("notification-store-token-env");
+    if (storeTokenEnv) {
+        storeTokenEnv.checked = Boolean(result.cred_env);
+    }
+    if (envSnippet) {
+        envSnippet.value = result.env_snippet || "";
+        envSnippet.style.display = "none";
+    }
+}
+
+function resetNotificationTargetModal() {
+    notificationCompiledResult = null;
+    notificationEditIndex = null;
+    const preview = document.getElementById("notification-compile-preview");
+    if (preview) preview.style.display = "none";
+    const labelInput = document.getElementById("notification-target-label");
+    if (labelInput) labelInput.value = "";
+    const pasteUrl = document.getElementById("notification-paste-url");
+    if (pasteUrl) pasteUrl.value = "";
+}
+
+function openNotificationTargetModal(editIndex = null) {
+    return openNotificationTargetModalAsync(editIndex);
+}
+
+async function openNotificationTargetModalAsync(editIndex = null) {
+    resetNotificationTargetModal();
+    notificationEditIndex = editIndex;
+    const title = document.getElementById("modal-notification-target-title");
+    if (title) {
+        title.textContent = editIndex === null ? "Add notification target" : "Edit notification target";
+    }
+
+    if (editIndex !== null && notificationTargets[editIndex]) {
+        const target = notificationTargets[editIndex];
+        const labelInput = document.getElementById("notification-target-label");
+        if (labelInput) labelInput.value = target.label || "";
+
+        const select = document.getElementById("notification-builder-service");
+        const serviceId = target.service_id || target.service || "";
+        if (select && serviceId) {
+            select.value = serviceId;
+        }
+
+        try {
+            const parsePayload = {
+                service_id: serviceId,
+                cred_env: target.cred_env || null,
+            };
+            // Saved targets load masked URLs; read the full URL from the database on the server.
+            if ((target.url || "").includes("***")) {
+                parsePayload.target_index = editIndex;
+            } else {
+                parsePayload.url = target.url;
+            }
+            const parseRes = await apiRequest("/api/admin/notifications/builder/parse", "POST", parsePayload);
+            if (parseRes?.success && parseRes.data) {
+                const parsed = parseRes.data;
+                if (select && parsed.service) {
+                    select.value = parsed.service;
+                }
+                renderNotificationBuilderFields(select?.value || parsed.service, parsed.fields || {});
+                showNotificationCompilePreview({
+                    url: parsed.url || target.url,
+                    masked_url: parsed.masked_url || target.url,
+                    service: parsed.service || serviceId,
+                    cred_env: target.cred_env || null,
+                });
+            } else {
+                renderNotificationBuilderFields(select?.value || notificationBuilderServices[0]?.id);
+                showAlert("warning", parseRes?.error?.message || "Could not parse target URL into builder fields.");
+            }
+        } catch (err) {
+            renderNotificationBuilderFields(select?.value || notificationBuilderServices[0]?.id);
+            showAlert("error", err.message);
+        }
+    } else if (notificationBuilderServices.length) {
+        const select = document.getElementById("notification-builder-service");
+        if (select && !select.value) {
+            select.value = notificationBuilderServices[0].id;
+            renderNotificationBuilderFields(select.value);
+        }
+    }
+
+    openModal("modal-notification-target");
+}
+
+async function compileNotificationUrlFromBuilder() {
+    const serviceId = document.getElementById("notification-builder-service")?.value;
+    if (!serviceId) return;
+    const fields = collectNotificationBuilderFields();
+    const tokenInEnv = document.getElementById("notification-store-token-env")?.checked || false;
+    const result = await apiRequest("/api/admin/notifications/builder/compile", "POST", {
+        service_id: serviceId,
+        fields,
+        token_in_env: tokenInEnv,
+    });
+    if (!result?.success) {
+        showAlert("error", result?.error?.message || "Failed to compile URL.");
+        return;
+    }
+    showNotificationCompilePreview(result.data);
+}
+
+async function recompileWithTokenEnvPreference() {
+    if (!notificationCompiledResult) return;
+    const serviceId = document.getElementById("notification-builder-service")?.value;
+    if (!serviceId || !notificationCredEnvMap[serviceId]) return;
+    await compileNotificationUrlFromBuilder();
+}
+
+async function validatePastedNotificationUrl() {
+    const url = document.getElementById("notification-paste-url")?.value.trim();
+    if (!url) {
+        showAlert("error", "Enter an Apprise URL first.");
+        return;
+    }
+    const result = await apiRequest("/api/admin/notifications/builder/compile", "POST", {
+        service_id: "custom",
+        fields: { url },
+    });
+    if (!result?.success) {
+        showAlert("error", result?.error?.message || "Invalid Apprise URL.");
+        return;
+    }
+    showNotificationCompilePreview(result.data);
+}
+
+function saveCompiledNotificationTarget() {
+    if (!notificationCompiledResult?.url) {
+        showAlert("error", "Generate or validate a URL first.");
+        return;
+    }
+    const label = document.getElementById("notification-target-label")?.value.trim()
+        || notificationCompiledResult.service
+        || "Notification target";
+    const storeInEnv = document.getElementById("notification-store-token-env")?.checked || false;
+    const target = {
+        label,
+        url: notificationCompiledResult.url,
+        service: notificationCompiledResult.service || "",
+        service_id: notificationCompiledResult.service || "",
+        cred_env: storeInEnv ? (notificationCompiledResult.cred_env || null) : null,
+    };
+    if (notificationEditIndex === null) {
+        notificationTargets.push(target);
+    } else {
+        notificationTargets[notificationEditIndex] = target;
+    }
+    renderNotificationTargets();
+    closeModal("modal-notification-target");
+    showAlert("success", "Target added. Click Save Notifications to persist.");
+}
+
+async function copyNotificationEnvSnippet() {
+    const serviceId = notificationCompiledResult?.service;
+    const tokenInEnv = document.getElementById("notification-store-token-env")?.checked;
+    if (!tokenInEnv || !notificationCompiledResult?.env_snippet) {
+        await recompileWithTokenEnvPreference();
+    }
+    const snippet = notificationCompiledResult?.env_snippet
+        || document.getElementById("notification-env-snippet")?.value;
+    if (!snippet) {
+        showAlert("error", "Enable \"Store token in .env\" and generate a URL with a token first.");
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(snippet);
+        showAlert("success", `Copied ${notificationCompiledResult?.cred_env || "credential"}. Paste into .env and restart the app.`);
+    } catch (err) {
+        const textarea = document.getElementById("notification-env-snippet");
+        if (textarea) {
+            textarea.value = snippet;
+            textarea.style.display = "block";
+            textarea.select();
+        }
+        showAlert("info", "Copy the snippet manually from the text box.");
+    }
+}
+
+async function loadNotificationSettings() {
+    if (!currentUser?.is_admin) return;
+    try {
+        const [settingsRes, actionsRes, builderRes] = await Promise.all([
+            apiRequest("/api/admin/notifications"),
+            apiRequest("/api/admin/notifications/actions"),
+            apiRequest("/api/admin/notifications/builder"),
+        ]);
+        if (actionsRes?.success) {
+            notificationActionGroups = actionsRes.data?.groups || [];
+        }
+        if (builderRes?.success) {
+            notificationBuilderServices = builderRes.data?.services || [];
+            notificationCredEnvMap = builderRes.data?.cred_env_map || {};
+            notificationResetSmtpConfigured = Boolean(builderRes.data?.reset_smtp_configured);
+            const select = document.getElementById("notification-builder-service");
+            if (select) {
+                select.innerHTML = notificationBuilderServices.map((service) =>
+                    `<option value="${escapeHtml(service.id)}">${escapeHtml(service.label)}</option>`
+                ).join("");
+                if (notificationBuilderServices.length) {
+                    select.value = notificationBuilderServices[0].id;
+                    renderNotificationBuilderFields(select.value);
+                }
+            }
+        }
+        if (settingsRes?.success && settingsRes.data) {
+            const data = settingsRes.data;
+            notificationTargets = (data.targets || []).map((target) => ({
+                label: target.label || "",
+                url: target.url || "",
+                service: target.service || "",
+                service_id: target.service_id || target.service || "",
+                cred_env: target.cred_env || null,
+                cred_env_configured: Boolean(target.cred_env_configured),
+            }));
+            const enabledToggle = document.getElementById("setting-notifications-enabled");
+            if (enabledToggle) {
+                enabledToggle.checked = Boolean(data.enabled);
+            }
+            renderNotificationTargets();
+            renderNotificationActionsGrid(data.actions || []);
+            const envHint = document.getElementById("notification-env-hint");
+            if (envHint) {
+                envHint.textContent = "Tip: if you're uncomfortable storing tokens in the database, they can be stored in .env instead (one variable per service, e.g. APPRISE_CRED_NTFY).";
+            }
+        }
+    } catch (err) {
+        showAlert("error", `Failed to load notifications: ${err.message}`);
+    }
+}
+
+async function saveNotificationSettings() {
+    const btn = document.getElementById("btn-save-notifications");
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = btnLabel("save", "Saving...", true);
+    }
+    try {
+        const payload = {
+            enabled: Boolean(document.getElementById("setting-notifications-enabled")?.checked),
+            targets: notificationTargets,
+            actions: getSelectedNotificationActions(),
+        };
+        const result = await apiRequest("/api/admin/notifications", "POST", payload);
+        if (result?.success) {
+            showAlert("success", "Notification settings saved.");
+            await loadNotificationSettings();
+        } else {
+            showAlert("error", result?.error?.message || "Failed to save notification settings.");
+        }
+    } catch (err) {
+        showAlert("error", `Error saving notifications: ${err.message}`);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = btnLabel("save", "Save Notifications");
+        }
+    }
+}
+
+function initNotificationSettingsEvents() {
+    if (notificationEventsBound) return;
+    notificationEventsBound = true;
+
+    document.getElementById("btn-add-notification-target")?.addEventListener("click", () => openNotificationTargetModal());
+    document.getElementById("btn-save-notifications")?.addEventListener("click", saveNotificationSettings);
+    document.getElementById("btn-notification-compile")?.addEventListener("click", compileNotificationUrlFromBuilder);
+    document.getElementById("btn-notification-validate-paste")?.addEventListener("click", validatePastedNotificationUrl);
+    document.getElementById("btn-notification-save-target")?.addEventListener("click", saveCompiledNotificationTarget);
+    document.getElementById("btn-notification-copy-env")?.addEventListener("click", copyNotificationEnvSnippet);
+    document.getElementById("modal-notification-target-close")?.addEventListener("click", () => closeModal("modal-notification-target"));
+    document.getElementById("modal-notification-target-cancel")?.addEventListener("click", () => closeModal("modal-notification-target"));
+
+    document.getElementById("notification-builder-service")?.addEventListener("change", (event) => {
+        renderNotificationBuilderFields(event.target.value);
+    });
+    document.getElementById("notification-store-token-env")?.addEventListener("change", recompileWithTokenEnvPreference);
+
+    document.querySelectorAll(".notification-tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+            document.querySelectorAll(".notification-tab").forEach((btn) => btn.classList.remove("active"));
+            tab.classList.add("active");
+            const name = tab.getAttribute("data-notification-tab");
+            document.getElementById("notification-tab-build").style.display = name === "build" ? "block" : "none";
+            document.getElementById("notification-tab-paste").style.display = name === "paste" ? "block" : "none";
+        });
+    });
+
+    document.getElementById("notification-targets-list")?.addEventListener("click", (event) => {
+        const editBtn = event.target.closest(".btn-edit-notification-target");
+        const removeBtn = event.target.closest(".btn-remove-notification-target");
+        if (editBtn) {
+            openNotificationTargetModal(Number(editBtn.getAttribute("data-index")));
+        }
+        if (removeBtn) {
+            const index = Number(removeBtn.getAttribute("data-index"));
+            notificationTargets.splice(index, 1);
+            renderNotificationTargets();
+        }
+    });
+
+    document.getElementById("btn-notify-preset-destructive")?.addEventListener("click", async () => {
+        const res = await apiRequest("/api/admin/notifications/actions");
+        const destructive = new Set(res?.data?.destructive_action_ids || []);
+        setSelectedNotificationActions(Array.from(document.querySelectorAll(".notification-action-checkbox")).map((el) => el.value).filter((id) => destructive.has(id)));
+    });
+    document.getElementById("btn-notify-preset-all")?.addEventListener("click", () => {
+        document.querySelectorAll(".notification-action-checkbox").forEach((input) => { input.checked = true; });
+    });
+    document.getElementById("btn-notify-preset-clear")?.addEventListener("click", () => {
+        document.querySelectorAll(".notification-action-checkbox").forEach((input) => { input.checked = false; });
+    });
+
+    document.getElementById("btn-test-notifications")?.addEventListener("click", async () => {
+        const btn = document.getElementById("btn-test-notifications");
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = btnLabel("bell", "Sending...", true);
+        }
+        try {
+            const result = await apiRequest("/api/admin/notifications/test", "POST", {});
+            if (result?.success) {
+                showAlert("success", result.message || "Test notification sent.");
+            } else {
+                showAlert("error", result?.error?.message || "Failed to send test notification.");
+            }
+        } catch (err) {
+            showAlert("error", `Error sending test notification: ${err.message}`);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = btnLabel("bell", "Send Test Notification");
+            }
+        }
+    });
+}
+
 async function loadSettingsPage() {
     // Refresh theme active selector highlighted state
     const activeTheme = localStorage.getItem("workspace-theme") || "emerald";
@@ -3623,7 +4144,7 @@ async function loadSettingsPage() {
                 const settings = res.data;
                 
                 // Populate forms
-                document.getElementById("setting-oidc-enabled").value = settings.OIDC_ENABLED || "false";
+                setSettingsBoolToggle("setting-oidc-enabled", settings.OIDC_ENABLED);
                 document.getElementById("setting-oidc-scopes").value = settings.OIDC_SCOPES || "openid email profile groups";
                 document.getElementById("setting-oidc-discovery-url").value = settings.OIDC_DISCOVERY_URL || "";
                 document.getElementById("setting-oidc-redirect-uri").value = settings.OIDC_REDIRECT_URI || "";
@@ -3642,12 +4163,12 @@ async function loadSettingsPage() {
                 document.getElementById("setting-admin-user").value = settings.ADMIN_USER || "admin";
                 document.getElementById("setting-admin-password").value = "";
 
-                document.getElementById("setting-mailbox-reset-enabled").value = settings.MAILBOX_RESET_ENABLED || "false";
+                setSettingsBoolToggle("setting-mailbox-reset-enabled", settings.MAILBOX_RESET_ENABLED);
                 document.getElementById("setting-reset-smtp-host").value = settings.RESET_SMTP_HOST || "";
                 document.getElementById("setting-reset-smtp-port").value = settings.RESET_SMTP_PORT || "587";
                 document.getElementById("setting-reset-smtp-user").value = settings.RESET_SMTP_USER || "";
                 document.getElementById("setting-reset-smtp-from").value = settings.RESET_SMTP_FROM || "";
-                document.getElementById("setting-reset-smtp-use-tls").value = settings.RESET_SMTP_USE_TLS || "true";
+                setSettingsBoolToggle("setting-reset-smtp-use-tls", settings.RESET_SMTP_USE_TLS ?? "true");
                 renderSecretStatus(
                     "setting-reset-smtp-password-status",
                     settings.RESET_SMTP_PASSWORD_configured,
@@ -3666,6 +4187,14 @@ async function loadSettingsPage() {
     } else {
         document.getElementById("system-settings-card").style.display = "none";
     }
+}
+
+async function loadNotificationsPage() {
+    if (!currentUser?.is_admin) return;
+    const card = document.getElementById("notifications-card");
+    if (card) card.style.display = "block";
+    initNotificationSettingsEvents();
+    await loadNotificationSettings();
 }
 
 

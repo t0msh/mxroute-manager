@@ -16,14 +16,18 @@
                     {{ icon('key') }} OpenID Connect (OIDC) Settings
                 </h3>
                 
-                <div class="form-row">
-                    <div class="form-group">
+                <div class="form-group setting-toggle-row">
+                    <div>
                         <label for="setting-oidc-enabled">OIDC Authentication</label>
-                        <select id="setting-oidc-enabled">
-                            <option value="true">Enabled (OAuth / SSO Required)</option>
-                            <option value="false">Disabled (Local Logins Only)</option>
-                        </select>
+                        <span class="setting-toggle-hint">When enabled, OAuth / SSO is required for sign-in.</span>
                     </div>
+                    <label class="toggle-switch" aria-label="OIDC Authentication">
+                        <input type="checkbox" id="setting-oidc-enabled">
+                        <span class="toggle-slider" aria-hidden="true"></span>
+                    </label>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="setting-oidc-scopes">OIDC Scopes</label>
                         <input type="text" id="setting-oidc-scopes" placeholder="openid email profile groups">
@@ -136,20 +140,24 @@
                 </h3>
 
                 <div class="form-row">
-                    <div class="form-group">
-                        <label for="setting-mailbox-reset-enabled">Self-Service Reset</label>
-                        <select id="setting-mailbox-reset-enabled">
-                            <option value="false">Disabled</option>
-                            <option value="true">Enabled</option>
-                        </select>
-                        <span style="font-size: 0.75rem; color: var(--color-secondary);">Allows mailbox owners to reset passwords from the login page.</span>
+                    <div class="form-group setting-toggle-row">
+                        <div>
+                            <label for="setting-mailbox-reset-enabled">Self-Service Reset</label>
+                            <span class="setting-toggle-hint">Allows mailbox owners to reset passwords from the login page.</span>
+                        </div>
+                        <label class="toggle-switch" aria-label="Self-Service Reset">
+                            <input type="checkbox" id="setting-mailbox-reset-enabled">
+                            <span class="toggle-slider" aria-hidden="true"></span>
+                        </label>
                     </div>
-                    <div class="form-group">
-                        <label for="setting-reset-smtp-use-tls">SMTP STARTTLS</label>
-                        <select id="setting-reset-smtp-use-tls">
-                            <option value="true">Enabled</option>
-                            <option value="false">Disabled</option>
-                        </select>
+                    <div class="form-group setting-toggle-row">
+                        <div>
+                            <label for="setting-reset-smtp-use-tls">SMTP STARTTLS</label>
+                        </div>
+                        <label class="toggle-switch" aria-label="SMTP STARTTLS">
+                            <input type="checkbox" id="setting-reset-smtp-use-tls" checked>
+                            <span class="toggle-slider" aria-hidden="true"></span>
+                        </label>
                     </div>
                 </div>
 

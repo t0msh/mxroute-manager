@@ -112,6 +112,24 @@ Portal branding (subdomain, title, logo) is configured per domain in **Domains â
 | `DATABASE_FILE` | No | `./mxroute-manager.db` | SQLite database path. Use `/data/mxroute-manager.db` in Docker. |
 | `LOG_DIR` | No | `./logs` | Directory for JSON-line audit logs |
 
+## Notifications
+
+See [Notifications](notifications.md) for setup, the in-app builder, audit event subscriptions, and credential storage.
+
+| Variable | Required | Default | Description |
+| --- | --- | --- | --- |
+| `APPRISE_CRED_NTFY` | No | - | ntfy auth token when stored in `.env` instead of the database |
+| `APPRISE_CRED_JSON` | No | - | JSON webhook bearer token |
+| `APPRISE_CRED_DISCORD` | No | - | Discord webhook token |
+| `APPRISE_CRED_GOTIFY` | No | - | Gotify application token |
+| `APPRISE_CRED_PUSHOVER` | No | - | Pushover API token |
+| `APPRISE_CRED_TELEGRAM` | No | - | Telegram bot token |
+| `APPRISE_CRED_SMTP` | No | - | SMTP password for email notification targets (not needed when using reset SMTP) |
+
+Restart the app after adding or changing any `APPRISE_CRED_*` variable in `.env`.
+
+Event subscriptions and non-secret target URLs are stored in the database via **Notifications** in the UI.
+
 ## Development
 
 | Variable | Required | Default | Description |

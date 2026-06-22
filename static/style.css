@@ -643,6 +643,89 @@ header.content-header {
     color: var(--color-secondary);
 }
 
+/* Single-setting rows: label left, toggle right */
+.setting-toggle-row {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+.form-row > .form-group.setting-toggle-row {
+    margin-bottom: 0;
+}
+
+.setting-toggle-hint {
+    font-size: 0.75rem;
+    color: var(--color-secondary);
+    display: block;
+    margin-top: 0.35rem;
+    line-height: 1.4;
+}
+
+a.text-link {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+a.text-link:hover {
+    color: var(--color-primary);
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--input-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 999px;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.toggle-slider::before {
+    content: "";
+    position: absolute;
+    height: 20px;
+    width: 20px;
+    left: 2px;
+    bottom: 2px;
+    background: var(--color-secondary);
+    border-radius: 50%;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(var(--accent-rgb), 0.25);
+    border-color: var(--accent);
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+    transform: translateX(22px);
+    background: var(--accent);
+}
+
+.toggle-switch input:focus-visible + .toggle-slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],

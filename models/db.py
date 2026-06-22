@@ -325,6 +325,50 @@ def reset_smtp_use_tls():
     return get_config_value("RESET_SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
 
 
+NOTIFICATION_SETTINGS_KEY = "NOTIFICATION_SETTINGS"
+
+
+def _default_notification_settings():
+    return {"enabled": False, "targets": [], "actions": []}
+
+
+def get_notification_settings():
+    raw = get_config_value(NOTIFICATION_SETTINGS_KEY, "")
+    if not raw:
+        return _default_notification_settings()
+    try:
+        data = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        logger.warning("Invalid notification settings JSON; using defaults")
+        return _default_notification_settings()
+    if not isinstance(data, dict):
+        return _default_notification_settings()
+    return {
+        "enabled": bool(data.get("enabled")),
+        "targets": data.get("targets") if isinstance(data.get("targets"), list) else [],
+        "actions": data.get("actions") if isinstance(data.get("actions"), list) else [],
+    }
+
+
+def save_notification_settings(config):
+    if not isinstance(config, dict):
+        raise ValueError("Notification settings must be an object")
+    normalized = {
+        "enabled": bool(config.get("enabled")),
+        "targets": config.get("targets") if isinstance(config.get("targets"), list) else [],
+        "actions": config.get("actions") if isinstance(config.get("actions"), list) else [],
+    }
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (NOTIFICATION_SETTINGS_KEY, json.dumps(normalized, ensure_ascii=False)),
+        )
+        conn.commit()
+    invalidate_settings_cache()
+    return normalized
+
+
 def _utc_now_iso():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 

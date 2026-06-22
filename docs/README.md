@@ -16,6 +16,7 @@
 | [Adding a domain](adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
 | [Access control](access-control.md) | Delegated users, permissions, admin vs delegated operations |
 | [Mailbox password reset](password-reset.md) | Login-page reset and branded per-domain portals |
+| [Notifications](notifications.md) | Audit event alerts via Apprise (ntfy, webhooks, email, etc.) |
 
 ## UI reference
 

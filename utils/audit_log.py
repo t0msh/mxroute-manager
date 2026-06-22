@@ -30,6 +30,12 @@ def write_audit_log(action, user_email, target="", details=None):
     with open(path, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
+    try:
+        from services.notifications import dispatch_audit_notification
+        dispatch_audit_notification(entry)
+    except Exception:
+        pass  # ponytail: never break audit logging if notifications fail to import/run
+
 
 def normalize_log_limit(limit):
     """Clamp log query limits to a safe, bounded range."""

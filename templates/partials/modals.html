@@ -165,3 +165,71 @@
         </form>
     </div>
 </div>
+
+<!-- Modal: Add notification target -->
+<div class="modal-overlay" id="modal-notification-target">
+    <div class="modal-content" style="max-width: 640px;">
+        <div class="modal-header">
+            <h3 id="modal-notification-target-title">Add notification target</h3>
+            <button type="button" class="alert-banner-close" style="font-size: 1.5rem;" id="modal-notification-target-close">×</button>
+        </div>
+
+        <div class="notification-builder-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+            <button type="button" class="btn btn-secondary btn-sm notification-tab active" data-notification-tab="build">Build</button>
+            <button type="button" class="btn btn-secondary btn-sm notification-tab" data-notification-tab="paste">Paste URL</button>
+        </div>
+
+        <div id="notification-tab-build">
+            <div class="form-group mb-3">
+                <label for="notification-builder-service">Service</label>
+                <select id="notification-builder-service"></select>
+            </div>
+            <div id="notification-builder-fields"></div>
+            <div style="display: flex; justify-content: flex-end; margin: 1rem 0;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-notification-compile">Generate URL</button>
+            </div>
+        </div>
+
+        <div id="notification-tab-paste" style="display: none;">
+            <div class="form-group mb-3">
+                <label for="notification-paste-url">Apprise URL</label>
+                <input type="text" id="notification-paste-url" placeholder="ntfys://token@ntfy.example.com/topic">
+                <span style="font-size: 0.75rem; color: var(--color-secondary);">
+                    Or use the <a class="text-link" href="https://appriseit.com/tools/url-builder/" target="_blank" rel="noopener noreferrer">Apprise URL Builder</a>.
+                </span>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-notification-validate-paste">Validate URL</button>
+            </div>
+        </div>
+
+        <div id="notification-compile-preview" style="display: none; margin-bottom: 1rem;">
+            <div class="form-group mb-2">
+                <label>Preview</label>
+                <div class="copyable-code" id="notification-compiled-url-preview" style="word-break: break-all;"></div>
+            </div>
+            <div class="form-group mb-2" id="notification-store-token-row" style="display: none;">
+                <label class="notification-action-item">
+                    <input type="checkbox" id="notification-store-token-env">
+                    <span>Store token in <code>.env</code> instead of the database</span>
+                </label>
+                <p class="stat-card-subtitle notification-env-restart-hint" id="notification-env-restart-hint" style="display: none; margin: 0.5rem 0 0; font-size: 0.75rem;">
+                    Add the line to <code>.env</code> and restart the app for the token to take effect.
+                </p>
+            </div>
+            <div class="form-group mb-2">
+                <label for="notification-target-label">Label</label>
+                <input type="text" id="notification-target-label" placeholder="Homelab alerts">
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-notification-save-target">Save to app</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-notification-copy-env">Copy token for .env</button>
+            </div>
+            <textarea id="notification-env-snippet" readonly rows="2" style="width: 100%; margin-top: 0.75rem; display: none; font-family: monospace; font-size: 0.8rem;"></textarea>
+        </div>
+
+        <div class="flex-row justify-end" style="justify-content: flex-end; margin-top: 1rem;">
+            <button type="button" class="btn btn-secondary btn-sm" id="modal-notification-target-cancel">Cancel</button>
+        </div>
+    </div>
+</div>

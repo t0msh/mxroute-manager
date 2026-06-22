@@ -58,6 +58,11 @@ ATTRIBUTIONS = [
         "description": "Public DNS lookups for health checks",
         "url": "https://www.dnspython.org/",
     },
+    {
+        "name": "Apprise",
+        "description": "Multi-platform notification delivery for audit event alerts",
+        "url": "https://github.com/caronc/apprise",
+    },
 ]
 
 

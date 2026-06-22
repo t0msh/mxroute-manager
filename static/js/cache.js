@@ -4,7 +4,7 @@ export const CACHE_TTL_MS = {
     domains: 2 * 60 * 1000,
     domainDetail: 60 * 1000,
     dnsRecords: 5 * 60 * 1000,
-    dnsHealth: 3 * 60 * 1000,
+    dnsHealth: 5 * 60 * 1000,
     quota: 90 * 1000,
     list: 60 * 1000,
 };

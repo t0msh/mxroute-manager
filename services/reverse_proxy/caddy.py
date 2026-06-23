@@ -3,6 +3,7 @@ from flask import current_app
 
 from models.db import get_config_value, get_env_config
 from services.reverse_proxy.base import BACKEND_CADDY
+from utils.validators import nested_dict_get
 
 _SERVER_NAME = "mxroute_manager_portals"
 
@@ -124,6 +125,21 @@ def _upsert_tls_policy(config, hostname):
     policies.append(_tls_policy_for_host(hostname))
 
 
+def _caddy_portal_server(config):
+    servers = nested_dict_get(config, "apps", "http", "servers")
+    if not isinstance(servers, dict):
+        return None
+    return servers.get(_SERVER_NAME)
+
+
+def _route_hosts(route):
+    hosts = []
+    for match in route.get("match") or []:
+        if isinstance(match, dict):
+            hosts.extend(match.get("host") or [])
+    return hosts
+
+
 def upsert_caddy_portal_route(hostname, steps=None):
     hostname = hostname.lower().rstrip(".")
     dial = _origin_dial()
@@ -133,10 +149,7 @@ def upsert_caddy_portal_route(hostname, steps=None):
     new_routes = []
     outcome = "created"
     for route in routes:
-        hosts = []
-        for match in route.get("match") or []:
-            hosts.extend(match.get("host") or [])
-        if hostname in [h.lower() for h in hosts]:
+        if hostname in [h.lower() for h in _route_hosts(route)]:
             outcome = "updated"
             new_routes.append(_host_route(hostname, dial))
         else:
@@ -152,37 +165,6 @@ def upsert_caddy_portal_route(hostname, steps=None):
             f"{hostname} → {dial}"
         )
     return outcome
-
-
-def delete_caddy_portal_route(hostname, steps=None):
-    hostname = hostname.lower().rstrip(".")
-    config = _load_config()
-    servers = (config.get("apps") or {}).get("http", {}).get("servers") or {}
-    server = servers.get(_SERVER_NAME)
-    if not server:
-        if steps is not None:
-            steps.append(f"No Caddy server {_SERVER_NAME} found.")
-        return False
-    routes = server.get("routes") or []
-    kept = []
-    removed = False
-    for route in routes:
-        hosts = []
-        for match in route.get("match") or []:
-            hosts.extend(match.get("host") or [])
-        if hostname in [h.lower() for h in hosts]:
-            removed = True
-        else:
-            kept.append(route)
-    if not removed:
-        if steps is not None:
-            steps.append(f"No Caddy route found for {hostname}.")
-        return False
-    server["routes"] = kept
-    _caddy_request("POST", "/load", json_payload=config)
-    if steps is not None:
-        steps.append(f"Removed Caddy route for {hostname}")
-    return True
 
 
 class CaddyBackend:
@@ -217,4 +199,27 @@ class CaddyBackend:
         }
 
     def delete_portal_host(self, portal_host, steps=None):
-        return delete_caddy_portal_route(portal_host, steps)
+        hostname = (portal_host or "").lower().rstrip(".")
+        config = _load_config()
+        server = _caddy_portal_server(config)
+        if not server:
+            if steps is not None:
+                steps.append(f"No Caddy server {_SERVER_NAME} found.")
+            return False
+        routes = server.get("routes") or []
+        kept = []
+        removed = False
+        for route in routes:
+            if hostname in [h.lower() for h in _route_hosts(route)]:
+                removed = True
+            else:
+                kept.append(route)
+        if not removed:
+            if steps is not None:
+                steps.append(f"No Caddy route found for {hostname}.")
+            return False
+        server["routes"] = kept
+        _caddy_request("POST", "/load", json_payload=config)
+        if steps is not None:
+            steps.append(f"Removed Caddy route for {hostname}")
+        return True

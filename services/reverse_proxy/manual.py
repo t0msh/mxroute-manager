@@ -3,10 +3,7 @@ from services.reverse_proxy.base import BACKEND_MANUAL
 
 
 def _origin_hint():
-    return (
-        (get_env_config("MANUAL_PROXY_ORIGIN") or "").strip()
-        or "127.0.0.1:5000"
-    )
+    return (get_env_config("MANUAL_PROXY_ORIGIN") or "").strip() or "127.0.0.1:5000"
 
 
 def manual_snippets(portal_host):

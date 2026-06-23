@@ -1,6 +1,7 @@
 from models.db import get_env_config
 from services.cloudflare_api import cf_is_configured, cf_request
 from services.reverse_proxy.base import BACKEND_CF_TUNNEL
+from utils.validators import nested_dict_get, origin_http_url
 
 _CATCH_ALL = {"service": "http_status:404"}
 
@@ -10,10 +11,7 @@ def _tunnel_id():
 
 
 def _tunnel_origin():
-    origin = (get_env_config("CF_TUNNEL_ORIGIN") or "").strip()
-    if origin and "://" not in origin:
-        origin = f"http://{origin}"
-    return origin.rstrip("/")
+    return origin_http_url(get_env_config("CF_TUNNEL_ORIGIN") or "")
 
 
 def cf_tunnel_cname_target():
@@ -24,7 +22,11 @@ def cf_tunnel_cname_target():
 
 
 def _ingress_list(config_payload):
-    config = (config_payload or {}).get("result", {}).get("config") or {}
+    if not isinstance(config_payload, dict):
+        return []
+    config = nested_dict_get(config_payload, "result", "config")
+    if not isinstance(config, dict):
+        return []
     ingress = config.get("ingress")
     if not isinstance(ingress, list):
         return []
@@ -136,7 +138,7 @@ class CfTunnelBackend:
         if not _tunnel_id():
             missing.append("CF_TUNNEL_ID")
         if not _tunnel_origin():
-            missing.append("CF_TUNNEL_ORIGIN (e.g. http://127.0.0.1:5000)")
+            missing.append("CF_TUNNEL_ORIGIN (e.g. 127.0.0.1:5000)")
         return missing
 
     def cname_target(self):
@@ -166,12 +168,18 @@ class CfTunnelBackend:
             outcome = "created"
 
         if outcome == "skipped":
-            steps.append(f"Cloudflare Tunnel ingress already configured for {portal_host}")
+            steps.append(
+                f"Cloudflare Tunnel ingress already configured for {portal_host}"
+            )
         elif outcome == "updated":
-            steps.append(f"Updating Cloudflare Tunnel ingress for {portal_host} → {service}")
+            steps.append(
+                f"Updating Cloudflare Tunnel ingress for {portal_host} → {service}"
+            )
             _put_ingress(ingress, steps)
         else:
-            steps.append(f"Adding Cloudflare Tunnel ingress for {portal_host} → {service}")
+            steps.append(
+                f"Adding Cloudflare Tunnel ingress for {portal_host} → {service}"
+            )
             _put_ingress(ingress, steps)
         return {
             "certificate_mode": "cloudflare_edge",

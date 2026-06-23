@@ -59,11 +59,10 @@ def _friendly_https_error(exc):
         backend_id = get_backend_id()
         if backend_id == "cloudflare_tunnel":
             return (
-                "Connection refused at origin. Check tunnel ingress and that cloudflared is running."
+                "Connection refused at origin. Check tunnel ingress and that "
+                "cloudflared is running."
             )
-        return (
-            "Connection refused at origin. Check reverse proxy host and forwarding target."
-        )
+        return "Connection refused at origin. Check reverse proxy host and forwarding target."
     if "ssl" in text:
         return "SSL handshake failed. Certificate may still be issuing."
     return "Portal is not reachable yet."

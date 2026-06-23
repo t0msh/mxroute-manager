@@ -3,6 +3,7 @@ import re
 
 from models.db import get_env_config
 from services.reverse_proxy.base import BACKEND_TRAEFIK
+from utils.validators import origin_http_url
 
 _SAFE_NAME = re.compile(r"[^a-z0-9.-]+")
 
@@ -12,12 +13,7 @@ def _dynamic_dir():
 
 
 def _origin_url():
-    origin = (get_env_config("TRAEFIK_ORIGIN_URL") or "").strip()
-    if not origin:
-        return ""
-    if "://" not in origin:
-        origin = f"http://{origin}"
-    return origin.rstrip("/")
+    return origin_http_url(get_env_config("TRAEFIK_ORIGIN_URL") or "")
 
 
 def _cert_resolver():
@@ -70,7 +66,9 @@ def upsert_traefik_portal_fragment(hostname, steps=None):
         with open(path, encoding="utf-8") as handle:
             if handle.read() == content:
                 if steps is not None:
-                    steps.append(f"Traefik dynamic config already present for {hostname}")
+                    steps.append(
+                        f"Traefik dynamic config already present for {hostname}"
+                    )
                 return "skipped"
         outcome = "updated"
     with open(path, "w", encoding="utf-8") as handle:
@@ -81,18 +79,6 @@ def upsert_traefik_portal_fragment(hostname, steps=None):
             f"{os.path.basename(path)}"
         )
     return outcome
-
-
-def delete_traefik_portal_fragment(hostname, steps=None):
-    path = _fragment_path(hostname)
-    if not os.path.isfile(path):
-        if steps is not None:
-            steps.append(f"No Traefik dynamic config found for {hostname}.")
-        return False
-    os.remove(path)
-    if steps is not None:
-        steps.append(f"Removed Traefik config {os.path.basename(path)}")
-    return True
 
 
 class TraefikBackend:
@@ -107,7 +93,7 @@ class TraefikBackend:
         if not _dynamic_dir():
             missing.append("TRAEFIK_DYNAMIC_DIR")
         if not _origin_url():
-            missing.append("TRAEFIK_ORIGIN_URL (e.g. http://127.0.0.1:5000)")
+            missing.append("TRAEFIK_ORIGIN_URL (e.g. 127.0.0.1:5000)")
         return missing
 
     def cname_target(self):
@@ -127,4 +113,18 @@ class TraefikBackend:
         }
 
     def delete_portal_host(self, portal_host, steps=None):
-        return delete_traefik_portal_fragment(portal_host, steps)
+        hostname = (portal_host or "").lower().rstrip(".")
+        path = _fragment_path(hostname)
+        if not os.path.isfile(path):
+            if steps is not None:
+                steps.append(f"No Traefik dynamic config found for {hostname}.")
+            return False
+        os.remove(path)
+        if steps is not None:
+            steps.append(f"Removed Traefik config {os.path.basename(path)}")
+        return True
+
+
+def delete_traefik_portal_fragment(hostname, steps=None):
+    """Test helper — delegates to TraefikBackend.delete_portal_host."""
+    return TraefikBackend().delete_portal_host(hostname, steps)

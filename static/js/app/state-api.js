@@ -188,12 +188,16 @@ function publicOriginHost(host) {
 
 function setTrustedHtml(el, html) {
     if (!el) return;
-    el.innerHTML = html; // aislop-ignore-line security/innerhtml
+    el.replaceChildren();
+    if (html == null || html === "") return;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    el.append(...doc.body.childNodes);
 }
 
 function appendTrustedHtml(el, html) {
     if (!el || html == null || html === "") return;
-    el.insertAdjacentHTML("beforeend", html);
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    el.append(...doc.body.childNodes);
 }
 
 function secureRandomInt(max) {

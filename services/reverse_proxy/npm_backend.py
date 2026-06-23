@@ -38,7 +38,9 @@ class NpmBackend:
                 steps.append(
                     f"Issuing Cloudflare Origin CA certificate for {portal_host}..."
                 )
-                certificate_pem, private_key_pem = create_origin_certificate(portal_host)
+                certificate_pem, private_key_pem = create_origin_certificate(
+                    portal_host
+                )
                 steps.append(f"Origin CA certificate issued for {portal_host}")
                 steps.append("Configuring Nginx Proxy Manager proxy host...")
                 return deploy_reset_portal_proxy(

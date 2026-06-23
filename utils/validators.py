@@ -37,6 +37,19 @@ def public_https_origin(host: str) -> str:
     return f"{scheme}://{host}"
 
 
+def origin_http_url(raw: str) -> str:
+    """Normalize host:port or URL to an http origin for local reverse-proxy targets."""
+    import os
+
+    raw = (raw or "").strip().rstrip("/")
+    if not raw:
+        return ""
+    if "://" in raw:
+        return raw
+    scheme = (os.getenv("MXM_ORIGIN_URL_SCHEME") or "http").strip().rstrip(":")
+    return f"{scheme}://{raw}"
+
+
 def validate_domain(domain):
     if not domain or not isinstance(domain, str):
         return False

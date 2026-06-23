@@ -139,7 +139,7 @@ No live API keys needed - tests use a temp SQLite file and mocked APIs. Details:
 
 ## Roadmap
 
-- [ ] Reverse proxy support beyond Nginx Proxy Manager (Caddy, Traefik, raw nginx)
+- [x] Reverse proxy support beyond Nginx Proxy Manager (Cloudflare Tunnel, Caddy, Traefik, manual docs)
 - [ ] Additional deployment examples (systemd, Kubernetes)
 
 ## Related guides

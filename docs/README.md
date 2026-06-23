@@ -7,7 +7,7 @@
 | [Getting started](getting-started.md) | First deploy: clone, `.env`, Docker, login, production checklist |
 | [Configuration](configuration.md) | All environment variables and in-app Settings |
 | [Local admin password](admin-password.md) | How admin credentials are seeded and how to reset them |
-| [Reverse proxy](reverse-proxy.md) | TLS, Nginx Proxy Manager, branded reset portals |
+| [Reverse proxy](reverse-proxy.md) | TLS, reverse proxy backends, branded reset portals |
 
 ## Features
 
@@ -40,7 +40,7 @@
 
 **Delegated team access** - Production setup, then [Access control](access-control.md).
 
-**Mailbox self-service reset** - [Password reset](password-reset.md) (login page only, or branded portals with Cloudflare + NPM).
+**Mailbox self-service reset** - [Password reset](password-reset.md) (login page only, or branded portals with Cloudflare + a reverse proxy backend).
 
 Feature overview and roadmap: [main README](../README.md).
 
@@ -55,7 +55,7 @@ Feature overview and roadmap: [main README](../README.md).
 | [Password reset](password-reset.md) | Mailbox self-service reset |
 | [App tour](app-tour.md) | UI screenshots and modals |
 | [Themes](themes.md) | Login screen theme gallery |
-| [Reverse proxy](reverse-proxy.md) | TLS and Nginx Proxy Manager |
+| [Reverse proxy](reverse-proxy.md) | TLS and reverse proxy backends |
 | [Testing](testing.md) | Test suite layout and how to run it |
 | [Frontend app scripts](frontend-app-scripts.md) | Split `static/js/app/` files and script load order |
 | [Main README](../README.md) | Project overview, features, quickstart |

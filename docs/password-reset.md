@@ -86,16 +86,16 @@ A branded portal is a **dedicated hostname** for one mail domain (e.g. `reset.cu
 ### Admin setup
 
 1. Configure [SMTP and enable self-service reset](#shared-requirements). Set **your contact email** in Settings (admins) or Access Control (delegated users); portal deploy uses the logged-in user's contact email for the `reset@{domain}` forwarder.
-2. Configure Cloudflare and [Nginx Proxy Manager](reverse-proxy.md) (`CF_*`, `NPM_*`, `RESET_PORTAL_CNAME_TARGET`).
+2. Configure Cloudflare and a [reverse proxy backend](reverse-proxy.md) (`REVERSE_PROXY_BACKEND`, `CF_*`, and backend-specific variables).
 3. Open **Domains**, select the domain, and expand **Password Reset Portal**.
 4. Set subdomain prefix (e.g. `reset`), title, theme, and optional logo.
-5. Click **Deploy Portal** to save settings, create the `reset@{domain}` forwarder on MXroute, publish the Cloudflare CNAME, and create the NPM proxy host with TLS.
+5. Click **Deploy Portal** to save settings, create the `reset@{domain}` forwarder on MXroute, publish the Cloudflare CNAME, and configure the reverse proxy route with TLS.
 
 **Branded From address:** When a portal is enabled for a domain, password reset emails use `reset@{domain}` as the sender (display name = portal title, or “Password Reset”). MXroute requires that address to exist locally; deploy creates `reset@{domain}` as a forwarder to **your** contact email unless the domain already has a catch-all that satisfies sender verification. The global `RESET_SMTP_*` credentials are still used for SMTP authentication.
 
 See [MXroute sender verification](#mxroute-sender-verification-from-addresses) for why this is required and how the app handles it.
 
-Disabling the portal or running teardown removes DNS and NPM resources when automation is configured. The `reset@{domain}` forwarder is left in place; delete it manually under **Forwarders** if you no longer need it.
+Disabling the portal or running teardown removes DNS and reverse-proxy resources when automation is configured. The `reset@{domain}` forwarder is left in place; delete it manually under **Forwarders** if you no longer need it.
 
 Detailed deploy steps: [Reverse proxy - Branded reset portals](reverse-proxy.md#branded-reset-portals).
 
@@ -145,7 +145,7 @@ You need a deliverable contact email on your account before deploy will run (sam
 | **URL** | Main app `/login` + `/reset-password` | `https://<prefix>.<domain>/` |
 | **Branding** | Default MXroute Manager styling | Per-domain logo, title, theme |
 | **Domain scope** | Any mailbox on the account (if recovery email set) | Only mailboxes on the portal’s domain |
-| **Infrastructure** | SMTP only | SMTP + Cloudflare + NPM |
+| **Infrastructure** | SMTP only | SMTP + Cloudflare + reverse proxy |
 | **Email link target** | Main app, unless portal enabled for domain | Portal hostname when enabled |
 | **Email From address** | Global `RESET_SMTP_FROM` | `reset@{domain}` when portal enabled |
 
@@ -178,7 +178,7 @@ Failed SMTP sends do not reveal errors to the end user; the request still return
 | Reset tab hidden on login | `MAILBOX_RESET_ENABLED`, SMTP configured, `/api/public/password-reset/status` |
 | No email received | Recovery email set, SMTP test in Settings, spam folder, audit log for `smtp.send_failed` |
 | Link goes to wrong host | Branded portal enabled/disabled for that domain; `FORCE_HTTPS` and public URL |
-| Portal deploy button missing | `CF_*`, `NPM_*`, `RESET_PORTAL_CNAME_TARGET` - [Configuration](configuration.md#branded-reset-portals) |
+| Portal deploy button missing | Cloudflare + reverse proxy env vars — [Configuration](configuration.md#branded-reset-portals) |
 | Portal deploy fails on contact email | Add a contact email for your account in Settings or Access Control, or sign in with an email-based login |
 | Reset email From rejected by MXroute | Ensure `reset@{domain}` forwarder exists (re-deploy portal) or domain has catch-all; see [MXroute sender verify](https://docs.mxroute.com/docs/troubleshooting/sender-verify-failed.html) |
 | “Invalid or expired reset link” | Token older than 1 hour, already used, or wrong portal domain |
@@ -190,7 +190,7 @@ Failed SMTP sends do not reveal errors to the end user; the request still return
 | Guide | Topic |
 | --- | --- |
 | [Configuration](configuration.md) | `MAILBOX_RESET_*`, `RESET_SMTP_*`, portal env vars |
-| [Reverse proxy](reverse-proxy.md) | NPM TLS and Deploy Portal workflow |
+| [Reverse proxy](reverse-proxy.md) | TLS and Deploy Portal workflow |
 | [Getting started](getting-started.md) | Optional features during first deploy |
 | [Access control](access-control.md) | Who can set recovery emails in **Email Accounts** |
 | [Testing](testing.md) | Password reset and portal isolation tests |

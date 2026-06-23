@@ -111,7 +111,7 @@ Patch where the route imports the function:
 | MXroute | `routes.emails.*`, `routes.spam.*`, `routes.domains.*` |
 | OIDC token/userinfo | `routes.auth.requests.post`, `routes.auth.requests.get` (or patch `get_oidc_config` for discovery) |
 | Cloudflare | `services.cloudflare.cf_request`, `routes.cloudflare.*` |
-| NPM | `services.reset_portal_deploy.*` |
+| Reverse proxy / portal deploy | `services.reset_portal_deploy.*`, `services.reverse_proxy.*` |
 | Public DNS | `dns.resolver.Resolver`, etc. |
 
 CI should never need real API keys.
@@ -159,7 +159,7 @@ OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the tok
 | Cloudflare DNS wizard (HTTP) | `test_cloudflare_wizard.py` | 3 |
 | Reset portal routing / CSRF | `test_reset_portal.py` | 3 |
 | Portal DNS checks | `test_reset_portal_dns.py` | 2 |
-| Portal deploy | `test_reset_portal_deploy.py` | 2 |
+| Portal deploy | `test_reset_portal_deploy.py`, `test_reverse_proxy.py` | 2 |
 | Frontend JS (permissions, utils, cache) | `static/js/*.test.js` + `test_javascript.py` | 1 |
 
 ## What's not covered yet

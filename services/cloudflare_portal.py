@@ -1,4 +1,5 @@
-from models.db import build_portal_host, get_reset_portal_cname_target
+from models.db import build_portal_host
+from services.reverse_proxy import portal_cname_target
 from services.cloudflare_api import (
     cf_is_configured,
     cf_request,
@@ -12,9 +13,12 @@ from services.mxroute import audit
 
 
 def deploy_reset_portal_cname(domain, prefix):
-    target = get_reset_portal_cname_target()
+    target = portal_cname_target()
     if not target:
-        raise ValueError("RESET_PORTAL_CNAME_TARGET is not configured")
+        raise ValueError(
+            "Portal CNAME target is not configured "
+            "(RESET_PORTAL_CNAME_TARGET or backend-specific setting)"
+        )
 
     prefix = (prefix or "").strip().lower()
     if not prefix:
@@ -134,11 +138,11 @@ def check_reset_portal_dns(portal):
     host = portal.get("portal_host") or build_portal_host(
         portal["subdomain_prefix"], portal["domain"]
     )
-    expected_target = get_reset_portal_cname_target()
+    expected_target = portal_cname_target()
     if not expected_target:
         return {
             "status": "unknown",
-            "message": "RESET_PORTAL_CNAME_TARGET is not configured.",
+            "message": "Portal CNAME target is not configured.",
         }
 
     cf_result = _check_reset_portal_dns_cloudflare(

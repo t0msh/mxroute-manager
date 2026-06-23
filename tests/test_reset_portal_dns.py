@@ -27,7 +27,7 @@ def test_dns_check_uses_cloudflare_api_for_proxied_cname():
     ]
     with (
         patch(
-            "services.cloudflare_portal.get_reset_portal_cname_target",
+            "services.cloudflare_portal.portal_cname_target",
             return_value=CNAME_TARGET,
         ),
         patch("services.cloudflare_portal.cf_is_configured", return_value=True),
@@ -56,7 +56,7 @@ def test_dns_check_warns_when_cf_record_exists_but_public_dns_missing():
     ]
     with (
         patch(
-            "services.cloudflare_portal.get_reset_portal_cname_target",
+            "services.cloudflare_portal.portal_cname_target",
             return_value=CNAME_TARGET,
         ),
         patch("services.cloudflare_portal.cf_is_configured", return_value=True),
@@ -79,7 +79,7 @@ def test_dns_check_accepts_public_a_record_when_cname_hidden():
 
     with (
         patch(
-            "services.cloudflare_portal.get_reset_portal_cname_target",
+            "services.cloudflare_portal.portal_cname_target",
             return_value=CNAME_TARGET,
         ),
         patch("services.cloudflare_portal.cf_is_configured", return_value=False),

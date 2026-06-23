@@ -132,7 +132,7 @@
                 <div class="flex-row align-center justify-between" style="gap: 1rem; flex-wrap: wrap;">
                     <div>
                         <div style="font-weight: 600; color: var(--accent); margin-bottom: 0.25rem;">Enable branded reset portal</div>
-                        <p class="stat-card-subtitle" style="margin: 0;">Disabling removes the Cloudflare CNAME and NPM proxy host.</p>
+                        <p class="stat-card-subtitle" style="margin: 0;">Disabling removes the Cloudflare CNAME and reverse-proxy route when automation is configured.</p>
                     </div>
                     <label class="toggle-switch" title="Enable branded reset portal">
                         <input type="checkbox" id="reset-portal-enabled">
@@ -191,6 +191,27 @@
             <div id="reset-portal-deploy-missing" class="status-banner info mb-4" style="display: none;">
                 One-click deploy requires environment configuration. Missing:
                 <code id="reset-portal-deploy-missing-list"></code>
+            </div>
+
+            <div id="reset-portal-manual-snippets" class="form-group mb-4" style="display: none;">
+                <label>Manual reverse-proxy configuration</label>
+                <p class="stat-card-subtitle" style="margin: 0 0 0.75rem;">With <code>REVERSE_PROXY_BACKEND=manual</code>, publish DNS in Cloudflare yourself and add a vhost on your proxy. Origin: <code id="reset-portal-manual-origin"></code></p>
+                <details class="mb-2">
+                    <summary class="stat-card-subtitle" style="cursor: pointer;">nginx</summary>
+                    <pre id="reset-portal-snippet-nginx" class="portal-snippet-pre"></pre>
+                </details>
+                <details class="mb-2">
+                    <summary class="stat-card-subtitle" style="cursor: pointer;">Caddy</summary>
+                    <pre id="reset-portal-snippet-caddy" class="portal-snippet-pre"></pre>
+                </details>
+                <details class="mb-2">
+                    <summary class="stat-card-subtitle" style="cursor: pointer;">HAProxy</summary>
+                    <pre id="reset-portal-snippet-haproxy" class="portal-snippet-pre"></pre>
+                </details>
+                <details class="mb-2">
+                    <summary class="stat-card-subtitle" style="cursor: pointer;">Apache</summary>
+                    <pre id="reset-portal-snippet-apache" class="portal-snippet-pre"></pre>
+                </details>
             </div>
 
             <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">

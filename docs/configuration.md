@@ -12,7 +12,7 @@ Copy `.env.example` to `.env` as a starting point. For a guided first deploy, st
 | **Production** | + `FORCE_HTTPS`, `TRUSTED_PROXY_COUNT`, reverse proxy | HTTPS, correct client IP for rate limits |
 | **Cloudflare** | + `CF_API_TOKEN`, `CF_ACCOUNT_ID` | DNS wizard, one-click DNS fixes, portal CNAME deploy |
 | **Mailbox reset** | + `MAILBOX_RESET_ENABLED`, `RESET_SMTP_*` | Self-service reset on the login page |
-| **Branded portals** | + `NPM_*`, `RESET_PORTAL_CNAME_TARGET` | Per-domain reset pages with one-click **Deploy Portal** |
+| **Branded portals** | + `REVERSE_PROXY_BACKEND`, Cloudflare, backend-specific vars | Per-domain reset pages with one-click **Deploy Portal** |
 
 You can add tiers after the initial install; restart the container when changing `.env`.
 
@@ -90,18 +90,28 @@ Workflow, security, and portal setup: [password-reset.md](password-reset.md).
 
 ## Branded reset portals
 
-Optional per-domain reset pages (e.g. `reset.example.com`). Requires Cloudflare and [Nginx Proxy Manager](reverse-proxy.md).
+Optional per-domain reset pages (e.g. `reset.example.com`). Requires Cloudflare and a [reverse proxy backend](reverse-proxy.md).
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `RESET_PORTAL_CNAME_TARGET` | For deploy | - | Public hostname portal subdomains CNAME to (no `https://`) |
-| `NPM_API_URL` | For deploy | - | NPM base URL (e.g. `https://npm.example.com`) |
-| `NPM_IDENTITY` | For deploy | - | NPM admin email |
-| `NPM_SECRET` | For deploy | - | NPM admin password (env only) |
-| `NPM_FORWARD_HOST` | For deploy | - | Origin IP/hostname NPM proxies to (your app host) |
-| `NPM_FORWARD_PORT` | For deploy | `5000` | Origin port (app listens on 5000 in Docker) |
+| `REVERSE_PROXY_BACKEND` | No | `npm` | `npm`, `cloudflare_tunnel`, `caddy`, `traefik`, or `manual` |
+| `RESET_PORTAL_CNAME_TARGET` | npm/caddy/traefik/manual | - | Public hostname portal subdomains CNAME to (no `https://`) |
+| `CF_TUNNEL_ID` | cloudflare_tunnel | - | Remotely managed Cloudflare Tunnel ID |
+| `CF_TUNNEL_ORIGIN` | cloudflare_tunnel | - | Origin URL (e.g. `http://127.0.0.1:5000`) |
+| `NPM_API_URL` | npm | - | NPM base URL (e.g. `https://npm.example.com`) |
+| `NPM_IDENTITY` | npm | - | NPM admin email |
+| `NPM_SECRET` | npm | - | NPM admin password (env only) |
+| `NPM_FORWARD_HOST` | npm | - | Origin IP/hostname NPM proxies to |
+| `NPM_FORWARD_PORT` | npm | `5000` | Origin port |
 | `NPM_TLS_VERIFY` | No | `true` | Verify NPM API TLS certificate |
-| `NPM_LETSENCRYPT_EMAIL` | No | `NPM_IDENTITY` | Let's Encrypt contact email for portal certs |
+| `NPM_LETSENCRYPT_EMAIL` | No | `NPM_IDENTITY` | Let's Encrypt contact for portal certs |
+| `CADDY_ADMIN_URL` | caddy | - | Caddy admin API base URL |
+| `CADDY_ADMIN_TOKEN` | No | - | Bearer token if admin API auth is enabled |
+| `CADDY_ORIGIN` | caddy | - | Upstream dial address (e.g. `127.0.0.1:5000`) |
+| `TRAEFIK_DYNAMIC_DIR` | traefik | - | Directory Traefik file provider watches |
+| `TRAEFIK_ORIGIN_URL` | traefik | - | Backend URL (e.g. `http://127.0.0.1:5000`) |
+| `TRAEFIK_CERT_RESOLVER` | No | `cloudflare` | Cert resolver name in static Traefik config |
+| `MANUAL_PROXY_ORIGIN` | No | `127.0.0.1:5000` | Origin hint shown in manual-mode UI snippets |
 
 Portal branding (subdomain, title, logo) is configured per domain in **Domains → Password Reset Portal**, not via env. See [Password reset - Branded portals](password-reset.md#branded-reset-portals) and [Reverse proxy](reverse-proxy.md#branded-reset-portals).
 

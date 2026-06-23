@@ -115,7 +115,7 @@ See [Password reset](password-reset.md) for the login-page flow and requirements
 
 ### Branded password-reset portals
 
-Per-domain reset pages (e.g. `reset.example.com`) with logo and theme. Requires Cloudflare + [Nginx Proxy Manager](reverse-proxy.md) and the `NPM_*` / `RESET_PORTAL_CNAME_TARGET` variables.
+Per-domain reset pages (e.g. `reset.example.com`) with logo and theme. Requires Cloudflare and a [reverse proxy backend](reverse-proxy.md) — see `REVERSE_PROXY_BACKEND` in [configuration.md](configuration.md#branded-reset-portals).
 
 Configure under **Domains → Password Reset Portal**, then click **Deploy Portal** to publish DNS and TLS in one step. Full guide: [Password reset - Branded portals](password-reset.md#branded-reset-portals).
 
@@ -145,7 +145,7 @@ Uses `./mxroute-manager.db` in the project directory by default (not the Docker 
 | --- | --- |
 | Cannot log in after changing `ADMIN_PASSWORD` in `.env` | [admin-password.md](admin-password.md) |
 | DNS wizard greyed out or failing | [configuration.md](configuration.md#cloudflare) - check CF token and account ID |
-| Reset portal deploy button missing | NPM and Cloudflare env vars - [configuration.md](configuration.md#branded-reset-portals) |
+| Reset portal deploy button missing | Cloudflare and reverse proxy env vars — [configuration.md](configuration.md#branded-reset-portals) |
 | Mailbox reset not working | [password-reset.md](password-reset.md) |
 | Rate limits or wrong client IP behind proxy | `TRUSTED_PROXY_COUNT` - [configuration.md](configuration.md#core-security) |
 
@@ -157,5 +157,5 @@ Uses `./mxroute-manager.db` in the project directory by default (not the Docker 
 | [Local admin password](admin-password.md) | Credential seeding and recovery |
 | [Access control](access-control.md) | Delegated users and permissions |
 | [Password reset](password-reset.md) | Login-page and branded mailbox reset |
-| [Reverse proxy](reverse-proxy.md) | TLS, NPM, branded portals |
+| [Reverse proxy](reverse-proxy.md) | TLS, reverse proxy backends, branded portals |
 | [Testing](testing.md) | Running or extending the test suite |

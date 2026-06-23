@@ -3,7 +3,6 @@ import time
 import requests
 
 from models.db import build_portal_host
-from services.cf_origin_ca import cf_origin_ca_is_configured, create_origin_certificate
 from services.cloudflare import (
     cf_is_configured,
     deploy_reset_portal_cname,
@@ -11,31 +10,32 @@ from services.cloudflare import (
 )
 from services.mxroute import audit
 from services.reset_portal_mail import ensure_reset_sender_forwarder
-from services.npm import (
-    npm_is_configured,
-    deploy_reset_portal_proxy,
-    deploy_reset_portal_proxy_letsencrypt,
-    npm_delete_proxy_host,
-    npm_delete_certificate,
+from services.reverse_proxy import (
+    get_backend,
+    get_backend_id,
+    portal_cname_target,
+    proxy_is_configured,
+    proxy_missing_config,
 )
 from utils.validators import public_https_origin
 
 
 def reset_portal_deploy_is_configured():
-    return cf_is_configured() and npm_is_configured()
+    if not cf_is_configured() or not proxy_is_configured():
+        return False
+    backend = get_backend()
+    if backend.needs_cname_target_env() and not portal_cname_target():
+        return False
+    return True
 
 
 def missing_deploy_config():
     missing = []
     if not cf_is_configured():
         missing.append("Cloudflare (CF_API_TOKEN, CF_ACCOUNT_ID)")
-    if not npm_is_configured():
-        missing.append(
-            "NPM_API_URL, NPM_IDENTITY, NPM_SECRET, NPM_FORWARD_HOST, NPM_FORWARD_PORT"
-        )
-    from models.db import get_reset_portal_cname_target
-
-    if not get_reset_portal_cname_target():
+    missing.extend(proxy_missing_config())
+    backend = get_backend()
+    if backend.needs_cname_target_env() and not portal_cname_target():
         missing.append("RESET_PORTAL_CNAME_TARGET")
     return missing
 
@@ -56,11 +56,16 @@ def _friendly_https_error(exc):
     if "timed out" in text or "timeout" in text:
         return "Portal did not respond in time. After deploy, certificate and DNS propagation can take a few minutes."
     if "connection refused" in text:
+        backend_id = get_backend_id()
+        if backend_id == "cloudflare_tunnel":
+            return (
+                "Connection refused at origin. Check tunnel ingress and that cloudflared is running."
+            )
         return (
-            "Connection refused at origin. Check NPM proxy host and forwarding target."
+            "Connection refused at origin. Check reverse proxy host and forwarding target."
         )
     if "ssl" in text:
-        return "SSL handshake failed. NPM certificate may still be issuing."
+        return "SSL handshake failed. Certificate may still be issuing."
     return "Portal is not reachable yet."
 
 
@@ -120,27 +125,6 @@ def _check_reset_portal_https_once(portal_host, url, timeout):
     }
 
 
-def _provision_npm_tls(portal_host, steps):
-    if cf_origin_ca_is_configured():
-        try:
-            steps.append(
-                f"Issuing Cloudflare Origin CA certificate for {portal_host}..."
-            )
-            certificate_pem, private_key_pem = create_origin_certificate(portal_host)
-            steps.append(f"Origin CA certificate issued for {portal_host}")
-            steps.append("Configuring Nginx Proxy Manager proxy host...")
-            return deploy_reset_portal_proxy(
-                portal_host, certificate_pem, private_key_pem, steps
-            )
-        except ValueError as exc:
-            steps.append(f"Origin CA skipped: {exc}")
-
-    steps.append(
-        f"Provisioning NPM Let's Encrypt certificate for {portal_host} (Cloudflare DNS challenge)..."
-    )
-    return deploy_reset_portal_proxy_letsencrypt(portal_host, steps)
-
-
 def deploy_reset_portal(domain, prefix, admin_email=None):
     missing = missing_deploy_config()
     if missing:
@@ -155,6 +139,7 @@ def deploy_reset_portal(domain, prefix, admin_email=None):
     domain = domain.lower().strip()
     portal_host = build_portal_host(prefix, domain)
     steps = []
+    backend = get_backend()
 
     admin_email = (admin_email or "").strip().lower()
     if not admin_email:
@@ -170,12 +155,15 @@ def deploy_reset_portal(domain, prefix, admin_email=None):
     dns_result = deploy_reset_portal_cname(domain, prefix)
     steps.extend(dns_result.get("steps") or [])
 
-    npm_result = _provision_npm_tls(portal_host, steps)
+    steps.append(f"Configuring {backend.display_name}...")
+    proxy_result = backend.provision_portal_host(portal_host, steps)
 
     # ponytail: return quickly; LE issuance + HTTPS propagation happen async — status on refresh.
     https_health = {
         "status": "pending",
-        "message": "DNS and NPM configured. HTTPS may take a few minutes to become available.",
+        "message": (
+            "DNS and reverse proxy configured. HTTPS may take a few minutes to become available."
+        ),
     }
 
     audit(
@@ -183,22 +171,24 @@ def deploy_reset_portal(domain, prefix, admin_email=None):
         target=domain,
         host=portal_host,
         dns=dns_result.get("outcome"),
-        npm_proxy=npm_result.get("proxy_host_outcome"),
-        cert_mode=npm_result.get("certificate_mode"),
+        proxy_backend=backend.backend_id,
+        proxy_host=proxy_result.get("proxy_host_outcome"),
+        cert_mode=proxy_result.get("certificate_mode"),
         https=https_health.get("status"),
     )
 
     return {
         "host": portal_host,
         "dns": dns_result,
-        "npm": npm_result,
+        "proxy": proxy_result,
+        "proxy_backend": backend.backend_id,
         "https": https_health,
         "steps": steps,
     }
 
 
 def teardown_reset_portal(domain, portal):
-    """Best-effort removal of Cloudflare CNAME and NPM resources for a portal host."""
+    """Best-effort removal of Cloudflare CNAME and reverse-proxy resources for a portal host."""
     host = (portal or {}).get("portal_host") or ""
     if not host:
         return {"steps": ["No portal host configured; nothing to remove."]}
@@ -206,6 +196,7 @@ def teardown_reset_portal(domain, portal):
     domain = domain.lower().strip()
     host = host.lower().rstrip(".")
     steps = []
+    backend = get_backend()
 
     if cf_is_configured():
         try:
@@ -215,14 +206,13 @@ def teardown_reset_portal(domain, portal):
     else:
         steps.append("Cloudflare not configured; skipped CNAME removal.")
 
-    if npm_is_configured():
+    if proxy_is_configured():
         try:
-            npm_delete_proxy_host(host, steps)
-            npm_delete_certificate(host, steps)
+            backend.delete_portal_host(host, steps)
         except Exception as exc:
-            steps.append(f"NPM cleanup failed: {exc}")
+            steps.append(f"{backend.display_name} cleanup failed: {exc}")
     else:
-        steps.append("NPM not configured; skipped proxy host removal.")
+        steps.append("Reverse proxy not configured; skipped proxy host removal.")
 
     audit("reset_portal.teardown", target=domain, host=host)
     return {"host": host, "steps": steps}

@@ -141,7 +141,7 @@ async function deployResetPortalDns() {
         return result.data;
     } catch (err) {
         if (err.name === "AbortError") {
-            throw new Error("Deploy timed out after 3 minutes. Check NPM and try again.");
+            throw new Error("Deploy timed out after 3 minutes. Check reverse proxy settings and try again.");
         }
         throw err;
     } finally {
@@ -177,6 +177,7 @@ function renderResetPortalForm(data) {
     const dnsStatus = document.getElementById("reset-portal-dns-status");
     const httpsStatus = document.getElementById("reset-portal-https-status");
     const deployMissing = document.getElementById("reset-portal-deploy-missing");
+    const manualSnippets = document.getElementById("reset-portal-manual-snippets");
 
     resetPortalDeployConfigured = !!data.deploy_configured;
 
@@ -185,6 +186,24 @@ function renderResetPortalForm(data) {
         deployMissing.style.display = missing.length ? "block" : "none";
         const list = document.getElementById("reset-portal-deploy-missing-list");
         if (list) list.textContent = missing.join(", ");
+    }
+
+    if (manualSnippets) {
+        const snippets = data.manual_snippets;
+        const isManual = data.proxy_backend === "manual";
+        manualSnippets.style.display = isManual && snippets ? "block" : "none";
+        if (isManual && snippets) {
+            const originEl = document.getElementById("reset-portal-manual-origin");
+            if (originEl) originEl.textContent = snippets.origin || "";
+            const setSnippet = (id, key) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = snippets[key] || "";
+            };
+            setSnippet("reset-portal-snippet-nginx", "nginx");
+            setSnippet("reset-portal-snippet-caddy", "caddy");
+            setSnippet("reset-portal-snippet-haproxy", "haproxy");
+            setSnippet("reset-portal-snippet-apache", "apache");
+        }
     }
     updateResetPortalSubmitButton();
 
@@ -263,7 +282,7 @@ async function saveResetPortalSettings() {
             } else {
                 showAlert(
                     "success",
-                    "Portal settings saved. DNS and NPM configured — HTTPS may take a few minutes to become live."
+                    "Portal settings saved. DNS and reverse proxy configured — HTTPS may take a few minutes to become live."
                 );
             }
             await loadResetPortalSettings(resetPortalDomain);

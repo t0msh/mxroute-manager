@@ -7,7 +7,6 @@ from models.db import (
     upsert_reset_portal,
     set_reset_portal_logo,
     clear_reset_portal_logo,
-    get_reset_portal_cname_target,
 )
 from services.cloudflare import cf_is_configured, check_reset_portal_dns
 from services.reset_portal_deploy import (
@@ -17,8 +16,14 @@ from services.reset_portal_deploy import (
     reset_portal_deploy_is_configured,
     check_reset_portal_https_quick,
 )
-from services.npm import npm_is_configured
 from services.cf_origin_ca import cf_origin_ca_is_configured
+from services.reverse_proxy import (
+    get_backend,
+    get_backend_id,
+    portal_cname_target,
+    proxy_is_configured,
+)
+from services.reverse_proxy.manual import manual_snippets
 from services.reset_portal import (
     ALLOWED_LOGO_EXTENSIONS,
     MAX_LOGO_BYTES,
@@ -65,7 +70,29 @@ def _ensure_reset_portal_draft(domain):
     return get_reset_portal(domain)
 
 
+def _portal_proxy_fields():
+    backend = get_backend()
+    return {
+        "proxy_backend": get_backend_id(),
+        "proxy_display_name": backend.display_name,
+        "proxy_configured": proxy_is_configured(),
+        "origin_ca_configured": cf_origin_ca_is_configured()
+        and backend.supports_origin_ca(),
+    }
+
+
 def _portal_response(portal, include_live_checks=True):
+    proxy_fields = _portal_proxy_fields()
+    base = {
+        "cname_target": portal_cname_target(),
+        "cf_configured": cf_is_configured(),
+        "deploy_configured": reset_portal_deploy_is_configured(),
+        "deploy_missing": missing_deploy_config(),
+        **proxy_fields,
+        # Backward compatibility for older UI/scripts
+        "npm_configured": proxy_fields["proxy_configured"]
+        and proxy_fields["proxy_backend"] == "npm",
+    }
     if not portal:
         return {
             "domain": "",
@@ -76,14 +103,10 @@ def _portal_response(portal, include_live_checks=True):
             "portal_theme": DEFAULT_THEME,
             "has_logo": False,
             "portal_url": "",
-            "cname_target": get_reset_portal_cname_target(),
-            "cf_configured": cf_is_configured(),
-            "npm_configured": npm_is_configured(),
-            "origin_ca_configured": cf_origin_ca_is_configured(),
-            "deploy_configured": reset_portal_deploy_is_configured(),
-            "deploy_missing": missing_deploy_config(),
             "dns": None,
             "https": None,
+            "manual_snippets": None,
+            **base,
         }
     host = portal.get("portal_host") or ""
     live = include_live_checks and portal.get("enabled") and host
@@ -95,8 +118,13 @@ def _portal_response(portal, include_live_checks=True):
         else:
             https = {
                 "status": "pending",
-                "message": "Deploy DNS + NPM first; HTTPS is checked after the CNAME is live.",
+                "message": (
+                    "Deploy DNS and reverse proxy first; HTTPS is checked after the CNAME is live."
+                ),
             }
+    manual = None
+    if proxy_fields["proxy_backend"] == "manual" and host:
+        manual = manual_snippets(host)
     return {
         "domain": portal["domain"],
         "enabled": portal["enabled"],
@@ -106,14 +134,10 @@ def _portal_response(portal, include_live_checks=True):
         "portal_theme": normalize_theme(portal.get("portal_theme")),
         "has_logo": bool(portal.get("logo_filename")),
         "portal_url": public_https_origin(host),
-        "cname_target": get_reset_portal_cname_target(),
-        "cf_configured": cf_is_configured(),
-        "npm_configured": npm_is_configured(),
-        "origin_ca_configured": cf_origin_ca_is_configured(),
-        "deploy_configured": reset_portal_deploy_is_configured(),
-        "deploy_missing": missing_deploy_config(),
         "dns": dns,
         "https": https,
+        "manual_snippets": manual,
+        **base,
     }
 
 

@@ -1,8 +1,8 @@
-"""Tests for NPM + full reset portal deploy orchestration."""
+"""Tests for reset portal deploy orchestration."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-from services.npm import npm_is_configured
+from services.reverse_proxy.npm_backend import NpmBackend
 from services.reset_portal_deploy import (
     missing_deploy_config,
     reset_portal_deploy_is_configured,
@@ -12,8 +12,9 @@ from services.reset_portal_deploy import (
 )
 
 
-def test_npm_is_configured():
-    assert npm_is_configured() is True
+def test_npm_backend_is_configured():
+    backend = NpmBackend()
+    assert backend.is_configured() is True
 
 
 def test_missing_deploy_config_empty_when_ready():
@@ -44,25 +45,30 @@ def test_friendly_https_error_messages():
     )
 
 
+def test_friendly_https_error_tunnel_mode(monkeypatch):
+    monkeypatch.setenv("REVERSE_PROXY_BACKEND", "cloudflare_tunnel")
+    msg = _friendly_https_error(Exception("Connection refused"))
+    assert "cloudflared" in msg.lower()
+
+
 def test_teardown_reset_portal():
     portal = {
         "domain": "cleaver.click",
         "enabled": True,
         "portal_host": "reset.cleaver.click",
     }
+    mock_backend = MagicMock()
+    mock_backend.display_name = "Nginx Proxy Manager"
+    mock_backend.delete_portal_host.return_value = True
+
     with (
         patch(
             "services.reset_portal_deploy.remove_reset_portal_cname",
             return_value={"outcome": "removed"},
         ) as rm_cname,
-        patch(
-            "services.reset_portal_deploy.npm_delete_proxy_host", return_value=True
-        ) as rm_proxy,
-        patch(
-            "services.reset_portal_deploy.npm_delete_certificate", return_value=True
-        ) as rm_cert,
+        patch("services.reset_portal_deploy.get_backend", return_value=mock_backend),
         patch("services.reset_portal_deploy.cf_is_configured", return_value=True),
-        patch("services.reset_portal_deploy.npm_is_configured", return_value=True),
+        patch("services.reset_portal_deploy.proxy_is_configured", return_value=True),
         patch("services.reset_portal_deploy.audit"),
     ):
         result = teardown_reset_portal("cleaver.click", portal)
@@ -70,8 +76,9 @@ def test_teardown_reset_portal():
     rm_cname.assert_called_once_with(
         "cleaver.click", "reset.cleaver.click", result["steps"]
     )
-    rm_proxy.assert_called_once_with("reset.cleaver.click", result["steps"])
-    rm_cert.assert_called_once_with("reset.cleaver.click", result["steps"])
+    mock_backend.delete_portal_host.assert_called_once_with(
+        "reset.cleaver.click", result["steps"]
+    )
 
 
 def test_deploy_reset_portal_orchestration(fresh_db):
@@ -83,11 +90,14 @@ def test_deploy_reset_portal_orchestration(fresh_db):
         "outcome": "added",
         "steps": ["dns step"],
     }
-    npm_result = {
+    proxy_result = {
         "certificate_mode": "letsencrypt_dns",
-        "proxy_host_id": 2,
         "proxy_host_outcome": "created",
     }
+    mock_backend = MagicMock()
+    mock_backend.display_name = "Nginx Proxy Manager"
+    mock_backend.backend_id = "npm"
+    mock_backend.provision_portal_host.return_value = proxy_result
 
     with (
         patch(
@@ -95,12 +105,8 @@ def test_deploy_reset_portal_orchestration(fresh_db):
             return_value=dns_result,
         ),
         patch(
-            "services.reset_portal_deploy.deploy_reset_portal_proxy_letsencrypt",
-            return_value=npm_result,
-        ),
-        patch(
-            "services.reset_portal_deploy.cf_origin_ca_is_configured",
-            return_value=False,
+            "services.reset_portal_deploy.get_backend",
+            return_value=mock_backend,
         ),
         patch(
             "services.reset_portal_deploy.ensure_reset_sender_forwarder",
@@ -116,6 +122,6 @@ def test_deploy_reset_portal_orchestration(fresh_db):
         "cleaver.click", "admin@example.com", result["steps"]
     )
     assert result["host"] == "reset.cleaver.click"
-    assert result["npm"]["certificate_mode"] == "letsencrypt_dns"
+    assert result["proxy"]["certificate_mode"] == "letsencrypt_dns"
     assert result["https"]["status"] == "pending"
-    assert any("Let's Encrypt" in step for step in result["steps"])
+    mock_backend.provision_portal_host.assert_called_once()

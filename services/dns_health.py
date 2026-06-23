@@ -128,13 +128,7 @@ def _dkim_matches(expected_value, found_values):
     return any(_dkim_public_key(value) == expected_key for value in found_values)
 
 
-def check_dns_health(
-    domain, expected_dns, verification_record=None, dmarc_expected=None
-):
-    """Compare live public DNS against MXroute-provided expectations."""
-    domain = domain.lower().strip()
-    checks = {}
-
+def _mx_health_check(domain, expected_dns):
     expected_mx = []
     for mx in expected_dns.get("mx_records") or []:
         expected_mx.append(
@@ -146,7 +140,7 @@ def check_dns_health(
     expected_mx.sort(key=lambda item: (item["priority"], item["hostname"]))
     found_mx = _query_mx(domain)
     mx_pass = expected_mx == found_mx if expected_mx else bool(found_mx)
-    checks["mx"] = {
+    return {
         "status": _check_status(mx_pass),
         "label": "MX Records",
         "expected": expected_mx,
@@ -156,6 +150,8 @@ def check_dns_health(
         else "MX records missing or incorrect",
     }
 
+
+def _spf_health_check(domain, expected_dns):
     expected_spf = ""
     if expected_dns.get("spf"):
         expected_spf = expected_dns["spf"].get("value", "")
@@ -170,7 +166,7 @@ def check_dns_health(
         if expected_spf_norm
         else any("v=spf1" in r for r in spf_records)
     )
-    checks["spf"] = {
+    return {
         "status": _check_status(spf_pass),
         "label": "SPF (TXT)",
         "expected": expected_spf or "v=spf1 include:mxroute.com -all",
@@ -180,13 +176,15 @@ def check_dns_health(
         else "SPF record missing or does not match",
     }
 
+
+def _dkim_health_check(domain, expected_dns):
     dkim_data = expected_dns.get("dkim") or {}
     _, dkim_fqdn = dkim_record_parts(dkim_data, domain)
     expected_dkim = dkim_data.get("value", "")
     dkim_records_raw = _query_txt(dkim_fqdn)
     dkim_records = [_normalize_txt(txt) for txt in dkim_records_raw]
     dkim_pass = _dkim_matches(expected_dkim, dkim_records_raw)
-    checks["dkim"] = {
+    return {
         "status": _check_status(dkim_pass, optional=True),
         "label": "DKIM (TXT)",
         "expected_host": dkim_fqdn,
@@ -197,6 +195,8 @@ def check_dns_health(
         else "DKIM record missing or does not match",
     }
 
+
+def _dmarc_health_check(domain, dmarc_expected):
     dmarc_host = f"_dmarc.{domain}"
     dmarc_expected_value = (
         dmarc_expected or "v=DMARC1; p=none; sp=none; adkim=r; aspf=r;"
@@ -210,7 +210,7 @@ def check_dns_health(
     dmarc_pass = dmarc_expected_norm in dmarc_records if dmarc_records else False
     if not dmarc_records:
         dmarc_pass = False
-    checks["dmarc"] = {
+    return {
         "status": _check_status(dmarc_pass, optional=True),
         "label": "DMARC (TXT)",
         "expected_host": dmarc_host,
@@ -221,24 +221,40 @@ def check_dns_health(
         else "DMARC record missing or does not match",
     }
 
+
+def _verification_health_check(domain, verification_record):
+    verify_name = str(verification_record.get("name", "")).strip()
+    verify_value = str(verification_record.get("value", "")).strip()
+    verify_fqdn = f"{verify_name}.{domain}".lower() if verify_name else domain
+    verify_records = [_normalize_txt(txt) for txt in _query_txt(verify_fqdn)]
+    verify_pass = (
+        _normalize_txt(verify_value) in verify_records if verify_value else False
+    )
+    return {
+        "status": _check_status(verify_pass, optional=True),
+        "label": "Domain Verification (TXT)",
+        "expected_host": verify_fqdn,
+        "expected": verify_value,
+        "found": verify_records,
+        "message": "Verification TXT present"
+        if verify_pass
+        else "Verification TXT missing",
+    }
+
+
+def check_dns_health(
+    domain, expected_dns, verification_record=None, dmarc_expected=None
+):
+    """Compare live public DNS against MXroute-provided expectations."""
+    domain = domain.lower().strip()
+    checks = {
+        "mx": _mx_health_check(domain, expected_dns),
+        "spf": _spf_health_check(domain, expected_dns),
+        "dkim": _dkim_health_check(domain, expected_dns),
+        "dmarc": _dmarc_health_check(domain, dmarc_expected),
+    }
     if verification_record:
-        verify_name = str(verification_record.get("name", "")).strip()
-        verify_value = str(verification_record.get("value", "")).strip()
-        verify_fqdn = f"{verify_name}.{domain}".lower() if verify_name else domain
-        verify_records = [_normalize_txt(txt) for txt in _query_txt(verify_fqdn)]
-        verify_pass = (
-            _normalize_txt(verify_value) in verify_records if verify_value else False
-        )
-        checks["verification"] = {
-            "status": _check_status(verify_pass, optional=True),
-            "label": "Domain Verification (TXT)",
-            "expected_host": verify_fqdn,
-            "expected": verify_value,
-            "found": verify_records,
-            "message": "Verification TXT present"
-            if verify_pass
-            else "Verification TXT missing",
-        }
+        checks["verification"] = _verification_health_check(domain, verification_record)
 
     return {
         "domain": domain,

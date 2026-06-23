@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from services.cloudflare import deploy_dns_record_to_cf, _webmail_health_check
+from services.cloudflare import CfDeployContext, deploy_dns_record_to_cf, _webmail_health_check
 from tests.helpers import (
     auth_post_headers,
     insert_user_with_grants,
@@ -59,14 +59,13 @@ def emails_delegate_token(fresh_db, client, db_connection):
 
 def test_webmail_deploy_uses_mx_server_target_unproxied():
     with (
-        patch("services.cloudflare.get_config_value", return_value=MX_SERVER),
+        patch("models.db.get_config_value", return_value=MX_SERVER),
         patch(
-            "services.cloudflare.cf_upsert_cname", return_value="added"
+            "services.cloudflare_deploy.cf_upsert_cname", return_value="added"
         ) as mock_cname,
     ):
-        result = deploy_dns_record_to_cf(
-            DOMAIN, "zone1", "webmail", None, None, set(), set(), [], steps=[]
-        )
+        ctx = CfDeployContext(DOMAIN, "zone1", None, None, set(), set(), [], steps=[])
+        result = deploy_dns_record_to_cf(ctx, "webmail")
 
     assert result == "added"
     mock_cname.assert_called_once()
@@ -80,12 +79,11 @@ def test_webmail_deploy_uses_mx_server_target_unproxied():
 
 def test_webmail_deploy_skipped_without_mx_server():
     with (
-        patch("services.cloudflare.get_config_value", return_value=""),
-        patch("services.cloudflare.cf_upsert_cname") as mock_cname,
+        patch("models.db.get_config_value", return_value=""),
+        patch("services.cloudflare_deploy.cf_upsert_cname") as mock_cname,
     ):
-        result = deploy_dns_record_to_cf(
-            DOMAIN, "zone1", "webmail", None, None, set(), set(), [], steps=[]
-        )
+        ctx = CfDeployContext(DOMAIN, "zone1", None, None, set(), set(), [], steps=[])
+        result = deploy_dns_record_to_cf(ctx, "webmail")
 
     assert result == "skipped"
     mock_cname.assert_not_called()
@@ -95,15 +93,18 @@ def test_webmail_deploy_skipped_without_mx_server():
 
 
 def test_webmail_health_skipped_without_mx_server():
-    with patch("services.cloudflare.get_config_value", return_value=""):
+    with patch("models.db.get_config_value", return_value=""):
         assert _webmail_health_check(DOMAIN)["status"] == "skipped"
 
 
 def test_webmail_health_skipped_when_not_deployed():
     with (
-        patch("services.cloudflare.get_config_value", return_value=MX_SERVER),
-        patch("services.cloudflare.find_cf_zone_id", return_value="zone1"),
-        patch("services.cloudflare.fetch_cf_dns_sets", return_value=(set(), set(), [])),
+        patch("models.db.get_config_value", return_value=MX_SERVER),
+        patch("services.cloudflare_health.find_cf_zone_id", return_value="zone1"),
+        patch(
+            "services.cloudflare_health.fetch_cf_dns_sets",
+            return_value=(set(), set(), []),
+        ),
     ):
         assert _webmail_health_check(DOMAIN)["status"] == "skipped"
 
@@ -111,13 +112,13 @@ def test_webmail_health_skipped_when_not_deployed():
 def test_webmail_health_pending_when_in_cf_not_resolving():
     records = [{"type": "CNAME", "name": f"webmail.{DOMAIN}", "content": MX_SERVER}]
     with (
-        patch("services.cloudflare.get_config_value", return_value=MX_SERVER),
-        patch("services.cloudflare.find_cf_zone_id", return_value="zone1"),
+        patch("models.db.get_config_value", return_value=MX_SERVER),
+        patch("services.cloudflare_health.find_cf_zone_id", return_value="zone1"),
         patch(
-            "services.cloudflare.fetch_cf_dns_sets",
+            "services.cloudflare_health.fetch_cf_dns_sets",
             return_value=(set(), set(), records),
         ),
-        patch("services.cloudflare._public_dns_resolves", return_value=False),
+        patch("services.cloudflare_health.public_dns_resolves", return_value=False),
     ):
         assert _webmail_health_check(DOMAIN)["status"] == "pending"
 
@@ -125,13 +126,13 @@ def test_webmail_health_pending_when_in_cf_not_resolving():
 def test_webmail_health_pass_when_resolving():
     records = [{"type": "CNAME", "name": f"webmail.{DOMAIN}", "content": MX_SERVER}]
     with (
-        patch("services.cloudflare.get_config_value", return_value=MX_SERVER),
-        patch("services.cloudflare.find_cf_zone_id", return_value="zone1"),
+        patch("models.db.get_config_value", return_value=MX_SERVER),
+        patch("services.cloudflare_health.find_cf_zone_id", return_value="zone1"),
         patch(
-            "services.cloudflare.fetch_cf_dns_sets",
+            "services.cloudflare_health.fetch_cf_dns_sets",
             return_value=(set(), set(), records),
         ),
-        patch("services.cloudflare._public_dns_resolves", return_value=True),
+        patch("services.cloudflare_health.public_dns_resolves", return_value=True),
     ):
         check = _webmail_health_check(DOMAIN)
     assert check["status"] == "pass"

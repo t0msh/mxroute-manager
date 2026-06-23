@@ -184,11 +184,7 @@ def login_redirect():
     return redirect(auth_url)
 
 
-@auth_bp.route("/oidc/callback")
-def oidc_callback():
-    if not is_oidc_enabled():
-        return redirect(url_for("home"))
-
+def _oidc_csrf_error_response():
     state = request.args.get("state")
     expected_state = session.pop("oidc_state", None)
     if (
@@ -197,100 +193,124 @@ def oidc_callback():
         or not secrets.compare_digest(state, expected_state)
     ):
         return "Authentication error: CSRF state verification failed", 400
+    return None
+
+
+def _oidc_fetch_userinfo(code):
+    config = get_oidc_config()
+    token_endpoint = config.get("token_endpoint")
+    userinfo_endpoint = config.get("userinfo_endpoint")
+    if not token_endpoint:
+        return None, ("Error: OIDC token endpoint not configured", 500)
+
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": get_oidc_redirect_uri(),
+        "client_id": get_oidc_client_id(),
+        "client_secret": get_oidc_client_secret(),
+    }
+    token_res = requests.post(token_endpoint, data=payload, timeout=15)
+    token_res.raise_for_status()
+    token_data = token_res.json()
+
+    access_token = token_data.get("access_token")
+    if not access_token:
+        return None, ("Error: OIDC token response did not contain access_token", 500)
+    if not userinfo_endpoint:
+        return None, ("Error: OIDC userinfo endpoint not configured", 500)
+
+    userinfo_res = requests.get(
+        userinfo_endpoint,
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=15,
+    )
+    userinfo_res.raise_for_status()
+    return userinfo_res.json(), None
+
+
+def _oidc_resolve_identity(userinfo_data):
+    email = (
+        userinfo_data.get("email")
+        or userinfo_data.get("sub")
+        or userinfo_data.get("preferred_username")
+    )
+    if not email:
+        return None, ("Error: User identification claim not found in userinfo", 500)
+    email = email.lower().strip()
+
+    user_groups = userinfo_data.get("groups", [])
+    if not isinstance(user_groups, list):
+        user_groups = []
+    is_admin = (email in get_oidc_admin_users()) or (
+        get_oidc_admin_group() in user_groups
+    )
+    return (email, is_admin), None
+
+
+def _oidc_sync_user_access(email, is_admin):
+    try:
+        with get_conn() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,))
+            user_row = cursor.fetchone()
+
+            if is_admin:
+                if not user_row:
+                    cursor.execute(
+                        "INSERT INTO users (email, is_admin) VALUES (?, 1)",
+                        (email,),
+                    )
+                else:
+                    cursor.execute(
+                        "UPDATE users SET is_admin = 1 WHERE email = ?", (email,)
+                    )
+                conn.commit()
+            elif not user_row:
+                return None, render_template(
+                    "login.html",
+                    error="You do not have access to this tool. Please contact an administrator.",
+                )
+        return user_row, None
+    except Exception as db_err:
+        current_app.logger.error(
+            f"Failed to query/insert OIDC user in database: {db_err}"
+        )
+        return None, (
+            render_template(
+                "login.html",
+                error="Sign-in is temporarily unavailable. Please try again later.",
+            ),
+            503,
+        )
+
+
+@auth_bp.route("/oidc/callback")
+def oidc_callback():
+    if not is_oidc_enabled():
+        return redirect(url_for("home"))
+
+    csrf_error = _oidc_csrf_error_response()
+    if csrf_error:
+        return csrf_error
 
     code = request.args.get("code")
     if not code:
         return "Authentication error: Missing authorization code", 400
 
     try:
-        config = get_oidc_config()
-        token_endpoint = config.get("token_endpoint")
-        userinfo_endpoint = config.get("userinfo_endpoint")
+        userinfo, fetch_error = _oidc_fetch_userinfo(code)
+        if fetch_error:
+            return fetch_error[0], fetch_error[1]
 
-        if not token_endpoint:
-            return "Error: OIDC token endpoint not configured", 500
+        identity, identity_error = _oidc_resolve_identity(userinfo)
+        if identity_error:
+            return identity_error[0], identity_error[1]
 
-        payload = {
-            "grant_type": "authorization_code",
-            "code": code,
-            "redirect_uri": get_oidc_redirect_uri(),
-            "client_id": get_oidc_client_id(),
-            "client_secret": get_oidc_client_secret(),
-        }
-        token_res = requests.post(token_endpoint, data=payload, timeout=15)
-        token_res.raise_for_status()
-        token_data = token_res.json()
-
-        access_token = token_data.get("access_token")
-        if not access_token:
-            return "Error: OIDC token response did not contain access_token", 500
-
-        if not userinfo_endpoint:
-            return "Error: OIDC userinfo endpoint not configured", 500
-
-        userinfo_res = requests.get(
-            userinfo_endpoint,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=15,
-        )
-        userinfo_res.raise_for_status()
-        userinfo_data = userinfo_res.json()
-
-        email = (
-            userinfo_data.get("email")
-            or userinfo_data.get("sub")
-            or userinfo_data.get("preferred_username")
-        )
-        if not email:
-            return "Error: User identification claim not found in userinfo", 500
-
-        email = email.lower().strip()
-
-        # Check if user is an admin by email OR by OIDC group membership
-        user_groups = userinfo_data.get("groups", [])
-        if not isinstance(user_groups, list):
-            user_groups = []
-        is_admin = (email in get_oidc_admin_users()) or (
-            get_oidc_admin_group() in user_groups
-        )
-
-        # Fail closed: any DB error here must block login rather than fall
-        # through to a granted session.
-        try:
-            with get_conn() as conn:
-                cursor = conn.cursor()
-
-                cursor.execute(
-                    "SELECT id, is_admin FROM users WHERE email = ?", (email,)
-                )
-                user_row = cursor.fetchone()
-
-                if is_admin:
-                    if not user_row:
-                        cursor.execute(
-                            "INSERT INTO users (email, is_admin) VALUES (?, 1)",
-                            (email,),
-                        )
-                    else:
-                        cursor.execute(
-                            "UPDATE users SET is_admin = 1 WHERE email = ?", (email,)
-                        )
-                    conn.commit()
-                else:
-                    # If they are not an administrator, check if they exist in the database (delegated user)
-                    if not user_row:
-                        return render_template(
-                            "login.html",
-                            error="You do not have access to this tool. Please contact an administrator.",
-                        )
-        except Exception as db_err:
-            current_app.logger.error(
-                f"Failed to query/insert OIDC user in database: {db_err}"
-            )
-            return render_template(
-                "login.html",
-                error="Sign-in is temporarily unavailable. Please try again later.",
-            ), 503
+        email, is_admin = identity
+        user_row, access_error = _oidc_sync_user_access(email, is_admin)
+        if access_error:
+            return access_error
 
         _start_user_session(
             build_session_user(

@@ -103,7 +103,9 @@ def test_parse_ntfy_token_in_env_url(monkeypatch):
 def test_parse_ntfy_db_stored_url(admin_client):
     client, token = admin_client
     full_url = "ntfys://tk_db_secret@ntfy.example.com/alerts?auth=token&priority=high"
-    with patch("routes.admin.validate_apprise_url", side_effect=lambda url: url):
+    with patch(
+        "routes.admin_notifications.validate_apprise_url", side_effect=lambda url: url
+    ):
         save_res = client.post(
             "/api/admin/notifications",
             data=json.dumps(
@@ -309,7 +311,7 @@ def test_notification_parse_endpoint(admin_client):
 def test_notification_compile_endpoint(admin_client):
     client, token = admin_client
     with patch(
-        "routes.admin.compile_service_url",
+        "routes.admin_notifications.compile_service_url",
         return_value={
             "url": "ntfy://alerts",
             "masked_url": "ntfy://alerts",
@@ -327,11 +329,13 @@ def test_notification_compile_endpoint(admin_client):
     assert res.get_json()["data"]["url"] == "ntfy://alerts"
 
 
-@patch("routes.admin.send_test_notification")
+@patch("routes.admin_notifications.send_test_notification")
 def test_notification_test_endpoint(mock_send, admin_client):
     mock_send.return_value = True
     client, token = admin_client
-    with patch("routes.admin.resolve_apprise_urls_for_test", return_value=True):
+    with patch(
+        "routes.admin_notifications.resolve_apprise_urls_for_test", return_value=True
+    ):
         res = client.post(
             "/api/admin/notifications/test",
             data=json.dumps({}),

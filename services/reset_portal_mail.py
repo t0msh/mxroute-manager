@@ -2,6 +2,7 @@ from email.utils import formataddr
 
 from models.db import get_admin_notification_email
 from services.mxroute import mx_request_raw
+from utils.validators import nested_dict_get
 
 RESET_SENDER_ALIAS = "reset"
 
@@ -37,7 +38,7 @@ def _catch_all_satisfies_sender_verify(catch_all_data):
 
 def _mx_error_message(response, fallback):
     if isinstance(response, dict):
-        return response.get("error", {}).get("message", fallback)
+        return nested_dict_get(response, "error", "message", default=fallback)
     return fallback
 
 

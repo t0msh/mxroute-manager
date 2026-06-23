@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 
-from utils.validators import validate_domain
+from utils.validators import validate_domain, nested_dict_get
 from utils.auth_helpers import require_admin, require_any_permission, require_permission
 from models.db import get_dmarc_record
 from services.cloudflare import (
@@ -8,6 +8,7 @@ from services.cloudflare import (
     ensure_cf_zone,
     fetch_cf_dns_sets,
     deploy_dns_record_to_cf,
+    CfDeployContext,
     build_setup_health,
     deploy_missing_dns_to_cf,
     MAIL_DNS_RECORD_TYPES,
@@ -67,12 +68,9 @@ def cloudflare_setup():
 
         steps.append("Fetching existing DNS records from Cloudflare...")
         existing_mx, existing_txt, existing_records = fetch_cf_dns_sets(zone_id)
-
-        steps.append("Injecting DNS verification TXT record into Cloudflare...")
-        deploy_dns_record_to_cf(
+        deploy_ctx = CfDeployContext(
             domain,
             zone_id,
-            "verification",
             None,
             verification_record,
             existing_mx,
@@ -80,6 +78,9 @@ def cloudflare_setup():
             existing_records,
             steps,
         )
+
+        steps.append("Injecting DNS verification TXT record into Cloudflare...")
+        deploy_dns_record_to_cf(deploy_ctx, "verification")
 
         steps.append("Registering domain with MXroute platform...")
         register_domain_on_mxroute(domain, steps)
@@ -96,18 +97,9 @@ def cloudflare_setup():
             ), 500
 
         steps.append("Deploying mail service records to Cloudflare nameservers...")
+        deploy_ctx.mx_dns_data = mx_dns_data
         for record_type in MAIL_DNS_RECORD_TYPES:
-            deploy_dns_record_to_cf(
-                domain,
-                zone_id,
-                record_type,
-                mx_dns_data,
-                verification_record,
-                existing_mx,
-                existing_txt,
-                existing_records,
-                steps,
-            )
+            deploy_dns_record_to_cf(deploy_ctx, record_type)
 
         steps.append(
             "Domain setup complete! All MXroute and Cloudflare settings active."
@@ -188,7 +180,7 @@ def get_dns_health(domain):
     verification_record = None
     verify_res, verify_status = mx_request_raw("GET", "/verification-key")
     if verify_status == 200:
-        verification_record = verify_res.get("data", {}).get("record")
+        verification_record = nested_dict_get(verify_res, "data", "record")
 
     health = check_dns_health(
         domain,

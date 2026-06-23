@@ -31,35 +31,38 @@ def _health(*, on_mxroute=True, checks=None):
 def _fix_patches(health, *, deploy_side_effect=None):
     deploy_side_effect = deploy_side_effect or (lambda *a, **k: "added")
     return (
-        patch("services.cloudflare.cf_is_configured", return_value=True),
-        patch("services.cloudflare.build_setup_health", return_value=health),
-        patch("services.cloudflare.ensure_cf_zone", return_value=ZONE_ID),
-        patch("services.cloudflare.fetch_cf_dns_sets", return_value=EMPTY_DNS_SETS),
+        patch("services.cloudflare_deploy.cf_is_configured", return_value=True),
+        patch("services.cloudflare_deploy.build_setup_health", return_value=health),
+        patch("services.cloudflare_deploy.ensure_cf_zone", return_value=ZONE_ID),
         patch(
-            "services.cloudflare.get_mxroute_verification_record",
+            "services.cloudflare_deploy.fetch_cf_dns_sets", return_value=EMPTY_DNS_SETS
+        ),
+        patch(
+            "services.cloudflare_deploy.get_mxroute_verification_record",
             return_value={"name": "mxverify", "value": "x"},
         ),
         patch(
-            "services.cloudflare.get_mxroute_dns_data", return_value={"mx_records": []}
+            "services.cloudflare_deploy.get_mxroute_dns_data",
+            return_value={"mx_records": []},
         ),
         patch(
-            "services.cloudflare.deploy_dns_record_to_cf",
+            "services.cloudflare_deploy.deploy_dns_record_to_cf",
             side_effect=deploy_side_effect,
         ),
-        patch("services.cloudflare.audit"),
+        patch("services.cloudflare_deploy.audit"),
     )
 
 
 def test_deploy_missing_dns_requires_cloudflare():
-    with patch("services.cloudflare.cf_is_configured", return_value=False):
+    with patch("services.cloudflare_deploy.cf_is_configured", return_value=False):
         with pytest.raises(ValueError, match="Cloudflare credentials"):
             deploy_missing_dns_to_cf(DOMAIN)
 
 
 def test_deploy_missing_dns_requires_health():
     with (
-        patch("services.cloudflare.cf_is_configured", return_value=True),
-        patch("services.cloudflare.build_setup_health", return_value=None),
+        patch("services.cloudflare_deploy.cf_is_configured", return_value=True),
+        patch("services.cloudflare_deploy.build_setup_health", return_value=None),
     ):
         with pytest.raises(ValueError, match="DNS health"):
             deploy_missing_dns_to_cf(DOMAIN)
@@ -84,10 +87,10 @@ def test_deploy_missing_dns_returns_early_when_everything_passes():
         }
     )
     with (
-        patch("services.cloudflare.cf_is_configured", return_value=True),
-        patch("services.cloudflare.build_setup_health", return_value=health),
-        patch("services.cloudflare.ensure_cf_zone") as mock_zone,
-        patch("services.cloudflare.audit"),
+        patch("services.cloudflare_deploy.cf_is_configured", return_value=True),
+        patch("services.cloudflare_deploy.build_setup_health", return_value=health),
+        patch("services.cloudflare_deploy.ensure_cf_zone") as mock_zone,
+        patch("services.cloudflare_deploy.audit"),
     ):
         result = deploy_missing_dns_to_cf(DOMAIN)
 
@@ -112,7 +115,7 @@ def test_deploy_missing_dns_auto_selects_warn_and_fail_checks():
     ):
         result = deploy_missing_dns_to_cf(DOMAIN)
 
-    deployed_types = [call.args[2] for call in mock_deploy.call_args_list]
+    deployed_types = [call.args[1] for call in mock_deploy.call_args_list]
     assert deployed_types == ["verification", "spf"]
     assert result["fixed"] == ["verification", "spf"]
     assert "mx" not in result["fixed"]
@@ -135,7 +138,7 @@ def test_deploy_missing_dns_honours_explicit_record_list():
         result = deploy_missing_dns_to_cf(DOMAIN, record_types=["verification", "MX"])
 
     assert mock_deploy.call_count == 1
-    assert mock_deploy.call_args.args[2] == "verification"
+    assert mock_deploy.call_args.args[1] == "verification"
     assert result["fixed"] == ["verification"]
 
 
@@ -165,7 +168,7 @@ def test_deploy_missing_dns_skips_records_already_passing():
         )
 
     assert mock_deploy.call_count == 1
-    assert mock_deploy.call_args.args[2] == "mx"
+    assert mock_deploy.call_args.args[1] == "mx"
     assert result["fixed"] == ["mx"]
     assert "verification" in result["skipped"]
     assert "spf" in result["skipped"]

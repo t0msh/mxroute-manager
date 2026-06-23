@@ -4,6 +4,7 @@ import requests
 from flask import current_app
 
 from models.db import get_env_config
+from utils.validators import nested_dict_get
 
 # ponytail: single-process NPM token cache; expires per API response.
 _cached_npm_token = None
@@ -117,7 +118,7 @@ def npm_request(method, path, json_payload=None, files=None):
         try:
             payload = response.json()
             message = (
-                payload.get("error", {}).get("message")
+                nested_dict_get(payload, "error", "message")
                 or payload.get("message")
                 or body
             )

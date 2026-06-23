@@ -1,11 +1,13 @@
+import os
 import requests
 from flask import jsonify
 
 from models.db import get_config_value, get_dmarc_record
 from utils.auth_helpers import get_current_user
 from utils.audit_log import write_audit_log
+from utils.validators import nested_dict_get
 
-BASE_URL = "https://api.mxroute.com"
+BASE_URL = os.getenv("MXROUTE_API_URL", "https://api.mxroute.com").rstrip("/")
 
 
 def get_mx_headers():
@@ -84,7 +86,7 @@ def get_mxroute_verification_record():
     verify_res, verify_status = mx_request_raw("GET", "/verification-key")
     if verify_status != 200:
         return None
-    return verify_res.get("data", {}).get("record")
+    return nested_dict_get(verify_res, "data", "record")
 
 
 def inject_dmarc(data):
@@ -105,7 +107,7 @@ def get_domain_mail_hosting(domain):
     res, status = mx_request_raw("GET", f"/domains/{domain}")
     if status != 200:
         return True
-    return bool(res.get("data", {}).get("mail_hosting", True))
+    return bool(nested_dict_get(res, "data", "mail_hosting", default=True))
 
 
 def register_domain_on_mxroute(domain, steps=None):
@@ -117,7 +119,9 @@ def register_domain_on_mxroute(domain, steps=None):
         "POST", "/domains", {"domain": domain}
     )
     if mx_add_status not in [200, 201]:
-        err_msg = mx_domain_add.get("error", {}).get("message", "Unknown error")
+        err_msg = nested_dict_get(
+            mx_domain_add, "error", "message", default="Unknown error"
+        )
         raise ValueError(f"Failed to register domain with MXroute: {err_msg}")
     if steps is not None:
         steps.append("Domain registered on MXroute successfully")

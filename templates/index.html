@@ -73,10 +73,28 @@
     <!-- Modals -->
     {% include 'partials/modals.html' %}
 
-    <!-- Global App Logic (module loads shared helpers onto window.Mxm before app.js) -->
+    <!-- Global App Logic: see docs/frontend-app-scripts.md for load order -->
     <script type="module" src="/static/js/browser-entry.js?v={{ app_version }}"></script>
     <script defer src="/static/brand.js?v={{ app_version }}"></script>
-    <script defer src="/static/app.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/state-api.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/api-cache.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/ui.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/domains-list.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/domains-rows.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/domain-detail.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/portal.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/setup-dns.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/setup-wizard.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/pointers-dns.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/emails-list.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/emails-actions.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/forwarders-spam.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/delegations.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/init.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/theme-smtp.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/notifications-render.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/notifications-actions.js?v={{ app_version }}"></script>
+    <script defer src="/static/js/app/logs.js?v={{ app_version }}"></script>
 </body>
 
 </html>

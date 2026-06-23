@@ -22,7 +22,11 @@ from services.mxroute import mx_request_raw
 from services.reset_portal import get_portal_branding_context
 from services.reset_portal_mail import build_portal_reset_from_address
 from utils.audit_log import write_audit_log
-from utils.validators import is_email_identifier, validate_mailbox_password
+from utils.validators import (
+    is_email_identifier,
+    nested_dict_get,
+    validate_mailbox_password,
+)
 
 password_reset_bp = Blueprint("password_reset", __name__)
 
@@ -216,7 +220,7 @@ def password_reset_confirm():
     ):
         message = "Failed to update mailbox password."
         if isinstance(res, dict):
-            message = res.get("error", {}).get("message", message)
+            message = nested_dict_get(res, "error", "message", default=message)
         return jsonify(
             {"success": False, "error": {"message": message}}
         ), status if status >= 400 else 500

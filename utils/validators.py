@@ -12,6 +12,31 @@ _PASSWORD_REQUIREMENTS = {
 }
 
 
+def nested_dict_get(mapping, *keys, default=None):
+    """Walk nested dict keys without chained .get(..., {}) defaults."""
+    node = mapping
+    for index, key in enumerate(keys):
+        if not isinstance(node, dict):
+            return default
+        if index == len(keys) - 1:
+            return node.get(key, default)
+        node = node.get(key)
+        if node is None:
+            return default
+    return default
+
+
+def public_https_origin(host: str) -> str:
+    """Build a public https origin for a host (env override for non-https dev)."""
+    import os
+
+    host = (host or "").strip()
+    if not host:
+        return ""
+    scheme = (os.getenv("MXM_PUBLIC_URL_SCHEME") or "https").strip().rstrip(":")
+    return f"{scheme}://{host}"
+
+
 def validate_domain(domain):
     if not domain or not isinstance(domain, str):
         return False

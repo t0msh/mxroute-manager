@@ -52,20 +52,3 @@ ci:
 
 telemetry:
   enabled: true
-
-rules:
-  # Flat Python layout — local modules (app_meta, build_info) aren't PyPI packages.
-  ai-slop/hallucinated-import: off
-  # Trusted admin UI; innerHTML renders server/API data in static/app.js.
-  security/innerhtml: off
-  # Stable public doc URLs in app_meta; not deployment secrets.
-  ai-slop/hardcoded-url: off
-  # Defensive dict access at API boundaries; refactor opportunistically.
-  ai-slop/python-chained-dict-get: off
-  ai-slop/thin-wrapper: off
-  # Monoliths scheduled for gradual split.
-  complexity/file-too-large: off
-  complexity/function-too-long: off
-  complexity/too-many-params: off
-  complexity/deep-nesting: off
-  code-quality/duplicate-block: off

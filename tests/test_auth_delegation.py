@@ -44,7 +44,8 @@ def test_local_user_login_success(fresh_db, client, db_connection):
     assert response.status_code == 302
 
     with client.session_transaction() as sess:
-        assert sess.get("user", {}).get("email") == "billy"
+        user = sess.get("user")
+        assert user and user.get("email") == "billy"
 
 
 def test_me_returns_null_user_when_logged_out(client):
@@ -187,7 +188,7 @@ def test_admin_can_create_delegation(fresh_db, client, db_connection):
     insert_user_with_grants(db_connection, "admin@local", is_admin=True)
     token = prime_authenticated_session(client, "admin@local")
 
-    with patch("routes.admin.audit"):
+    with patch("routes.admin_delegations.audit"):
         response = client.post(
             "/api/admin/delegations",
             headers=auth_post_headers(token),

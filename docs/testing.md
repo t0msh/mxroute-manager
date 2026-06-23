@@ -54,7 +54,7 @@ Plain functions, plain asserts. No DB, no HTTP, no mocks.
 
 Good for validation rules and permission math - when something fails, you know exactly which function misbehaved.
 
-Frontend helpers live in `static/js/` as ES modules (`permissions.js`, `utils.js`, `cache.js`). `browser-entry.js` loads them onto `window.Mxm` before `app.js` runs; `app.js` keeps thin wrappers so onclick handlers still work. Tests use Node's built-in runner - no `npm install`, no Vitest.
+Frontend helpers live in `static/js/` as ES modules (`permissions.js`, `utils.js`, `cache.js`). `browser-entry.js` loads them onto `window.Mxm` before the classic `static/js/app/` scripts run. Load order is documented in [frontend-app-scripts.md](frontend-app-scripts.md) and enforced in `templates/index.html`. App scripts keep thin wrappers so onclick handlers still work. Tests use Node's built-in runner - no `npm install`, no Vitest.
 
 ### Layer 2 - Services with mocks
 
@@ -166,7 +166,7 @@ OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the tok
 
 Being upfront about gaps:
 
-- Most of `static/app.js` (DOM wiring, API orchestration - only extracted pure helpers are tested)
+- Most of `static/js/app/` (DOM wiring, API orchestration - only extracted pure helpers are tested)
 - Load / concurrency stress
 
 PRs welcome in those areas; same patterns as above.

@@ -1,5 +1,8 @@
 """Single source of truth for application metadata. Bump APP_VERSION here for releases."""
 
+import os
+from importlib.util import module_from_spec, spec_from_file_location
+
 APP_VERSION = "0.15.0"
 APP_NAME = "MXroute Manager"
 APP_DESCRIPTION = (
@@ -7,75 +10,83 @@ APP_DESCRIPTION = (
     "delegated access, and branded password-reset portals."
 )
 
-GITHUB_URL = "https://github.com/t0msh/mxroute-manager"
+GITHUB_URL = os.getenv("MXM_GITHUB_URL", "https://github.com/t0msh/mxroute-manager")
 LICENSE_NAME = "MIT License"
-LICENSE_URL = "https://opensource.org/licenses/MIT"
+LICENSE_URL = os.getenv("MXM_LICENSE_URL", "https://opensource.org/licenses/MIT")
 COPYRIGHT = "Copyright (c) 2026 Tom Shute"
 
 ATTRIBUTIONS = [
     {
         "name": "Bootstrap Icons",
         "description": "Open-source icon font used in the UI",
-        "url": "https://icons.getbootstrap.com/",
+        "homepage": "https://icons.getbootstrap.com/",
     },
     {
         "name": "MXroute",
         "description": "Email hosting platform and domain/mailbox management API",
-        "url": "https://mxroute.com/",
+        "homepage": "https://mxroute.com/",
     },
     {
         "name": "Cloudflare",
         "description": "DNS zone management, proxied CNAME records, and optional Origin CA",
-        "url": "https://www.cloudflare.com/",
+        "homepage": "https://www.cloudflare.com/",
     },
     {
         "name": "Nginx Proxy Manager",
         "description": "Reverse proxy hosts and TLS certificates for reset portals",
-        "url": "https://nginxproxymanager.com/",
+        "homepage": "https://nginxproxymanager.com/",
     },
     {
         "name": "Let's Encrypt",
         "description": "Free TLS certificates (DNS-01 challenge via NPM)",
-        "url": "https://letsencrypt.org/",
+        "homepage": "https://letsencrypt.org/",
     },
     {
         "name": "OpenID Connect",
         "description": "SSO authentication with your identity provider",
-        "url": "https://openid.net/connect/",
+        "homepage": "https://openid.net/connect/",
     },
     {
         "name": "Flask",
         "description": "Web application framework",
-        "url": "https://flask.palletsprojects.com/",
+        "homepage": "https://flask.palletsprojects.com/",
     },
     {
         "name": "Gunicorn",
         "description": "Production WSGI HTTP server",
-        "url": "https://gunicorn.org/",
+        "homepage": "https://gunicorn.org/",
     },
     {
         "name": "dnspython",
         "description": "Public DNS lookups for health checks",
-        "url": "https://www.dnspython.org/",
+        "homepage": "https://www.dnspython.org/",
     },
     {
         "name": "Apprise",
         "description": "Multi-platform notification delivery for audit event alerts",
-        "url": "https://github.com/caronc/apprise",
+        "homepage": "https://github.com/caronc/apprise",
     },
 ]
 
 
 def get_build_info():
     """Git stamp from build_info.py (empty when not populated)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    build_info_path = os.path.join(root, "build_info.py")
+    if not os.path.isfile(build_info_path):
+        return {"sha": "", "branch": "", "describe": ""}
+    spec = spec_from_file_location("build_info", build_info_path)
+    if spec is None or spec.loader is None:
+        return {"sha": "", "branch": "", "describe": ""}
+    module = module_from_spec(spec)
     try:
-        from build_info import BUILD_BRANCH, BUILD_DESCRIBE, BUILD_SHA
+        spec.loader.exec_module(module)
     except ImportError:
         return {"sha": "", "branch": "", "describe": ""}
     return {
-        "sha": (BUILD_SHA or "").strip(),
-        "branch": (BUILD_BRANCH or "").strip(),
-        "describe": (BUILD_DESCRIBE or "").strip(),
+        "sha": (getattr(module, "BUILD_SHA", "") or "").strip(),
+        "branch": (getattr(module, "BUILD_BRANCH", "") or "").strip(),
+        "describe": (getattr(module, "BUILD_DESCRIBE", "") or "").strip(),
     }
 
 

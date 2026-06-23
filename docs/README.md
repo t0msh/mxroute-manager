@@ -30,6 +30,7 @@
 | Guide | Description |
 | --- | --- |
 | [Testing](testing.md) | Test layers, fixtures, and how to add coverage |
+| [Frontend app scripts](frontend-app-scripts.md) | Split `static/js/app/` files and script load order |
 
 ## Typical paths
 
@@ -56,4 +57,5 @@ Feature overview and roadmap: [main README](../README.md).
 | [Themes](themes.md) | Login screen theme gallery |
 | [Reverse proxy](reverse-proxy.md) | TLS and Nginx Proxy Manager |
 | [Testing](testing.md) | Test suite layout and how to run it |
+| [Frontend app scripts](frontend-app-scripts.md) | Split `static/js/app/` files and script load order |
 | [Main README](../README.md) | Project overview, features, quickstart |

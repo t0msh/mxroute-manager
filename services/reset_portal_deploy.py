@@ -18,6 +18,7 @@ from services.npm import (
     npm_delete_proxy_host,
     npm_delete_certificate,
 )
+from utils.validators import public_https_origin
 
 
 def reset_portal_deploy_is_configured():
@@ -68,7 +69,7 @@ def check_reset_portal_https(portal_host, timeout=10, retries=6, delay=5):
     if not portal_host:
         return {"status": "disabled", "message": "Portal host is not configured."}
 
-    url = f"https://{portal_host}/"
+    url = f"{public_https_origin(portal_host)}/"
     last_result = None
     for attempt in range(retries):
         last_result = _check_reset_portal_https_once(portal_host, url, timeout)

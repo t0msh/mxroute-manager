@@ -25,7 +25,11 @@ from services.reset_portal import (
     branding_path_for_domain,
     logo_path_for_portal,
 )
-from utils.validators import validate_domain, validate_subdomain_prefix
+from utils.validators import (
+    public_https_origin,
+    validate_domain,
+    validate_subdomain_prefix,
+)
 from models.db import get_user_contact_email, resolve_notification_email
 from utils.auth_helpers import require_permission, get_current_user
 from utils.themes import normalize_theme, DEFAULT_THEME
@@ -101,7 +105,7 @@ def _portal_response(portal, include_live_checks=True):
         "portal_title": portal.get("portal_title") or "",
         "portal_theme": normalize_theme(portal.get("portal_theme")),
         "has_logo": bool(portal.get("logo_filename")),
-        "portal_url": f"https://{host}" if host else "",
+        "portal_url": public_https_origin(host),
         "cname_target": get_reset_portal_cname_target(),
         "cf_configured": cf_is_configured(),
         "npm_configured": npm_is_configured(),

@@ -1,6 +1,7 @@
 # MXroute Manager
 
 [![Tests](https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml/badge.svg)](https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml)
+[![aislop](https://badges.scanaislop.com/score/t0msh/mxroute-manager.svg)](https://scanaislop.com/t0msh/mxroute-manager)
 
 <p align="center">
   <img src="static/logo-emerald.svg" alt="MXroute Manager logo" width="220" />
@@ -34,15 +35,39 @@ Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` (or
 
 ## Documentation
 
+Full index: [docs/README.md](docs/README.md)
+
+### Setup
+
 | Guide | Description |
 | --- | --- |
 | [docs/getting-started.md](docs/getting-started.md) | First deploy, UI walkthrough, production checklist |
-| [docs/configuration.md](docs/configuration.md) | Environment variables and Settings |
+| [docs/configuration.md](docs/configuration.md) | Environment variables and in-app Settings |
 | [docs/admin-password.md](docs/admin-password.md) | Local admin credentials and recovery |
+| [docs/reverse-proxy.md](docs/reverse-proxy.md) | TLS and branded reset portals (Nginx Proxy Manager) |
+
+### Features
+
+| Guide | Description |
+| --- | --- |
+| [docs/adding-a-domain.md](docs/adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
 | [docs/access-control.md](docs/access-control.md) | Delegated users and per-domain permissions |
 | [docs/password-reset.md](docs/password-reset.md) | Login-page and branded mailbox password reset |
-| [docs/reverse-proxy.md](docs/reverse-proxy.md) | TLS and branded reset portals (Nginx Proxy Manager) |
+| [docs/notifications.md](docs/notifications.md) | Audit event alerts via Apprise (ntfy, webhooks, email, etc.) |
+
+### UI reference
+
+| Guide | Description |
+| --- | --- |
+| [docs/app-tour.md](docs/app-tour.md) | Screenshots of every main tab, modals, and reset portal |
+| [docs/themes.md](docs/themes.md) | All 10 workspace themes on the login screen |
+
+### Development
+
+| Guide | Description |
+| --- | --- |
 | [docs/testing.md](docs/testing.md) | Test suite layout and how to run it |
+| [docs/frontend-app-scripts.md](docs/frontend-app-scripts.md) | Split `static/js/app/` files and script load order |
 
 ## Features
 
@@ -119,7 +144,7 @@ No live API keys needed - tests use a temp SQLite file and mocked APIs. Details:
 
 ## Related guides
 
-See [docs/README.md](docs/README.md) for the full documentation index, typical setup paths, and links to every guide.
+See [docs/README.md](docs/README.md) for typical setup paths and the same guide list grouped by topic.
 
 ## License
 

@@ -26,14 +26,17 @@ def test_dns_check_uses_cloudflare_api_for_proxied_cname():
         }
     ]
     with (
-        patch("models.db.get_reset_portal_cname_target", return_value=CNAME_TARGET),
-        patch("services.cloudflare.cf_is_configured", return_value=True),
-        patch("services.cloudflare.find_cf_zone_id", return_value="zone-1"),
         patch(
-            "services.cloudflare.fetch_cf_dns_sets",
+            "services.cloudflare_portal.get_reset_portal_cname_target",
+            return_value=CNAME_TARGET,
+        ),
+        patch("services.cloudflare_portal.cf_is_configured", return_value=True),
+        patch("services.cloudflare_portal.find_cf_zone_id", return_value="zone-1"),
+        patch(
+            "services.cloudflare_portal.fetch_cf_dns_sets",
             return_value=(set(), set(), records),
         ),
-        patch("services.cloudflare._public_dns_resolves", return_value=True),
+        patch("services.cloudflare_portal.public_dns_resolves", return_value=True),
     ):
         result = check_reset_portal_dns(PORTAL)
 
@@ -52,14 +55,17 @@ def test_dns_check_warns_when_cf_record_exists_but_public_dns_missing():
         }
     ]
     with (
-        patch("models.db.get_reset_portal_cname_target", return_value=CNAME_TARGET),
-        patch("services.cloudflare.cf_is_configured", return_value=True),
-        patch("services.cloudflare.find_cf_zone_id", return_value="zone-1"),
         patch(
-            "services.cloudflare.fetch_cf_dns_sets",
+            "services.cloudflare_portal.get_reset_portal_cname_target",
+            return_value=CNAME_TARGET,
+        ),
+        patch("services.cloudflare_portal.cf_is_configured", return_value=True),
+        patch("services.cloudflare_portal.find_cf_zone_id", return_value="zone-1"),
+        patch(
+            "services.cloudflare_portal.fetch_cf_dns_sets",
             return_value=(set(), set(), records),
         ),
-        patch("services.cloudflare._public_dns_resolves", return_value=False),
+        patch("services.cloudflare_portal.public_dns_resolves", return_value=False),
     ):
         result = check_reset_portal_dns(PORTAL)
 
@@ -72,9 +78,12 @@ def test_dns_check_accepts_public_a_record_when_cname_hidden():
     mock_resolver.resolve.side_effect = dns.resolver.NoAnswer()
 
     with (
-        patch("models.db.get_reset_portal_cname_target", return_value=CNAME_TARGET),
-        patch("services.cloudflare.cf_is_configured", return_value=False),
-        patch("services.cloudflare._public_dns_resolves", return_value=True),
+        patch(
+            "services.cloudflare_portal.get_reset_portal_cname_target",
+            return_value=CNAME_TARGET,
+        ),
+        patch("services.cloudflare_portal.cf_is_configured", return_value=False),
+        patch("services.cloudflare_portal.public_dns_resolves", return_value=True),
         patch("dns.resolver.Resolver", return_value=mock_resolver),
     ):
         result = check_reset_portal_dns(PORTAL)

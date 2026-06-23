@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v6
         with:
@@ -29,4 +31,6 @@ jobs:
 
       - name: aislop quality gate
         if: github.event_name == 'pull_request'
-        run: npx --yes aislop@latest ci --changes --base "origin/${{ github.base_ref }}" --human
+        run: |
+          git fetch origin "${{ github.base_ref }}"
+          npx --yes aislop@latest ci --changes --base "origin/${{ github.base_ref }}" --human

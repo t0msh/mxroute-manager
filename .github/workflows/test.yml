@@ -26,3 +26,7 @@ jobs:
 
       - name: Run tests
         run: pytest --cov=services --cov=models --cov=utils --cov-report=term-missing
+
+      - name: aislop quality gate
+        if: github.event_name == 'pull_request'
+        run: npx --yes aislop@latest ci --changes --base "origin/${{ github.base_ref }}" --human

@@ -1,0 +1,41 @@
+---
+description: aislop quality gate — act on hook findings; use aislop_scan MCP tool before shipping
+alwaysApply: true
+---
+
+# aislop — agent instructions
+
+[aislop](https://github.com/scanaislop/aislop) is your guardrail for shipping clean, maintainable, production-grade code. It catches the patterns AI coding tools leave behind: dead imports, redundant code, duplicate logic, unsafe any-typed casts, narrative comments, swallowed errors, oversized functions, risky security constructs — and grades the project out of 100 so regressions are visible. Treat its findings as blocking, not advisory: the goal is code a human maintainer would happily inherit.
+
+## On every edit
+
+An `afterFileEdit` hook runs `aislop hook cursor` after file edits. It scans the touched files and returns findings as JSON `additionalContext` shaped like `AislopFeedback` (schema `aislop.hook.v2` — score, baseline, delta, regressed, counts, findings, newSinceBaseline, suggestedActions). Act on them the same turn; the `suggestedActions` field tells you exactly what to run next.
+
+## MCP tools
+
+When you need a full-project or targeted check, call the **aislop** MCP server:
+
+- `aislop_scan` — score + top findings (use before declaring work done)
+- `aislop_fix` — apply mechanical fixes first (formatting, unused imports, narrative comments)
+- `aislop_why` — explain a specific rule/finding
+- `aislop_baseline` — capture or compare against the quality baseline
+
+Prefer `aislop_fix` then `aislop_scan` over hand-fixing mechanical issues.
+
+## Severity ladder
+
+- `error` — MUST fix this turn.
+- `warning` + `fixable: true` — MUST fix this turn.
+- `warning` + `fixable: false` — fix if trivially mechanical, otherwise surface in your reply.
+
+## Rules
+
+- `.aislop/config.yml` — thresholds and engine toggles. Treat as authoritative; don't edit without user consent.
+- `.aislop/rules.yaml` — project-specific architecture rules (may be absent). When a finding cites `architecture/*`, open this file and follow it.
+- Custom rules can change between sessions. Trust what the scan returns, not a cached understanding of what the rules are.
+
+## Principles
+
+- Do not disable rules to pass the scan. Fix the underlying issue.
+- If a finding is a false positive, leave it and explain in your reply — do not delete the rule config.
+- The findings payload includes `nextSteps[]` — treat those as your plan for the turn.

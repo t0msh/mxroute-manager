@@ -166,23 +166,20 @@ def _compile_mailto(fields):
         raise ValueError("Recipient email is required")
 
     if _field_bool(fields, "use_reset_smtp"):
-        from models.db import (
-            get_reset_smtp_from,
-            get_reset_smtp_host,
-            get_reset_smtp_password,
-            get_reset_smtp_port,
-            get_reset_smtp_user,
-        )
         from services.mail import is_smtp_configured, smtp_config_from_settings
 
         config = smtp_config_from_settings()
         if not is_smtp_configured(config):
-            raise ValueError("Mailbox Password Reset SMTP is not fully configured in Settings")
+            raise ValueError(
+                "Mailbox Password Reset SMTP is not fully configured in Settings"
+            )
         smtp_host = config["host"]
         smtp_user = config["user"]
         smtp_password = config["password"]
         port = config["port"]
-        from_email = _field_text(fields, "from_email") or config["from_address"] or smtp_user
+        from_email = (
+            _field_text(fields, "from_email") or config["from_address"] or smtp_user
+        )
     else:
         smtp_host = _field_text(fields, "smtp_host")
         smtp_user = _field_text(fields, "smtp_user")
@@ -215,8 +212,19 @@ BUILDER_SERVICES = [
             {"id": "host", "label": "Server", "type": "text", "placeholder": "ntfy.sh"},
             {"id": "topic", "label": "Topic", "type": "text", "required": True},
             {"id": "token", "label": "Auth token", "type": "secret"},
-            {"id": "priority", "label": "Priority", "type": "select", "options": list(_NTFY_PRIORITIES), "default": "default"},
-            {"id": "tags", "label": "Tags", "type": "text", "placeholder": "mxroute,alert"},
+            {
+                "id": "priority",
+                "label": "Priority",
+                "type": "select",
+                "options": list(_NTFY_PRIORITIES),
+                "default": "default",
+            },
+            {
+                "id": "tags",
+                "label": "Tags",
+                "type": "text",
+                "placeholder": "mxroute,alert",
+            },
             {"id": "secure", "label": "Use HTTPS", "type": "checkbox", "default": True},
         ],
         "compile": _compile_ntfy,
@@ -226,9 +234,20 @@ BUILDER_SERVICES = [
         "label": "JSON Webhook",
         "description": "Generic HTTP JSON webhook (Apprise json://)",
         "fields": [
-            {"id": "url", "label": "Webhook URL", "type": "text", "required": True, "placeholder": "https://hooks.example.com/mxroute"},
+            {
+                "id": "url",
+                "label": "Webhook URL",
+                "type": "text",
+                "required": True,
+                "placeholder": "https://hooks.example.com/mxroute",
+            },
             {"id": "token", "label": "Bearer token", "type": "secret"},
-            {"id": "auth_header", "label": "Auth header (optional)", "type": "secret", "placeholder": "Authorization: Bearer ..."},
+            {
+                "id": "auth_header",
+                "label": "Auth header (optional)",
+                "type": "secret",
+                "placeholder": "Authorization: Bearer ...",
+            },
             {"id": "secure", "label": "Use HTTPS", "type": "checkbox", "default": True},
         ],
         "compile": _compile_json_webhook,
@@ -238,8 +257,18 @@ BUILDER_SERVICES = [
         "label": "Discord",
         "description": "Discord webhook",
         "fields": [
-            {"id": "webhook_id", "label": "Webhook ID", "type": "text", "required": True},
-            {"id": "webhook_token", "label": "Webhook token", "type": "secret", "required": True},
+            {
+                "id": "webhook_id",
+                "label": "Webhook ID",
+                "type": "text",
+                "required": True,
+            },
+            {
+                "id": "webhook_token",
+                "label": "Webhook token",
+                "type": "secret",
+                "required": True,
+            },
         ],
         "compile": _compile_discord,
     },
@@ -248,7 +277,12 @@ BUILDER_SERVICES = [
         "label": "Slack",
         "description": "Slack incoming webhook",
         "fields": [
-            {"id": "webhook_url", "label": "Incoming webhook URL", "type": "text", "required": True},
+            {
+                "id": "webhook_url",
+                "label": "Incoming webhook URL",
+                "type": "text",
+                "required": True,
+            },
         ],
         "compile": _compile_slack,
     },
@@ -259,7 +293,12 @@ BUILDER_SERVICES = [
         "fields": [
             {"id": "host", "label": "Server", "type": "text", "required": True},
             {"id": "port", "label": "Port", "type": "text", "placeholder": "443"},
-            {"id": "token", "label": "Application token", "type": "secret", "required": True},
+            {
+                "id": "token",
+                "label": "Application token",
+                "type": "secret",
+                "required": True,
+            },
             {"id": "secure", "label": "Use HTTPS", "type": "checkbox", "default": True},
         ],
         "compile": _compile_gotify,
@@ -270,7 +309,12 @@ BUILDER_SERVICES = [
         "description": "Pushover notifications",
         "fields": [
             {"id": "user_key", "label": "User key", "type": "text", "required": True},
-            {"id": "api_token", "label": "API token", "type": "secret", "required": True},
+            {
+                "id": "api_token",
+                "label": "API token",
+                "type": "secret",
+                "required": True,
+            },
         ],
         "compile": _compile_pushover,
     },
@@ -279,7 +323,12 @@ BUILDER_SERVICES = [
         "label": "Telegram",
         "description": "Telegram bot notifications",
         "fields": [
-            {"id": "bot_token", "label": "Bot token", "type": "secret", "required": True},
+            {
+                "id": "bot_token",
+                "label": "Bot token",
+                "type": "secret",
+                "required": True,
+            },
             {"id": "chat_id", "label": "Chat ID", "type": "text", "required": True},
         ],
         "compile": _compile_telegram,
@@ -289,7 +338,12 @@ BUILDER_SERVICES = [
         "label": "Email (SMTP)",
         "description": "Email via SMTP",
         "fields": [
-            {"id": "use_reset_smtp", "label": "Use Mailbox Password Reset SMTP settings", "type": "checkbox", "default": False},
+            {
+                "id": "use_reset_smtp",
+                "label": "Use Mailbox Password Reset SMTP settings",
+                "type": "checkbox",
+                "default": False,
+            },
             {"id": "smtp_host", "label": "SMTP host", "type": "text"},
             {"id": "smtp_port", "label": "SMTP port", "type": "text", "default": "587"},
             {"id": "smtp_user", "label": "SMTP user", "type": "text"},
@@ -317,12 +371,14 @@ def builder_catalog_for_api():
     """Return service definitions without compile callables."""
     catalog = []
     for service in BUILDER_SERVICES:
-        catalog.append({
-            "id": service["id"],
-            "label": service["label"],
-            "description": service.get("description", ""),
-            "fields": service["fields"],
-        })
+        catalog.append(
+            {
+                "id": service["id"],
+                "label": service["label"],
+                "description": service.get("description", ""),
+                "fields": service["fields"],
+            }
+        )
     return catalog
 
 
@@ -333,19 +389,29 @@ def compile_service_url(service_id, fields, *, token_in_env=False):
     if not isinstance(fields, dict):
         raise ValueError("Fields must be an object")
 
-    if token_in_env and service_id == "mailto" and _field_bool(fields, "use_reset_smtp"):
+    if (
+        token_in_env
+        and service_id == "mailto"
+        and _field_bool(fields, "use_reset_smtp")
+    ):
         token_in_env = False
 
     fields_for_compile = dict(fields)
-    secret_value = _extract_service_secret(service_id, fields_for_compile) if token_in_env else ""
+    secret_value = (
+        _extract_service_secret(service_id, fields_for_compile) if token_in_env else ""
+    )
 
     if token_in_env:
         _clear_service_secrets(service_id, fields_for_compile)
 
     url = service["compile"](fields_for_compile)
-    validate_apprise_url(_resolve_url_with_cred(url, SERVICE_CRED_ENV.get(service_id), secret_value))
+    validate_apprise_url(
+        _resolve_url_with_cred(url, SERVICE_CRED_ENV.get(service_id), secret_value)
+    )
 
-    cred_env = SERVICE_CRED_ENV.get(service_id) if token_in_env and secret_value else None
+    cred_env = (
+        SERVICE_CRED_ENV.get(service_id) if token_in_env and secret_value else None
+    )
     env_snippet = format_env_cred_snippet(cred_env, secret_value) if cred_env else None
 
     return {
@@ -357,40 +423,38 @@ def compile_service_url(service_id, fields, *, token_in_env=False):
     }
 
 
+_SERVICE_SECRET_EXTRACTORS = {
+    "ntfy": lambda fields: _field_text(fields, "token"),
+    "json": lambda fields: (
+        _field_text(fields, "token") or _field_text(fields, "auth_header")
+    ),
+    "discord": lambda fields: _field_text(fields, "webhook_token"),
+    "gotify": lambda fields: _field_text(fields, "token"),
+    "pushover": lambda fields: _field_text(fields, "api_token"),
+    "telegram": lambda fields: _field_text(fields, "bot_token"),
+}
+
+_SERVICE_SECRET_FIELD_CLEARS = {
+    "ntfy": ("token",),
+    "json": ("token", "auth_header"),
+    "discord": ("webhook_token",),
+    "gotify": ("token",),
+    "pushover": ("api_token",),
+    "telegram": ("bot_token",),
+    "mailto": ("smtp_password",),
+}
+
+
 def _extract_service_secret(service_id, fields):
-    if service_id == "ntfy":
-        return _field_text(fields, "token")
-    if service_id == "json":
-        return _field_text(fields, "token") or _field_text(fields, "auth_header")
-    if service_id == "discord":
-        return _field_text(fields, "webhook_token")
-    if service_id == "gotify":
-        return _field_text(fields, "token")
-    if service_id == "pushover":
-        return _field_text(fields, "api_token")
-    if service_id == "telegram":
-        return _field_text(fields, "bot_token")
     if service_id == "mailto" and not _field_bool(fields, "use_reset_smtp"):
         return _field_text(fields, "smtp_password")
-    return ""
+    extractor = _SERVICE_SECRET_EXTRACTORS.get(service_id)
+    return extractor(fields) if extractor else ""
 
 
 def _clear_service_secrets(service_id, fields):
-    if service_id == "ntfy":
-        fields["token"] = ""
-    elif service_id == "json":
-        fields["token"] = ""
-        fields["auth_header"] = ""
-    elif service_id == "discord":
-        fields["webhook_token"] = ""
-    elif service_id == "gotify":
-        fields["token"] = ""
-    elif service_id == "pushover":
-        fields["api_token"] = ""
-    elif service_id == "telegram":
-        fields["bot_token"] = ""
-    elif service_id == "mailto":
-        fields["smtp_password"] = ""
+    for key in _SERVICE_SECRET_FIELD_CLEARS.get(service_id, ()):
+        fields[key] = ""
 
 
 def _resolve_url_with_cred(url, cred_env, inline_secret=None):
@@ -713,4 +777,3 @@ def parse_service_url(service_id, url, *, cred_env=None):
         "masked_url": mask_apprise_url(url),
         "cred_env": cred_env,
     }
-

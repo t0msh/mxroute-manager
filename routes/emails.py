@@ -22,10 +22,8 @@ def _mx_payload_without_recovery(data):
     return {key: value for key, value in data.items() if key != "recovery_email"}
 
 
-# --- EMAIL ACCOUNTS ---
-
-@emails_bp.route('/api/domains/<domain>/email-accounts', methods=['GET'])
-@emails_bp.route('/list-emails/<domain>', methods=['GET'])  # backward compat
+@emails_bp.route("/api/domains/<domain>/email-accounts", methods=["GET"])
+@emails_bp.route("/list-emails/<domain>", methods=["GET"])  # backward compat
 @require_any_permission("dashboard", "emails")
 def list_emails(domain):
     result, status = mx_request("GET", f"/domains/{domain}/email-accounts")
@@ -34,7 +32,10 @@ def list_emails(domain):
 
     payload = result.get_json()
     if payload.get("success") and isinstance(payload.get("data"), list):
-        addresses = [_mailbox_address(account.get("username"), domain) for account in payload["data"]]
+        addresses = [
+            _mailbox_address(account.get("username"), domain)
+            for account in payload["data"]
+        ]
         recovery_map = get_recovery_map(addresses)
         for account in payload["data"]:
             username = account.get("username")
@@ -47,13 +48,15 @@ def list_emails(domain):
     return jsonify(payload), status
 
 
-@emails_bp.route('/api/domains/<domain>/email-accounts', methods=['POST'])
+@emails_bp.route("/api/domains/<domain>/email-accounts", methods=["POST"])
 @require_permission("emails")
 def create_email_api(domain):
     data = request.json or {}
     username = data.get("username")
     if not validate_username(username):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid mailbox username format"}}
+        ), 400
 
     recovery_email = (data.get("recovery_email") or "").strip().lower() or None
     mailbox_email = _mailbox_address(username, domain)
@@ -73,21 +76,27 @@ def create_email_api(domain):
         payload = response.get_json()
         if payload.get("success", True) and recovery_email:
             set_recovery_email(mailbox_email, recovery_email)
-            audit("mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email)
+            audit(
+                "mailbox.recovery_update",
+                target=mailbox_email,
+                recovery_email=recovery_email,
+            )
     return response, status
 
 
-@emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['GET'])
+@emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["GET"])
 @require_permission("emails")
 def get_email_account(domain, user):
     return mx_request("GET", f"/domains/{domain}/email-accounts/{user}")
 
 
-@emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['PATCH'])
+@emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["PATCH"])
 @require_permission("emails")
 def update_email_account(domain, user):
     if not validate_username(user):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid mailbox username format"}}
+        ), 400
     payload = request.json or {}
     if "password" in payload:
         action = "mailbox.password_update"
@@ -95,14 +104,22 @@ def update_email_account(domain, user):
         action = "mailbox.quota_update"
     else:
         action = "mailbox.update"
-    return audited_mx("PATCH", f"/domains/{domain}/email-accounts/{user}", payload, action, target=f"{user}@{domain}")
+    return audited_mx(
+        "PATCH",
+        f"/domains/{domain}/email-accounts/{user}",
+        payload,
+        action,
+        target=f"{user}@{domain}",
+    )
 
 
-@emails_bp.route('/api/domains/<domain>/email-accounts/<user>', methods=['DELETE'])
+@emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["DELETE"])
 @require_permission("emails")
 def delete_email_api(domain, user):
     if not validate_username(user):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid mailbox username format"}}
+        ), 400
     response, status = audited_mx(
         "DELETE",
         f"/domains/{domain}/email-accounts/{user}",
@@ -113,11 +130,15 @@ def delete_email_api(domain, user):
     return _delete_recovery_after_mx_delete(response, status, user, domain)
 
 
-@emails_bp.route('/api/domains/<domain>/email-accounts/<user>/recovery', methods=['PATCH'])
+@emails_bp.route(
+    "/api/domains/<domain>/email-accounts/<user>/recovery", methods=["PATCH"]
+)
 @require_permission("emails")
 def update_recovery_email(domain, user):
     if not validate_username(user):
-        return jsonify({"success": False, "error": {"message": "Invalid mailbox username format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid mailbox username format"}}
+        ), 400
 
     data = request.json or {}
     mailbox_email = _mailbox_address(user, domain)
@@ -133,7 +154,9 @@ def update_recovery_email(domain, user):
         return jsonify({"success": False, "error": {"message": message}}), 400
 
     set_recovery_email(mailbox_email, recovery_email)
-    audit("mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email)
+    audit(
+        "mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email
+    )
     return jsonify({"success": True, "data": {"recovery_email": recovery_email}})
 
 
@@ -145,37 +168,51 @@ def _delete_recovery_after_mx_delete(response, status, username, domain):
     return response, status
 
 
-# --- EMAIL FORWARDERS ---
-
-@emails_bp.route('/api/domains/<domain>/forwarders', methods=['GET'])
+@emails_bp.route("/api/domains/<domain>/forwarders", methods=["GET"])
 @require_permission("forwarders")
 def list_forwarders(domain):
     return mx_request("GET", f"/domains/{domain}/forwarders")
 
 
-@emails_bp.route('/api/domains/<domain>/forwarders', methods=['POST'])
+@emails_bp.route("/api/domains/<domain>/forwarders", methods=["POST"])
 @require_permission("forwarders")
 def create_forwarder(domain):
     data = request.json or {}
     alias = data.get("alias", "")
-    return audited_mx("POST", f"/domains/{domain}/forwarders", request.json, "forwarder.create", target=f"{alias}@{domain}")
+    return audited_mx(
+        "POST",
+        f"/domains/{domain}/forwarders",
+        request.json,
+        "forwarder.create",
+        target=f"{alias}@{domain}",
+    )
 
 
-@emails_bp.route('/api/domains/<domain>/forwarders/<alias>', methods=['DELETE'])
+@emails_bp.route("/api/domains/<domain>/forwarders/<alias>", methods=["DELETE"])
 @require_permission("forwarders")
 def delete_forwarder(domain, alias):
-    return audited_mx("DELETE", f"/domains/{domain}/forwarders/{alias}", None, "forwarder.delete", target=f"{alias}@{domain}")
+    return audited_mx(
+        "DELETE",
+        f"/domains/{domain}/forwarders/{alias}",
+        None,
+        "forwarder.delete",
+        target=f"{alias}@{domain}",
+    )
 
 
-# --- CATCH-ALL ---
-
-@emails_bp.route('/api/domains/<domain>/catch-all', methods=['GET'])
+@emails_bp.route("/api/domains/<domain>/catch-all", methods=["GET"])
 @require_permission("forwarders")
 def get_catch_all(domain):
     return mx_request("GET", f"/domains/{domain}/catch-all")
 
 
-@emails_bp.route('/api/domains/<domain>/catch-all', methods=['PATCH'])
+@emails_bp.route("/api/domains/<domain>/catch-all", methods=["PATCH"])
 @require_permission("forwarders")
 def update_catch_all(domain):
-    return audited_mx("PATCH", f"/domains/{domain}/catch-all", request.json, "catchall.update", target=domain)
+    return audited_mx(
+        "PATCH",
+        f"/domains/{domain}/catch-all",
+        request.json,
+        "catchall.update",
+        target=domain,
+    )

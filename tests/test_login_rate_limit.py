@@ -1,4 +1,5 @@
 """Tests for login brute-force protection."""
+
 import pytest
 from werkzeug.security import generate_password_hash
 

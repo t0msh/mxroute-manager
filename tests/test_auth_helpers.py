@@ -1,4 +1,5 @@
 """Unit tests for permission and admin checks in utils.auth_helpers."""
+
 from utils.auth_helpers import (
     has_permission,
     has_domain_access,

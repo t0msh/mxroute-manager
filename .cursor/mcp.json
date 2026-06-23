@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aislop": {
+      "command": ".cursor/hooks/aislop-mcp.sh",
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

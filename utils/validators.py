@@ -64,10 +64,27 @@ def validate_mailbox_password(password):
     return all(pattern.search(password) for pattern in _PASSWORD_REQUIREMENTS.values())
 
 
-_RESERVED_SUBDOMAIN_PREFIXES = frozenset({
-    "mail", "www", "webmail", "smtp", "imap", "pop", "pop3", "autodiscover",
-    "ftp", "mx", "ns", "ns1", "ns2", "_dmarc", "dmarc", "dkim", "@",
-})
+_RESERVED_SUBDOMAIN_PREFIXES = frozenset(
+    {
+        "mail",
+        "www",
+        "webmail",
+        "smtp",
+        "imap",
+        "pop",
+        "pop3",
+        "autodiscover",
+        "ftp",
+        "mx",
+        "ns",
+        "ns1",
+        "ns2",
+        "_dmarc",
+        "dmarc",
+        "dkim",
+        "@",
+    }
+)
 
 _DNS_LABEL_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
@@ -97,4 +114,3 @@ def validate_recovery_email(mailbox_email, recovery_email):
     if recovery_email == mailbox_email:
         return False, "Recovery email must differ from the mailbox address."
     return True, ""
-

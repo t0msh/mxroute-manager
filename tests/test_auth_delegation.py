@@ -1,4 +1,5 @@
 """HTTP tests for login, session, and delegated access control."""
+
 from unittest.mock import patch
 
 import pytest
@@ -193,7 +194,9 @@ def test_admin_can_create_delegation(fresh_db, client, db_connection):
             json={
                 "email": "newuser@local",
                 "password": "Abcd123!",
-                "grants": [{"domain": "example.com", "permissions": ["emails", "dashboard"]}],
+                "grants": [
+                    {"domain": "example.com", "permissions": ["emails", "dashboard"]}
+                ],
             },
         )
 

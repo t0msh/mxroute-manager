@@ -1,4 +1,5 @@
 """Tests for public DNS health comparison logic (no live DNS lookups)."""
+
 from unittest.mock import patch
 
 from services.dns_health import (
@@ -56,11 +57,17 @@ def test_check_dns_health_passes_when_public_dns_matches():
     }
     verify = {"name": "mxverify", "value": "mxroute-verify=token"}
 
-    with patch("services.dns_health._query_mx", return_value=[
-        {"hostname": "mail.mxroute.com", "priority": 10},
-    ]), patch("services.dns_health._query_txt") as mock_txt:
+    with (
+        patch(
+            "services.dns_health._query_mx",
+            return_value=[
+                {"hostname": "mail.mxroute.com", "priority": 10},
+            ],
+        ),
+        patch("services.dns_health._query_txt") as mock_txt,
+    ):
         mock_txt.side_effect = lambda name: {
-            "example.com": ['v=spf1 include:mxroute.com ~all'],
+            "example.com": ["v=spf1 include:mxroute.com ~all"],
             "x._domainkey.example.com": ["v=DKIM1; k=rsa; p=abc123"],
             "_dmarc.example.com": ["v=DMARC1; p=none; sp=none; adkim=r; aspf=r;"],
             "mxverify.example.com": ["mxroute-verify=token"],
@@ -83,9 +90,15 @@ def test_check_dns_health_passes_when_public_dns_matches():
 def test_check_dns_health_fails_mx_mismatch():
     expected = {"mx_records": [{"hostname": "mail.mxroute.com", "priority": 10}]}
 
-    with patch("services.dns_health._query_mx", return_value=[
-        {"hostname": "wrong.mail.com", "priority": 20},
-    ]), patch("services.dns_health._query_txt", return_value=[]):
+    with (
+        patch(
+            "services.dns_health._query_mx",
+            return_value=[
+                {"hostname": "wrong.mail.com", "priority": 20},
+            ],
+        ),
+        patch("services.dns_health._query_txt", return_value=[]),
+    ):
         health = check_dns_health("example.com", expected)
 
     assert health["checks"]["mx"]["status"] == "fail"

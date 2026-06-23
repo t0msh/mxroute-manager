@@ -1,4 +1,5 @@
 """HTTP tests for mailbox CRUD and recovery-email routes."""
+
 from unittest.mock import patch
 
 import pytest
@@ -82,10 +83,13 @@ def test_create_email_rejects_recovery_same_as_mailbox(fresh_db, client, emails_
 
 
 def test_create_email_strips_recovery_from_mx_payload(fresh_db, client, emails_token):
-    with patch(
-        "routes.emails.audited_mx",
-        return_value=mx_json_response({"success": True}, 201),
-    ) as mock_mx, patch("routes.emails.audit"):
+    with (
+        patch(
+            "routes.emails.audited_mx",
+            return_value=mx_json_response({"success": True}, 201),
+        ) as mock_mx,
+        patch("routes.emails.audit"),
+    ):
         response = client.post(
             f"/api/domains/{DOMAIN}/email-accounts",
             headers=auth_post_headers(emails_token),
@@ -102,11 +106,16 @@ def test_create_email_strips_recovery_from_mx_payload(fresh_db, client, emails_t
     assert mx_payload["username"] == "alex"
 
 
-def test_create_email_saves_recovery_on_success(fresh_db, client, db_connection, emails_token):
-    with patch(
-        "routes.emails.audited_mx",
-        return_value=mx_json_response({"success": True}, 201),
-    ), patch("routes.emails.audit"):
+def test_create_email_saves_recovery_on_success(
+    fresh_db, client, db_connection, emails_token
+):
+    with (
+        patch(
+            "routes.emails.audited_mx",
+            return_value=mx_json_response({"success": True}, 201),
+        ),
+        patch("routes.emails.audit"),
+    ):
         response = client.post(
             f"/api/domains/{DOMAIN}/email-accounts",
             headers=auth_post_headers(emails_token),
@@ -118,13 +127,18 @@ def test_create_email_saves_recovery_on_success(fresh_db, client, db_connection,
         )
 
     assert response.status_code == 201
-    assert db_connection.execute(
-        "SELECT recovery_email FROM mailbox_recovery WHERE mailbox_email = ?",
-        ("alex@example.com",),
-    ).fetchone()[0] == "backup@gmail.com"
+    assert (
+        db_connection.execute(
+            "SELECT recovery_email FROM mailbox_recovery WHERE mailbox_email = ?",
+            ("alex@example.com",),
+        ).fetchone()[0]
+        == "backup@gmail.com"
+    )
 
 
-def test_list_emails_merges_recovery_from_db(fresh_db, client, db_connection, emails_token):
+def test_list_emails_merges_recovery_from_db(
+    fresh_db, client, db_connection, emails_token
+):
     db_connection.execute(
         "INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at) VALUES (?, ?, ?)",
         ("alex@example.com", "backup@gmail.com", "2026-01-01T00:00:00+00:00"),
@@ -133,7 +147,9 @@ def test_list_emails_merges_recovery_from_db(fresh_db, client, db_connection, em
 
     with patch(
         "routes.emails.mx_request",
-        return_value=mx_json_response({"success": True, "data": [{"username": "alex"}]}),
+        return_value=mx_json_response(
+            {"success": True, "data": [{"username": "alex"}]}
+        ),
     ):
         response = client.get(f"/api/domains/{DOMAIN}/email-accounts")
 
@@ -155,7 +171,9 @@ def test_update_recovery_email_sets_value(fresh_db, client, emails_token):
     assert response.get_json()["data"]["recovery_email"] == "backup@gmail.com"
 
 
-def test_update_recovery_email_clears_value(fresh_db, client, db_connection, emails_token):
+def test_update_recovery_email_clears_value(
+    fresh_db, client, db_connection, emails_token
+):
     db_connection.execute(
         "INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at) VALUES (?, ?, ?)",
         ("alex@example.com", "backup@gmail.com", "2026-01-01T00:00:00+00:00"),
@@ -170,10 +188,13 @@ def test_update_recovery_email_clears_value(fresh_db, client, db_connection, ema
         )
 
     assert response.status_code == 200
-    assert db_connection.execute(
-        "SELECT COUNT(*) FROM mailbox_recovery WHERE mailbox_email = ?",
-        ("alex@example.com",),
-    ).fetchone()[0] == 0
+    assert (
+        db_connection.execute(
+            "SELECT COUNT(*) FROM mailbox_recovery WHERE mailbox_email = ?",
+            ("alex@example.com",),
+        ).fetchone()[0]
+        == 0
+    )
 
 
 def test_update_recovery_email_rejects_invalid(fresh_db, client, emails_token):
@@ -187,7 +208,9 @@ def test_update_recovery_email_rejects_invalid(fresh_db, client, emails_token):
     assert response.status_code == 400
 
 
-def test_delete_email_removes_recovery_on_success(fresh_db, client, db_connection, emails_token):
+def test_delete_email_removes_recovery_on_success(
+    fresh_db, client, db_connection, emails_token
+):
     db_connection.execute(
         "INSERT INTO mailbox_recovery (mailbox_email, recovery_email, updated_at) VALUES (?, ?, ?)",
         ("alex@example.com", "backup@gmail.com", "2026-01-01T00:00:00+00:00"),
@@ -204,10 +227,13 @@ def test_delete_email_removes_recovery_on_success(fresh_db, client, db_connectio
         )
 
     assert response.status_code == 200
-    assert db_connection.execute(
-        "SELECT COUNT(*) FROM mailbox_recovery WHERE mailbox_email = ?",
-        ("alex@example.com",),
-    ).fetchone()[0] == 0
+    assert (
+        db_connection.execute(
+            "SELECT COUNT(*) FROM mailbox_recovery WHERE mailbox_email = ?",
+            ("alex@example.com",),
+        ).fetchone()[0]
+        == 0
+    )
 
 
 def test_update_email_rejects_invalid_username(fresh_db, client, emails_token):

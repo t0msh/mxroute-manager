@@ -5,14 +5,16 @@ from flask import g
 from models.db import get_branding_dir
 from utils.themes import normalize_theme, DEFAULT_THEME
 
-RESET_PORTAL_ALLOWED_PATHS = frozenset({
-    "/",
-    "/reset-password",
-    "/api/public/password-reset/status",
-    "/api/public/password-reset/request",
-    "/api/public/password-reset/confirm",
-    "/api/public/reset-portal/logo",
-})
+RESET_PORTAL_ALLOWED_PATHS = frozenset(
+    {
+        "/",
+        "/reset-password",
+        "/api/public/password-reset/status",
+        "/api/public/password-reset/request",
+        "/api/public/password-reset/confirm",
+        "/api/public/reset-portal/logo",
+    }
+)
 
 ALLOWED_LOGO_EXTENSIONS = {
     "png": "image/png",
@@ -63,4 +65,6 @@ def branding_path_for_domain(domain):
 def logo_path_for_portal(portal):
     if not portal or not portal.get("logo_filename"):
         return None
-    return os.path.join(branding_path_for_domain(portal["domain"]), portal["logo_filename"])
+    return os.path.join(
+        branding_path_for_domain(portal["domain"]), portal["logo_filename"]
+    )

@@ -1,4 +1,3 @@
-// --- 1. Global App State & Helpers ---
 let activeDomain = "";
 let activeDomainMailHosting = null;
 let accountQuota = null;
@@ -265,7 +264,6 @@ async function apiRequest(url, method = "GET", body = null) {
     }
 }
 
-// --- Data cache (stale-while-revalidate) ---
 const apiCache = new Map();
 const domainRowCache = new Map();
 const backgroundRefreshes = new Map();
@@ -604,7 +602,6 @@ function generateRandomPassword() {
     return shuffleString(retVal);
 }
 
-// --- 2. Live Password Verification Logic ---
 const requirements = {
     length: /.{8,}/,
     upper: /[A-Z]/,
@@ -640,12 +637,9 @@ function setupPasswordValidation(inputId, listId, buttonId) {
     });
 }
 
-// Initialize Password Validations
 setupPasswordValidation("create-email-password", "create-email-requirements", "btn-provision-submit");
 setupPasswordValidation("modal-pass-input", "modal-pass-requirements", "btn-modal-pass-submit");
 
-
-// --- 2b. Mobile sidebar drawer ---
 function closeMobileSidebar() {
     document.body.classList.remove("sidebar-open");
     const toggle = document.getElementById("sidebar-toggle");
@@ -678,7 +672,6 @@ function initMobileSidebar() {
 
 initMobileSidebar();
 
-// --- 3. Tab Navigation Controller ---
 document.querySelectorAll(".nav-item").forEach(item => {
     item.addEventListener("click", () => {
         closeMobileSidebar();
@@ -700,7 +693,6 @@ document.querySelectorAll(".nav-item").forEach(item => {
             domainSelector.style.display = "";
         }
         
-        // Update Title & Page details
         const titleMap = {
             dashboard: { title: "Dashboard", subtitle: "Overview of your hosted mail accounts, resources, and endpoints." },
             domains: { title: "Domain Management", subtitle: "Register domains, verify DNS records, and configure redirection." },
@@ -729,8 +721,6 @@ document.querySelectorAll(".nav-item").forEach(item => {
     });
 });
 
-
-// --- 4. Main Data Refresher ---
 async function triggerDataRefresh(options = {}) {
     const { force = false } = options;
     const activeNav = document.querySelector(".nav-item.active");
@@ -813,9 +803,6 @@ document.getElementById("btn-refresh-data").addEventListener("click", async () =
         refreshBtn.disabled = false;
     }
 });
-
-
-// --- 5. Specific Feature Functions ---
 
 // 5.1 Storage Quotas
 async function loadAccountQuota({ force = false } = {}) {
@@ -1266,7 +1253,6 @@ document.getElementById("btn-toggle-mail-hosting").addEventListener("click", asy
     }
 });
 
-// --- Domain & DNS Setup Wizard (new domains only) ---
 let setupWizardDomain = "";
 let setupWizardStep = 1;
 let setupCfConfigured = false;
@@ -1297,7 +1283,6 @@ function setSetupDomainLabel(id) {
     if (el) el.innerHTML = `<strong>Domain:</strong> ${escapeHtml(setupWizardDomain)}`;
 }
 
-// --- Password Reset Portal ---
 let resetPortalDomain = "";
 let resetPortalLoadedPrefix = "";
 let resetPortalSelectedTheme = "emerald";
@@ -1634,7 +1619,6 @@ function renderDnsCheckItem(key, check, { fixLabel = "Fix in Cloudflare" } = {})
     return item;
 }
 
-// Step 4: mail DNS + webmail checks (verification is shown in Step 2).
 function renderSetupDnsChecks(health) {
     const checksEl = document.getElementById("setup-dns-checks");
     if (!checksEl) return;
@@ -1651,7 +1635,6 @@ function renderSetupDnsChecks(health) {
     });
 }
 
-// Step 2: verification check only.
 function renderSetupVerifyCheck(health) {
     const el = document.getElementById("setup-verify-checks");
     if (!el) return;
@@ -1793,25 +1776,37 @@ function showSetupDnsProgress(steps, isError = false) {
     }
 }
 
+async function runSetupWizardDnsFix(records, options = {}) {
+    const {
+        verify = false,
+        formatSuccess = (fixed) =>
+            `Updated ${fixed.join(", ").toUpperCase()} in Cloudflare. DNS propagation may take a few minutes.`,
+        emptyMessage = "Record already exists or was not applicable.",
+        afterSuccess,
+    } = options;
+    const result = await apiRequest(
+        `/api/domains/${setupWizardDomain}/dns/fix`,
+        "POST",
+        { records }
+    );
+    if (result.data?.steps) showSetupDnsProgress(result.data.steps);
+    const fixed = result.data?.fixed || [];
+    if (fixed.length > 0) {
+        showAlert("success", formatSuccess(fixed));
+    } else {
+        showAlert("info", emptyMessage);
+    }
+    invalidateDomainCache(setupWizardDomain);
+    await loadDomainsList({ force: true });
+    if (verify) await loadSetupVerifyHealth();
+    else await loadSetupDnsHealth();
+    if (afterSuccess) await afterSuccess();
+}
+
 async function handleFixDnsRecord(recordType, { verify = false } = {}) {
     if (!setupWizardDomain) return;
     try {
-        const result = await apiRequest(
-            `/api/domains/${setupWizardDomain}/dns/fix`,
-            "POST",
-            { records: [recordType] }
-        );
-        if (result.data?.steps) showSetupDnsProgress(result.data.steps);
-        const fixed = result.data?.fixed || [];
-        if (fixed.length > 0) {
-            showAlert("success", `Updated ${fixed.join(", ").toUpperCase()} in Cloudflare. DNS propagation may take a few minutes.`);
-        } else {
-            showAlert("info", "Record already exists or was not applicable.");
-        }
-        invalidateDomainCache(setupWizardDomain);
-        await loadDomainsList({ force: true });
-        if (verify) await loadSetupVerifyHealth();
-        else await loadSetupDnsHealth();
+        await runSetupWizardDnsFix([recordType], { verify });
     } catch (err) {
         if (err.steps) showSetupDnsProgress(err.steps, true);
         showAlert("error", err.message);
@@ -1825,22 +1820,14 @@ async function handleSetupDeployAll() {
     if (document.getElementById("setup-webmail-enabled")?.checked) records.push("webmail");
     if (btn) btn.disabled = true;
     try {
-        const result = await apiRequest(
-            `/api/domains/${setupWizardDomain}/dns/fix`,
-            "POST",
-            { records }
-        );
-        if (result.data?.steps) showSetupDnsProgress(result.data.steps);
-        const fixed = result.data?.fixed || [];
-        if (fixed.length > 0) {
-            showAlert("success", `Deployed: ${fixed.join(", ").toUpperCase()}. DNS propagation may take a few minutes.`);
-        } else {
-            showAlert("info", "All records already in place.");
-        }
-        invalidateDomainCache(setupWizardDomain);
-        await loadDomainsList({ force: true });
-        await loadSetupDnsHealth();
-        startSetupHealthPolling();
+        await runSetupWizardDnsFix(records, {
+            formatSuccess: (fixed) =>
+                `Deployed: ${fixed.join(", ").toUpperCase()}. DNS propagation may take a few minutes.`,
+            emptyMessage: "All records already in place.",
+            afterSuccess: async () => {
+                startSetupHealthPolling();
+            },
+        });
     } catch (err) {
         if (err.steps) showSetupDnsProgress(err.steps, true);
         showAlert("error", err.message);
@@ -1946,7 +1933,6 @@ function initSetupWizard() {
     });
 }
 
-// Delete Domain
 async function handleDeleteDomain(domain) {
     const confirmed = await showTypedConfirm({
         title: "Delete Domain",
@@ -2009,7 +1995,6 @@ document.getElementById("btn-open-pointer-modal").addEventListener("click", () =
     openModal("modal-add-pointer");
 });
 
-// Create Pointer Form Submit
 document.getElementById("form-modal-create-pointer").addEventListener("submit", async (e) => {
     e.preventDefault();
     const nameInput = document.getElementById("pointer-name-input");
@@ -2032,7 +2017,6 @@ document.getElementById("form-modal-create-pointer").addEventListener("submit", 
     }
 });
 
-// Delete Pointer
 async function handleDeletePointer(pointer) {
     const confirmed = await showConfirm({
         title: "Remove Pointer",
@@ -2221,34 +2205,7 @@ function mailboxActionsMenuHtml(account) {
 }
 
 function initMailboxActionMenus() {
-    const tbody = document.getElementById("emails-list-tbody");
-    if (!tbody || tbody.dataset.actionMenuInit === "true") return;
-    tbody.dataset.actionMenuInit = "true";
-    ensureActionMenuDocListeners();
-
-    tbody.addEventListener("click", (event) => {
-        const toggle = event.target.closest(".action-menu-toggle");
-        if (toggle) {
-            event.stopPropagation();
-            const menu = toggle.closest("[data-action-menu]");
-            const wasOpen = menu?.classList.contains("is-open");
-            closeActionMenus();
-            if (menu && !wasOpen) {
-                menu.classList.add("is-open");
-                toggle.setAttribute("aria-expanded", "true");
-                const panel = menu.querySelector(".action-menu-panel");
-                if (panel) panel.hidden = false;
-            }
-            return;
-        }
-
-        const item = event.target.closest(".action-menu-item");
-        if (!item) return;
-
-        event.preventDefault();
-        event.stopPropagation();
-        closeActionMenus();
-
+    initTableActionMenus("emails-list-tbody", (item) => {
         const username = item.dataset.username;
         const action = item.dataset.action;
         if (!username || !action) return;
@@ -2298,36 +2255,8 @@ function initSecondaryTableActionMenus() {
     });
 }
 
-// --- Active Domains row actions menu ---
 function initDomainActionMenus() {
-    const tbody = document.getElementById("domains-list-tbody");
-    if (!tbody || tbody.dataset.actionMenuInit === "true") return;
-    tbody.dataset.actionMenuInit = "true";
-    ensureActionMenuDocListeners();
-
-    tbody.addEventListener("click", (event) => {
-        const toggle = event.target.closest(".action-menu-toggle");
-        if (toggle) {
-            event.stopPropagation();
-            const menu = toggle.closest("[data-action-menu]");
-            const wasOpen = menu?.classList.contains("is-open");
-            closeActionMenus();
-            if (menu && !wasOpen) {
-                menu.classList.add("is-open");
-                toggle.setAttribute("aria-expanded", "true");
-                const panel = menu.querySelector(".action-menu-panel");
-                if (panel) panel.hidden = false;
-            }
-            return;
-        }
-
-        const item = event.target.closest(".action-menu-item");
-        if (!item) return;
-
-        event.preventDefault();
-        event.stopPropagation();
-        closeActionMenus();
-
+    initTableActionMenus("domains-list-tbody", (item) => {
         const menu = item.closest("[data-action-menu]");
         const domain = menu?.dataset.domain;
         const action = item.dataset.action;
@@ -2514,7 +2443,6 @@ document.getElementById("btn-generate-password").addEventListener("click", () =>
 
 document.getElementById("btn-copy-mailbox-credentials")?.addEventListener("click", copyMailboxCredentials);
 
-// Create Email Account Submit
 document.getElementById("form-create-email").addEventListener("submit", async (e) => {
     e.preventDefault();
     const usernameInput = document.getElementById("create-email-username");
@@ -2607,7 +2535,6 @@ document.getElementById("create-email-limit").addEventListener("input", (e) => {
     document.getElementById("create-email-limit-val").textContent = `${val} / day`;
 });
 
-// Delete Email Account
 async function handleDeleteEmail(username) {
     const emailAddress = `${username}@${activeDomain}`;
     const confirmed = await showTypedConfirm({
@@ -2733,7 +2660,6 @@ document.getElementById("form-modal-update-quota").addEventListener("submit", as
     }
 });
 
-
 // 5.8 Forwarders Management
 function renderForwardersList(result, domain) {
     const tbody = document.getElementById("forwarders-list-tbody");
@@ -2774,7 +2700,6 @@ async function loadForwardersList(domain, { force = false } = {}) {
     });
 }
 
-// Create Forwarder Submit
 document.getElementById("form-create-forwarder").addEventListener("submit", async (e) => {
     e.preventDefault();
     const aliasInput = document.getElementById("forwarder-alias");
@@ -2796,7 +2721,6 @@ document.getElementById("form-create-forwarder").addEventListener("submit", asyn
     }
 });
 
-// Delete Forwarder
 async function handleDeleteForwarder(alias) {
     const forwarderAddress = `${alias}@${activeDomain}`;
     const confirmed = await showTypedConfirm({
@@ -2815,7 +2739,6 @@ async function handleDeleteForwarder(alias) {
         showAlert("error", err.message);
     }
 }
-
 
 // 5.9 Spam Control Panel
 async function loadSpamSettings(domain, { force = false } = {}) {
@@ -2921,7 +2844,6 @@ async function loadSpamList(domain, type, { force = false } = {}) {
     });
 });
 
-// Remove Whitelist/Blacklist Entry
 async function handleRemoveSpamList(type, entry) {
     const confirmed = await showConfirm({
         title: `Remove from ${type}`,
@@ -2940,8 +2862,6 @@ async function handleRemoveSpamList(type, entry) {
     }
 }
 
-
-// --- 6. Global Domain Selector Initialization ---
 async function initDomainDropdowns() {
     const select = document.getElementById("global-domain-select");
     
@@ -3390,7 +3310,6 @@ document.addEventListener("DOMContentLoaded", async () => {
             oidcEnabled = !!meResult.oidc_enabled;
             
             if (currentUser) {
-                // Update User Profile UI details
                 document.getElementById("user-email").textContent = currentUser.email;
                 const roleBadge = document.getElementById("user-role-badge");
                 roleBadge.textContent = currentUser.is_admin ? "Admin" : "User";
@@ -3486,7 +3405,6 @@ document.addEventListener("DOMContentLoaded", async () => {
                 payload.ADMIN_PASSWORD = newAdminPassword;
             }
 
-            
             try {
                 const contactSaved = await saveAdminContactEmail();
                 if (!contactSaved) {
@@ -3537,8 +3455,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-// --- 7. Theming & Settings Controller ---
-
 function loadTheme() {
     const activeTheme = localStorage.getItem("workspace-theme") || "emerald";
     setTheme(activeTheme, false);
@@ -3551,7 +3467,6 @@ function setTheme(theme, save = true) {
     ];
     const safeTheme = themes.includes(theme) ? theme : "emerald";
     
-    // Remove all theme classes from body
     themes.forEach(t => document.body.classList.remove(`theme-${t}`));
     
     // Apply selected theme class
@@ -3633,7 +3548,6 @@ async function saveAdminContactEmail() {
     return false;
 }
 
-// --- Notifications settings ---
 let notificationTargets = [];
 let notificationActionGroups = [];
 let notificationBuilderServices = [];
@@ -4197,8 +4111,6 @@ async function loadNotificationsPage() {
     await loadNotificationSettings();
 }
 
-
-// --- 5.10 System Logs Tab Panel Logic ---
 let logAutoRefreshInterval = null;
 let logsCache = [];
 
@@ -4291,7 +4203,6 @@ function renderLogsTable() {
     });
 }
 
-// Initialize log page event handlers
 function initLogsPageEvents() {
     const dateSelect = document.getElementById("logs-date-select");
     const limitSelect = document.getElementById("logs-limit-select");

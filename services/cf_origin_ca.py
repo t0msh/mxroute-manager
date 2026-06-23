@@ -37,11 +37,17 @@ def create_origin_certificate(hostname):
     try:
         payload = response.json()
     except ValueError as exc:
-        raise ValueError(f"Cloudflare Origin CA request failed ({response.status_code})") from exc
+        raise ValueError(
+            f"Cloudflare Origin CA request failed ({response.status_code})"
+        ) from exc
 
     if not payload.get("success"):
         errors = payload.get("errors") or []
-        message = errors[0].get("message", "Unknown Cloudflare Origin CA error") if errors else "Origin CA request failed"
+        message = (
+            errors[0].get("message", "Unknown Cloudflare Origin CA error")
+            if errors
+            else "Origin CA request failed"
+        )
         current_app.logger.error("Cloudflare Origin CA error: %s", payload)
         if "Authentication failed" in message:
             raise ValueError(
@@ -55,7 +61,9 @@ def create_origin_certificate(hostname):
     certificate = result.get("certificate")
     private_key = result.get("private_key")
     if not certificate or not private_key:
-        raise ValueError("Cloudflare Origin CA response missing certificate or private key")
+        raise ValueError(
+            "Cloudflare Origin CA response missing certificate or private key"
+        )
 
     if not certificate.endswith("\n"):
         certificate += "\n"

@@ -1,4 +1,5 @@
 """Tests for mailbox recovery and password reset token helpers."""
+
 from datetime import datetime, timedelta, timezone
 
 from utils.validators import validate_mailbox_password, validate_recovery_email
@@ -37,7 +38,11 @@ def test_expired_token_rejected(fresh_db, db_connection):
     mailbox = "expired@example.com"
     token = fresh_db.create_reset_token(mailbox)
     token_hash = fresh_db._hash_reset_token(token)
-    expired_at = (datetime.now(timezone.utc) - timedelta(hours=2)).replace(microsecond=0).isoformat()
+    expired_at = (
+        (datetime.now(timezone.utc) - timedelta(hours=2))
+        .replace(microsecond=0)
+        .isoformat()
+    )
 
     db_connection.execute(
         "UPDATE password_reset_tokens SET expires_at = ? WHERE token_hash = ?",
@@ -70,7 +75,9 @@ def test_recovery_and_password_validators():
 def test_notification_email_resolution(fresh_db, db_connection):
     fresh_db.set_user_contact_email("billy", "billy.personal@gmail.com")
     assert fresh_db.resolve_notification_email("billy") == "billy.personal@gmail.com"
-    assert fresh_db.resolve_notification_email("admin@example.com") == "admin@example.com"
+    assert (
+        fresh_db.resolve_notification_email("admin@example.com") == "admin@example.com"
+    )
     assert fresh_db.resolve_notification_email("plainuser") is None
     db_connection.execute("DELETE FROM users WHERE email = ?", ("billy",))
     db_connection.commit()

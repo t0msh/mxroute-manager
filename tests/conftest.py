@@ -3,6 +3,7 @@
 Environment variables and sys.path are configured here *before* importing app
 code, so models.db picks up the throwaway DATABASE_FILE instead of a real DB.
 """
+
 import os
 import sqlite3
 import sys

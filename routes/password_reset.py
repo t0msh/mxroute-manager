@@ -2,7 +2,7 @@ import time
 from collections import defaultdict
 from threading import Lock
 
-from flask import Blueprint, request, jsonify, render_template, url_for, g
+from flask import Blueprint, request, jsonify, render_template, url_for, g, current_app
 
 from models.db import (
     create_reset_token,
@@ -13,7 +13,11 @@ from models.db import (
     parse_mailbox_email,
     build_reset_portal_url,
 )
-from services.mail import is_password_reset_available, is_smtp_configured, send_password_reset_email
+from services.mail import (
+    is_password_reset_available,
+    is_smtp_configured,
+    send_password_reset_email,
+)
 from services.mxroute import mx_request_raw
 from services.reset_portal import get_portal_branding_context
 from services.reset_portal_mail import build_portal_reset_from_address
@@ -64,14 +68,16 @@ def _mailbox_allowed_for_portal(mailbox_domain):
 
 @password_reset_bp.route("/api/public/password-reset/status", methods=["GET"])
 def password_reset_status():
-    return jsonify({
-        "success": True,
-        "data": {
-            "enabled": is_mailbox_reset_enabled(),
-            "configured": is_smtp_configured(),
-            "available": is_password_reset_available(),
-        },
-    })
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "enabled": is_mailbox_reset_enabled(),
+                "configured": is_smtp_configured(),
+                "available": is_password_reset_available(),
+            },
+        }
+    )
 
 
 @password_reset_bp.route("/api/public/password-reset/request", methods=["POST"])
@@ -113,7 +119,9 @@ def password_reset_request():
 
     try:
         portal = get_active_reset_portal_for_mailbox_domain(domain)
-        from_address = build_portal_reset_from_address(portal, domain) if portal else None
+        from_address = (
+            build_portal_reset_from_address(portal, domain) if portal else None
+        )
         send_password_reset_email(
             recovery_email,
             mailbox_email,
@@ -121,8 +129,11 @@ def password_reset_request():
             from_address=from_address,
         )
         _audit_public("mailbox.reset_requested", target=mailbox_email)
-    except Exception:
-        pass
+    except Exception as exc:
+        # Anti-enumeration: always return generic success; log delivery failures.
+        current_app.logger.exception(
+            "password reset email failed for %s: %s", mailbox_email, exc
+        )
 
     return jsonify({"success": True, "message": GENERIC_SUCCESS})
 
@@ -142,57 +153,75 @@ def reset_password_page():
 @password_reset_bp.route("/api/public/password-reset/confirm", methods=["POST"])
 def password_reset_confirm():
     if not is_password_reset_available():
-        return jsonify({
-            "success": False,
-            "error": {"message": "Password reset is not available."},
-        }), 503
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Password reset is not available."},
+            }
+        ), 503
 
     data = request.json or {}
     raw_token = (data.get("token") or "").strip()
     password = data.get("password") or ""
 
     if not raw_token:
-        return jsonify({
-            "success": False,
-            "error": {"message": "Invalid or expired reset link."},
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Invalid or expired reset link."},
+            }
+        ), 400
 
     if not validate_mailbox_password(password):
-        return jsonify({
-            "success": False,
-            "error": {"message": "Password does not meet requirements."},
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Password does not meet requirements."},
+            }
+        ), 400
 
     mailbox_email = consume_reset_token(raw_token)
     if not mailbox_email:
-        return jsonify({
-            "success": False,
-            "error": {"message": "Invalid or expired reset link."},
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Invalid or expired reset link."},
+            }
+        ), 400
 
     username, domain = parse_mailbox_email(mailbox_email)
     if not username:
-        return jsonify({
-            "success": False,
-            "error": {"message": "Invalid or expired reset link."},
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Invalid or expired reset link."},
+            }
+        ), 400
 
     if not _mailbox_allowed_for_portal(domain):
-        return jsonify({
-            "success": False,
-            "error": {"message": "Invalid or expired reset link."},
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Invalid or expired reset link."},
+            }
+        ), 400
 
     res, status = mx_request_raw(
         "PATCH",
         f"/domains/{domain}/email-accounts/{username}",
         {"password": password},
     )
-    if status not in (200, 201, 204) or (isinstance(res, dict) and not res.get("success", True)):
+    if status not in (200, 201, 204) or (
+        isinstance(res, dict) and not res.get("success", True)
+    ):
         message = "Failed to update mailbox password."
         if isinstance(res, dict):
             message = res.get("error", {}).get("message", message)
-        return jsonify({"success": False, "error": {"message": message}}), status if status >= 400 else 500
+        return jsonify(
+            {"success": False, "error": {"message": message}}
+        ), status if status >= 400 else 500
 
     _audit_public("mailbox.reset_completed", target=mailbox_email)
-    return jsonify({"success": True, "message": "Your mailbox password has been updated."})
+    return jsonify(
+        {"success": True, "message": "Your mailbox password has been updated."}
+    )

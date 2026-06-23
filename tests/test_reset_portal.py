@@ -1,4 +1,5 @@
 """Tests for per-domain branded reset portals."""
+
 import io
 import os
 import sqlite3
@@ -8,7 +9,12 @@ import pytest
 from services.reset_portal import get_portal_branding_context
 from utils.themes import normalize_theme
 from utils.validators import validate_subdomain_prefix
-from tests.helpers import csrf_token_from_response, insert_user_with_grants, prime_authenticated_session, auth_post_headers
+from tests.helpers import (
+    csrf_token_from_response,
+    insert_user_with_grants,
+    prime_authenticated_session,
+    auth_post_headers,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +43,9 @@ def test_subdomain_prefix_validation():
 
 
 def test_reset_portal_crud_and_host_lookup(fresh_db):
-    ok, message = fresh_db.upsert_reset_portal("example.com", True, "reset", "Example Org")
+    ok, message = fresh_db.upsert_reset_portal(
+        "example.com", True, "reset", "Example Org"
+    )
     assert ok is True
     assert message == ""
 
@@ -52,17 +60,26 @@ def test_reset_portal_crud_and_host_lookup(fresh_db):
     assert by_host["domain"] == "example.com"
 
     fresh_db.upsert_reset_portal("other.com", True, "password", "")
-    assert fresh_db.get_reset_portal_by_host("password.other.com")["domain"] == "other.com"
-    assert fresh_db.get_reset_portal_by_host("reset.example.com")["domain"] == "example.com"
+    assert (
+        fresh_db.get_reset_portal_by_host("password.other.com")["domain"] == "other.com"
+    )
+    assert (
+        fresh_db.get_reset_portal_by_host("reset.example.com")["domain"]
+        == "example.com"
+    )
 
 
 def test_reset_portal_theme_round_trip_and_validation(fresh_db):
-    ok, _ = fresh_db.upsert_reset_portal("example.com", True, "reset", "Example", "indigo-light")
+    ok, _ = fresh_db.upsert_reset_portal(
+        "example.com", True, "reset", "Example", "indigo-light"
+    )
     assert ok is True
     portal = fresh_db.get_reset_portal("example.com")
     assert portal["portal_theme"] == "indigo-light"
 
-    ok, _ = fresh_db.upsert_reset_portal("example.com", True, "reset", "Example", "not-a-theme")
+    ok, _ = fresh_db.upsert_reset_portal(
+        "example.com", True, "reset", "Example", "not-a-theme"
+    )
     portal = fresh_db.get_reset_portal("example.com")
     assert portal["portal_theme"] == "emerald"
 
@@ -218,7 +235,9 @@ def test_logo_upload_validation(fresh_db, client, db_connection):
     assert portal["logo_filename"] == "logo.png"
 
 
-def test_deploy_reset_portal_uses_current_user_contact_email(fresh_db, client, db_connection):
+def test_deploy_reset_portal_uses_current_user_contact_email(
+    fresh_db, client, db_connection
+):
     from unittest.mock import patch
 
     fresh_db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")
@@ -245,7 +264,9 @@ def test_deploy_reset_portal_uses_current_user_contact_email(fresh_db, client, d
     )
 
 
-def test_deploy_reset_portal_rejects_user_without_contact_email(fresh_db, client, db_connection):
+def test_deploy_reset_portal_rejects_user_without_contact_email(
+    fresh_db, client, db_connection
+):
     from unittest.mock import patch
 
     fresh_db.upsert_reset_portal("cleaver.click", True, "reset", "Cleaver")

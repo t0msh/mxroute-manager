@@ -2,7 +2,12 @@ import requests
 from flask import current_app
 
 from models.db import get_config_value, get_dmarc_record
-from services.dns_health import check_dns_health, apply_mail_hosting_context, _normalize_txt, dkim_record_parts
+from services.dns_health import (
+    check_dns_health,
+    apply_mail_hosting_context,
+    _normalize_txt,
+    dkim_record_parts,
+)
 from services.mxroute import (
     domain_on_mxroute,
     get_mxroute_verification_record,
@@ -25,6 +30,7 @@ def get_webmail_target():
     """MXroute server hostname the webmail CNAME points at (DNS-only)."""
     return (get_config_value("MX_SERVER") or "").strip().lower().rstrip(".")
 
+
 PENDING_MAIL_CHECK = {
     "status": "pending",
     "label": "",
@@ -44,7 +50,7 @@ def cf_request(method, path, payload=None):
     url = f"https://api.cloudflare.com/client/v4{path}"
     headers = {
         "Authorization": f"Bearer {cf_token}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     if method not in ("GET", "POST", "PUT", "DELETE"):
@@ -52,7 +58,9 @@ def cf_request(method, path, payload=None):
 
     response = None
     try:
-        response = requests.request(method, url, json=payload, headers=headers, timeout=30)
+        response = requests.request(
+            method, url, json=payload, headers=headers, timeout=30
+        )
         response.raise_for_status()
         return response.json()
     except requests.exceptions.HTTPError as e:
@@ -131,8 +139,9 @@ def build_setup_health(domain):
 
     health["on_mxroute"] = on_mxroute
     health["cf_configured"] = cf_is_configured()
-    
+
     from services.mxroute import mx_request_raw
+
     _, mx_status = mx_request_raw("GET", "/domains")
     health["mxroute_reachable"] = mx_status == 200
     return health
@@ -145,23 +154,44 @@ def _webmail_health_check(domain):
     target = get_webmail_target()
     base = {"label": "Webmail (CNAME)", "expected_host": host, "expected": target}
     if not target:
-        return {**base, "status": "skipped", "message": "MX_SERVER not configured — webmail CNAME unavailable."}
+        return {
+            **base,
+            "status": "skipped",
+            "message": "MX_SERVER not configured — webmail CNAME unavailable.",
+        }
 
     zone_id = find_cf_zone_id(domain)
     records = fetch_cf_dns_sets(zone_id)[2] if zone_id else []
     cname = next(
-        (rec for rec in records
-         if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == host),
+        (
+            rec
+            for rec in records
+            if rec.get("type") == "CNAME"
+            and rec.get("name", "").lower().rstrip(".") == host
+        ),
         None,
     )
     if not cname:
-        return {**base, "status": "skipped", "message": f"Optional — webmail.{domain} not deployed."}
+        return {
+            **base,
+            "status": "skipped",
+            "message": f"Optional — webmail.{domain} not deployed.",
+        }
 
     found = cname.get("content", "").lower().rstrip(".")
     if _public_dns_resolves(host):
-        return {**base, "status": "pass", "found": [found], "message": f"Webmail CNAME {host} → {found} (live)."}
-    return {**base, "status": "pending", "found": [found],
-            "message": f"Webmail CNAME {host} → {found} in Cloudflare; waiting for public DNS to resolve."}
+        return {
+            **base,
+            "status": "pass",
+            "found": [found],
+            "message": f"Webmail CNAME {host} → {found} (live).",
+        }
+    return {
+        **base,
+        "status": "pending",
+        "found": [found],
+        "message": f"Webmail CNAME {host} → {found} in Cloudflare; waiting for public DNS to resolve.",
+    }
 
 
 def find_cf_zone_id(domain):
@@ -183,13 +213,19 @@ def ensure_cf_zone(domain, steps=None):
     if steps is not None:
         steps.append("Querying Cloudflare for existing Zone...")
         steps.append("Creating new Cloudflare Zone...")
-    zone_create = cf_request("POST", "/zones", {
-        "name": domain,
-        "account": {"id": cf_account},
-        "jump_start": True,
-    })
+    zone_create = cf_request(
+        "POST",
+        "/zones",
+        {
+            "name": domain,
+            "account": {"id": cf_account},
+            "jump_start": True,
+        },
+    )
     if not zone_create.get("success"):
-        err_msg = zone_create.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+        err_msg = zone_create.get("errors", [{}])[0].get(
+            "message", "Unknown Cloudflare error"
+        )
         raise ValueError(f"Cloudflare Zone creation failed: {err_msg}")
     zone_id = zone_create["result"]["id"]
     if steps is not None:
@@ -199,7 +235,9 @@ def ensure_cf_zone(domain, steps=None):
 
 def fetch_cf_dns_sets(zone_id):
     cf_dns_search = cf_request("GET", f"/zones/{zone_id}/dns_records?per_page=100")
-    existing_records = cf_dns_search.get("result", []) if cf_dns_search.get("success") else []
+    existing_records = (
+        cf_dns_search.get("result", []) if cf_dns_search.get("success") else []
+    )
     existing_mx = set()
     existing_txt = set()
     for rec in existing_records:
@@ -213,12 +251,15 @@ def fetch_cf_dns_sets(zone_id):
     return existing_mx, existing_txt, existing_records
 
 
-def cf_upsert_txt(zone_id, cf_name, fqdn, content, existing_records, existing_txt, steps, log_messages):
+def cf_upsert_txt(
+    zone_id, cf_name, fqdn, content, existing_records, existing_txt, steps, log_messages
+):
     """Create or update a TXT record when missing or incorrect. Returns added, updated, or skipped."""
     fqdn = fqdn.lower().rstrip(".")
     expected_norm = _normalize_txt(content)
     at_name = [
-        rec for rec in existing_records
+        rec
+        for rec in existing_records
         if rec.get("type") == "TXT" and rec.get("name", "").lower().rstrip(".") == fqdn
     ]
 
@@ -231,9 +272,13 @@ def cf_upsert_txt(zone_id, cf_name, fqdn, content, existing_records, existing_tx
     payload = {"type": "TXT", "name": cf_name, "content": content, "ttl": 3600}
 
     if at_name:
-        result = cf_request("PUT", f"/zones/{zone_id}/dns_records/{at_name[0]['id']}", payload)
+        result = cf_request(
+            "PUT", f"/zones/{zone_id}/dns_records/{at_name[0]['id']}", payload
+        )
         if not result.get("success"):
-            err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+            err_msg = result.get("errors", [{}])[0].get(
+                "message", "Unknown Cloudflare error"
+            )
             raise ValueError(f"Failed to update TXT record at {fqdn}: {err_msg}")
         for extra in at_name[1:]:
             cf_request("DELETE", f"/zones/{zone_id}/dns_records/{extra['id']}")
@@ -245,7 +290,9 @@ def cf_upsert_txt(zone_id, cf_name, fqdn, content, existing_records, existing_tx
 
     result = cf_request("POST", f"/zones/{zone_id}/dns_records", payload)
     if not result.get("success"):
-        err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+        err_msg = result.get("errors", [{}])[0].get(
+            "message", "Unknown Cloudflare error"
+        )
         raise ValueError(f"Failed to add TXT record at {fqdn}: {err_msg}")
     existing_txt.add((fqdn, content))
     if steps is not None:
@@ -253,12 +300,16 @@ def cf_upsert_txt(zone_id, cf_name, fqdn, content, existing_records, existing_tx
     return "added"
 
 
-def cf_upsert_cname(zone_id, cf_name, fqdn, target, existing_records, steps, proxied=True):
+def cf_upsert_cname(
+    zone_id, cf_name, fqdn, target, existing_records, steps, proxied=True
+):
     fqdn = fqdn.lower().rstrip(".")
     target = target.lower().rstrip(".")
     at_name = [
-        rec for rec in existing_records
-        if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == fqdn
+        rec
+        for rec in existing_records
+        if rec.get("type") == "CNAME"
+        and rec.get("name", "").lower().rstrip(".") == fqdn
     ]
 
     for rec in at_name:
@@ -277,9 +328,13 @@ def cf_upsert_cname(zone_id, cf_name, fqdn, target, existing_records, steps, pro
     }
 
     if at_name:
-        result = cf_request("PUT", f"/zones/{zone_id}/dns_records/{at_name[0]['id']}", payload)
+        result = cf_request(
+            "PUT", f"/zones/{zone_id}/dns_records/{at_name[0]['id']}", payload
+        )
         if not result.get("success"):
-            err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+            err_msg = result.get("errors", [{}])[0].get(
+                "message", "Unknown Cloudflare error"
+            )
             raise ValueError(f"Failed to update CNAME at {fqdn}: {err_msg}")
         for extra in at_name[1:]:
             cf_request("DELETE", f"/zones/{zone_id}/dns_records/{extra['id']}")
@@ -289,7 +344,9 @@ def cf_upsert_cname(zone_id, cf_name, fqdn, target, existing_records, steps, pro
 
     result = cf_request("POST", f"/zones/{zone_id}/dns_records", payload)
     if not result.get("success"):
-        err_msg = result.get("errors", [{}])[0].get("message", "Unknown Cloudflare error")
+        err_msg = result.get("errors", [{}])[0].get(
+            "message", "Unknown Cloudflare error"
+        )
         raise ValueError(f"Failed to add CNAME at {fqdn}: {err_msg}")
     if steps is not None:
         steps.append(f"Added CNAME {fqdn} → {target}")
@@ -312,7 +369,9 @@ def deploy_reset_portal_cname(domain, prefix):
     zone_id = ensure_cf_zone(domain, steps)
     _, _, existing_records = fetch_cf_dns_sets(zone_id)
     fqdn = build_portal_host(prefix, domain)
-    result = cf_upsert_cname(zone_id, prefix, fqdn, target, existing_records, steps, proxied=True)
+    result = cf_upsert_cname(
+        zone_id, prefix, fqdn, target, existing_records, steps, proxied=True
+    )
     audit("reset_portal.dns_deploy", target=domain, host=fqdn, outcome=result)
     return {"host": fqdn, "target": target, "outcome": result, "steps": steps}
 
@@ -327,8 +386,10 @@ def remove_reset_portal_cname(domain, portal_host, steps=None):
     portal_host = portal_host.lower().rstrip(".")
     _, _, records = fetch_cf_dns_sets(zone_id)
     matches = [
-        rec for rec in records
-        if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == portal_host
+        rec
+        for rec in records
+        if rec.get("type") == "CNAME"
+        and rec.get("name", "").lower().rstrip(".") == portal_host
     ]
     if not matches:
         if steps is not None:
@@ -353,7 +414,12 @@ def _public_dns_resolves(host):
         try:
             resolver.resolve(host, rrtype)
             return True
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, dns.resolver.NoNameservers, dns.exception.Timeout):
+        except (
+            dns.resolver.NXDOMAIN,
+            dns.resolver.NoAnswer,
+            dns.resolver.NoNameservers,
+            dns.exception.Timeout,
+        ):
             continue
         except Exception:
             continue
@@ -376,8 +442,10 @@ def _check_reset_portal_dns_cloudflare(host, domain, expected_target):
     host = host.lower().rstrip(".")
     expected_target = expected_target.lower().rstrip(".")
     matches = [
-        rec for rec in records
-        if rec.get("type") == "CNAME" and rec.get("name", "").lower().rstrip(".") == host
+        rec
+        for rec in records
+        if rec.get("type") == "CNAME"
+        and rec.get("name", "").lower().rstrip(".") == host
     ]
     if not matches:
         return {
@@ -431,12 +499,19 @@ def check_reset_portal_dns(portal):
     if not portal or not portal.get("enabled") or not portal.get("subdomain_prefix"):
         return {"status": "disabled", "message": "Portal is not enabled."}
 
-    host = portal.get("portal_host") or build_portal_host(portal["subdomain_prefix"], portal["domain"])
+    host = portal.get("portal_host") or build_portal_host(
+        portal["subdomain_prefix"], portal["domain"]
+    )
     expected_target = get_reset_portal_cname_target()
     if not expected_target:
-        return {"status": "unknown", "message": "RESET_PORTAL_CNAME_TARGET is not configured."}
+        return {
+            "status": "unknown",
+            "message": "RESET_PORTAL_CNAME_TARGET is not configured.",
+        }
 
-    cf_result = _check_reset_portal_dns_cloudflare(host, portal["domain"], expected_target)
+    cf_result = _check_reset_portal_dns_cloudflare(
+        host, portal["domain"], expected_target
+    )
     if cf_result is not None:
         return cf_result
 
@@ -446,7 +521,11 @@ def check_reset_portal_dns(portal):
         answers = resolver.resolve(host, "CNAME")
         targets = [str(record.target).lower().rstrip(".") for record in answers]
     except dns.resolver.NoResolverConfiguration:
-        return {"status": "unknown", "message": "DNS resolver is not configured on this host.", "host": host}
+        return {
+            "status": "unknown",
+            "message": "DNS resolver is not configured on this host.",
+            "host": host,
+        }
     except (dns.resolver.NXDOMAIN, dns.resolver.NoNameservers, dns.exception.Timeout):
         if _public_dns_resolves(host):
             return {
@@ -476,7 +555,11 @@ def check_reset_portal_dns(portal):
             "expected_target": expected_target,
         }
     except Exception:
-        return {"status": "unknown", "message": f"Could not resolve DNS for {host}.", "host": host}
+        return {
+            "status": "unknown",
+            "message": f"Could not resolve DNS for {host}.",
+            "host": host,
+        }
 
     if expected_target in targets:
         return {
@@ -494,7 +577,17 @@ def check_reset_portal_dns(portal):
     }
 
 
-def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verification_record, existing_mx, existing_txt, existing_records, steps=None):
+def deploy_dns_record_to_cf(
+    domain,
+    zone_id,
+    record_type,
+    mx_dns_data,
+    verification_record,
+    existing_mx,
+    existing_txt,
+    existing_records,
+    steps=None,
+):
     """Deploy a single DNS record type to Cloudflare. Returns 'added' or 'skipped'."""
     domain_lower = domain.lower()
 
@@ -505,8 +598,13 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
                 steps.append("MX_SERVER not configured; skipping webmail CNAME")
             return "skipped"
         return cf_upsert_cname(
-            zone_id, "webmail", webmail_host(domain), target,
-            existing_records, steps, proxied=False,
+            zone_id,
+            "webmail",
+            webmail_host(domain),
+            target,
+            existing_records,
+            steps,
+            proxied=False,
         )
 
     if record_type == "verification":
@@ -516,8 +614,13 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
         verify_value = verification_record.get("value")
         verify_name_full = f"{verify_name}.{domain}".lower()
         return cf_upsert_txt(
-            zone_id, verify_name, verify_name_full, verify_value,
-            existing_records, existing_txt, steps,
+            zone_id,
+            verify_name,
+            verify_name_full,
+            verify_value,
+            existing_records,
+            existing_txt,
+            steps,
             {
                 "skipped": "Verification TXT record already correct in Cloudflare",
                 "added": "Verification TXT record deployed successfully",
@@ -529,7 +632,9 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
         raise ValueError(f"Unknown record type: {record_type}")
 
     if not mx_dns_data:
-        raise ValueError("Mail DNS records require the domain to be registered on MXroute first")
+        raise ValueError(
+            "Mail DNS records require the domain to be registered on MXroute first"
+        )
 
     if record_type == "mx" and mx_dns_data.get("mx_records"):
         added = False
@@ -537,28 +642,42 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
             mx_host = mx["hostname"].lower().rstrip(".")
             mx_priority = mx["priority"]
             has_mx = any(
-                rname == domain_lower and rcontent == mx_host
+                rname == domain_lower
+                and rcontent == mx_host
                 and int(rpriority or 0) == int(mx_priority or 0)
                 for rname, rcontent, rpriority in existing_mx
             )
             if not has_mx:
-                cf_request("POST", f"/zones/{zone_id}/dns_records", {
-                    "type": "MX",
-                    "name": "@",
-                    "content": mx["hostname"],
-                    "priority": mx["priority"],
-                    "ttl": 3600,
-                })
+                cf_request(
+                    "POST",
+                    f"/zones/{zone_id}/dns_records",
+                    {
+                        "type": "MX",
+                        "name": "@",
+                        "content": mx["hostname"],
+                        "priority": mx["priority"],
+                        "ttl": 3600,
+                    },
+                )
                 added = True
         if steps is not None:
-            steps.append("MX records configured" if added else "MX records already exist (skipping)")
+            steps.append(
+                "MX records configured"
+                if added
+                else "MX records already exist (skipping)"
+            )
         return "added" if added else "skipped"
 
     if record_type == "spf" and mx_dns_data.get("spf"):
         spf_val = mx_dns_data["spf"]["value"]
         return cf_upsert_txt(
-            zone_id, "@", domain_lower, spf_val,
-            existing_records, existing_txt, steps,
+            zone_id,
+            "@",
+            domain_lower,
+            spf_val,
+            existing_records,
+            existing_txt,
+            steps,
             {
                 "skipped": "SPF record already correct in Cloudflare",
                 "added": "SPF record configured",
@@ -570,8 +689,13 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
         dkim_host_part, dkim_name_full = dkim_record_parts(mx_dns_data["dkim"], domain)
         dkim_val = mx_dns_data["dkim"]["value"]
         return cf_upsert_txt(
-            zone_id, dkim_host_part, dkim_name_full, dkim_val,
-            existing_records, existing_txt, steps,
+            zone_id,
+            dkim_host_part,
+            dkim_name_full,
+            dkim_val,
+            existing_records,
+            existing_txt,
+            steps,
             {
                 "skipped": "DKIM record already correct in Cloudflare",
                 "added": "DKIM record configured",
@@ -583,8 +707,13 @@ def deploy_dns_record_to_cf(domain, zone_id, record_type, mx_dns_data, verificat
         dmarc_val = get_dmarc_record()
         dmarc_name_full = f"_dmarc.{domain}".lower()
         return cf_upsert_txt(
-            zone_id, "_dmarc", dmarc_name_full, dmarc_val,
-            existing_records, existing_txt, steps,
+            zone_id,
+            "_dmarc",
+            dmarc_name_full,
+            dmarc_val,
+            existing_records,
+            existing_txt,
+            steps,
             {
                 "skipped": "DMARC record already correct in Cloudflare",
                 "added": "DMARC record configured",
@@ -609,7 +738,8 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
 
     if record_types is None:
         record_types = [
-            key for key, check in health["checks"].items()
+            key
+            for key, check in health["checks"].items()
             if check["status"] in ("warn", "fail")
         ]
     else:
@@ -623,7 +753,11 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
         )
 
     if not record_types:
-        return {"fixed": [], "skipped": list(health["checks"].keys()), "steps": ["All DNS records already look good"]}
+        return {
+            "fixed": [],
+            "skipped": list(health["checks"].keys()),
+            "steps": ["All DNS records already look good"],
+        }
 
     steps.append("Fetching existing DNS records from Cloudflare...")
     zone_id = ensure_cf_zone(domain, steps)
@@ -645,8 +779,15 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
             skipped.append(record_type)
             continue
         result = deploy_dns_record_to_cf(
-            domain, zone_id, record_type, mx_dns_data, verification_record,
-            existing_mx, existing_txt, existing_records, steps,
+            domain,
+            zone_id,
+            record_type,
+            mx_dns_data,
+            verification_record,
+            existing_mx,
+            existing_txt,
+            existing_records,
+            steps,
         )
         if result in ("added", "updated"):
             fixed.append(record_type)

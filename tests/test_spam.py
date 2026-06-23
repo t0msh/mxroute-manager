@@ -1,4 +1,5 @@
 """HTTP tests for SpamAssassin settings, whitelist, and blacklist routes."""
+
 from unittest.mock import patch
 
 import pytest
@@ -44,7 +45,9 @@ def test_get_spam_settings_with_permission(fresh_db, client, spam_token):
     assert response.get_json()["data"]["score"] == 5
 
 
-def test_get_spam_settings_forbidden_without_permission(fresh_db, client, db_connection):
+def test_get_spam_settings_forbidden_without_permission(
+    fresh_db, client, db_connection
+):
     insert_user_with_grants(
         db_connection,
         "emails-only@local",

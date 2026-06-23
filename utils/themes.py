@@ -1,17 +1,19 @@
 """Theme ids — keep in sync with static/js/themes.js THEME_IDS."""
 
-VALID_THEME_IDS = frozenset({
-    "emerald",
-    "indigo",
-    "crimson",
-    "amber",
-    "amethyst",
-    "cyberpunk",
-    "emerald-light",
-    "indigo-light",
-    "slate-light",
-    "rose-light",
-})
+VALID_THEME_IDS = frozenset(
+    {
+        "emerald",
+        "indigo",
+        "crimson",
+        "amber",
+        "amethyst",
+        "cyberpunk",
+        "emerald-light",
+        "indigo-light",
+        "slate-light",
+        "rose-light",
+    }
+)
 
 DEFAULT_THEME = "emerald"
 

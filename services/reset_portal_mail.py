@@ -55,7 +55,9 @@ def ensure_reset_sender_forwarder(domain, admin_email=None, steps=None):
         steps = []
 
     catch_res, catch_status = mx_request_raw("GET", f"/domains/{domain}/catch-all")
-    if catch_status == 200 and _catch_all_satisfies_sender_verify(catch_res.get("data")):
+    if catch_status == 200 and _catch_all_satisfies_sender_verify(
+        catch_res.get("data")
+    ):
         steps.append(
             f"Catch-all already configured for {domain}; "
             f"{RESET_SENDER_ALIAS}@{domain} sender verify satisfied (forwarder skipped)"
@@ -97,7 +99,9 @@ def ensure_reset_sender_forwarder(domain, admin_email=None, steps=None):
                 f"Failed to remove existing {RESET_SENDER_ALIAS}@{domain} forwarder: "
                 f"{_mx_error_message(del_res, 'Unknown error')}"
             )
-        steps.append(f"Removed existing {RESET_SENDER_ALIAS}@{domain} forwarder to update destination")
+        steps.append(
+            f"Removed existing {RESET_SENDER_ALIAS}@{domain} forwarder to update destination"
+        )
         outcome = "updated"
 
     post_res, post_status = mx_request_raw(

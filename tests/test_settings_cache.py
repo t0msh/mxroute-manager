@@ -1,5 +1,5 @@
 """Tests for the DB-backed settings cache in models.db."""
-import os
+
 import sqlite3
 
 import pytest
@@ -21,7 +21,9 @@ def isolated_settings_db(tmp_path, monkeypatch):
 
 def _set(path, key, value):
     conn = sqlite3.connect(path)
-    conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value)
+    )
     conn.commit()
     conn.close()
 
@@ -32,7 +34,9 @@ def test_settings_cache_serves_stale_until_invalidated(isolated_settings_db):
     _set(path, "MX_SERVER", "host1")
     assert db_module.get_config_value("MX_SERVER") == "host1"
     _set(path, "MX_SERVER", "host2")
-    assert db_module.get_config_value("MX_SERVER") == "host1", "expected stale cache hit"
+    assert db_module.get_config_value("MX_SERVER") == "host1", (
+        "expected stale cache hit"
+    )
 
     db_module.invalidate_settings_cache()
     assert db_module.get_config_value("MX_SERVER") == "host2"
@@ -61,7 +65,9 @@ def test_reset_smtp_password_falls_back_to_legacy_db(isolated_settings_db, monke
     assert db_module.is_secret_configured("RESET_SMTP_PASSWORD") is True
 
 
-def test_migrate_settings_secrets_keeps_legacy_smtp_password_without_env(isolated_settings_db, monkeypatch):
+def test_migrate_settings_secrets_keeps_legacy_smtp_password_without_env(
+    isolated_settings_db, monkeypatch
+):
     monkeypatch.delenv("RESET_SMTP_PASSWORD", raising=False)
     _set(isolated_settings_db, "RESET_SMTP_PASSWORD", "legacy-db-password")
 
@@ -77,7 +83,9 @@ def test_migrate_settings_secrets_keeps_legacy_smtp_password_without_env(isolate
     assert row[0] == "legacy-db-password"
 
 
-def test_migrate_settings_secrets_removes_legacy_smtp_password_when_env_set(isolated_settings_db, monkeypatch):
+def test_migrate_settings_secrets_removes_legacy_smtp_password_when_env_set(
+    isolated_settings_db, monkeypatch
+):
     monkeypatch.setenv("RESET_SMTP_PASSWORD", "from-env")
     _set(isolated_settings_db, "RESET_SMTP_PASSWORD", "legacy-db-password")
 
@@ -93,7 +101,9 @@ def test_migrate_settings_secrets_removes_legacy_smtp_password_when_env_set(isol
     assert db_module.get_reset_smtp_password() == "from-env"
 
 
-def test_migrate_settings_secrets_force_syncs_admin_password(isolated_settings_db, monkeypatch):
+def test_migrate_settings_secrets_force_syncs_admin_password(
+    isolated_settings_db, monkeypatch
+):
     from werkzeug.security import check_password_hash, generate_password_hash
 
     old_hash = generate_password_hash("OldPass1!")

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "afterFileEdit": [
+      {
+        "command": ".cursor/hooks/aislop-cursor.sh",
+        "type": "command",
+        "timeout": 60
+      }
+    ]
+  }
+}

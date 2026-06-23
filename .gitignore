@@ -27,6 +27,11 @@ venv/
 ENV/
 env/
 
+# aislop runtime (config is committed)
+.aislop/session.jsonl
+.aislop/history.jsonl
+.aislop/hook.lock
+
 # OS/IDE metadata
 .DS_Store
 .vscode/

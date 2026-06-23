@@ -1,0 +1,13 @@
+# Generated / local runtime
+build_info.py
+logs/
+*.db
+
+# Docs screenshots (not source)
+docs/images/
+
+# Python env + caches
+.venv/
+venv/
+__pycache__/
+.pytest_cache/

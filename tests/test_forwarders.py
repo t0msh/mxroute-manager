@@ -1,4 +1,5 @@
 """HTTP tests for forwarders, catch-all, and domain pointers."""
+
 from unittest.mock import patch
 
 import pytest
@@ -36,7 +37,10 @@ def test_list_forwarders_requires_login(client):
 
 
 def test_list_forwarders_allowed_with_permission(fresh_db, client, forwarders_token):
-    payload = {"success": True, "data": [{"alias": "info", "forward_to": "me@example.com"}]}
+    payload = {
+        "success": True,
+        "data": [{"alias": "info", "forward_to": "me@example.com"}],
+    }
     with patch("routes.emails.mx_request", return_value=mx_json_response(payload)):
         response = client.get(f"/api/domains/{DOMAIN}/forwarders")
 
@@ -107,7 +111,10 @@ def test_delete_forwarder_calls_mxroute(fresh_db, client, forwarders_token):
 
 
 def test_get_catch_all_with_permission(fresh_db, client, forwarders_token):
-    payload = {"success": True, "data": {"enabled": True, "forward_to": "catch@example.com"}}
+    payload = {
+        "success": True,
+        "data": {"enabled": True, "forward_to": "catch@example.com"},
+    }
     with patch("routes.emails.mx_request", return_value=mx_json_response(payload)):
         response = client.get(f"/api/domains/{DOMAIN}/catch-all")
 
@@ -151,7 +158,9 @@ def test_list_pointers_allowed_with_forwarders(fresh_db, client, forwarders_toke
     assert response.get_json()["data"] == ["other.com"]
 
 
-def test_create_pointer_forbidden_without_forwarders_permission(fresh_db, client, db_connection):
+def test_create_pointer_forbidden_without_forwarders_permission(
+    fresh_db, client, db_connection
+):
     insert_user_with_grants(
         db_connection,
         "dashboard-only@local",

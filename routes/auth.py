@@ -2,7 +2,16 @@ import secrets
 import requests
 from urllib.parse import urlencode
 from werkzeug.security import check_password_hash
-from flask import Blueprint, request, session, redirect, url_for, render_template, jsonify, current_app
+from flask import (
+    Blueprint,
+    request,
+    session,
+    redirect,
+    url_for,
+    render_template,
+    jsonify,
+    current_app,
+)
 
 from models.db import (
     get_conn,
@@ -77,33 +86,39 @@ def _start_user_session(user):
     session["csrf_token"] = secrets.token_urlsafe(32)
 
 
-@auth_bp.route('/login', methods=['GET', 'POST'])
+@auth_bp.route("/login", methods=["GET", "POST"])
 def login_page():
     if session.get("user"):
-        return redirect(url_for('home'))
+        return redirect(url_for("home"))
 
     error = None
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip().lower()
-        password = request.form.get('password', '')
+    if request.method == "POST":
+        username = request.form.get("username", "").strip().lower()
+        password = request.form.get("password", "")
 
         ip, ip_key, user_key = _login_rate_keys(username)
         blocked = _login_limiter.is_blocked(ip_key, _LOGIN_IP_LIMIT) or (
-            user_key is not None and _login_limiter.is_blocked(user_key, _LOGIN_USER_LIMIT)
+            user_key is not None
+            and _login_limiter.is_blocked(user_key, _LOGIN_USER_LIMIT)
         )
         if blocked:
             write_audit_log(
-                "auth.login_rate_limited", username or "unknown", username or "unknown", {"ip": ip}
+                "auth.login_rate_limited",
+                username or "unknown",
+                username or "unknown",
+                {"ip": ip},
             )
             error = "Too many login attempts. Please wait a few minutes and try again."
-            return render_template('login.html', error=error), 429
+            return render_template("login.html", error=error), 429
 
-        # Check SQLite database first
         user_row = None
         try:
             with get_conn() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT id, email, password_hash, is_admin FROM users WHERE email = ?", (username,))
+                cursor.execute(
+                    "SELECT id, email, password_hash, is_admin FROM users WHERE email = ?",
+                    (username,),
+                )
                 user_row = cursor.fetchone()
         except Exception as e:
             current_app.logger.error(f"Error checking user in SQLite: {e}")
@@ -113,40 +128,45 @@ def login_page():
                 _clear_login_attempts(ip_key, user_key)
                 _start_user_session(build_session_user(user_row[1], bool(user_row[3])))
                 write_audit_log("auth.login", user_row[1], user_row[1])
-                return redirect(url_for('home'))
+                return redirect(url_for("home"))
 
         # Fallback to local admin config check (hashed password only)
         if username == get_admin_user() and verify_admin_password(password):
             _clear_login_attempts(ip_key, user_key)
             _start_user_session(build_session_user(username, True))
             write_audit_log("auth.login", username, username)
-            return redirect(url_for('home'))
+            return redirect(url_for("home"))
 
         _login_limiter.register(ip_key)
         if user_key is not None:
             _login_limiter.register(user_key)
-        write_audit_log("auth.login_failed", username, username, {"reason": "invalid_credentials"})
+        write_audit_log(
+            "auth.login_failed", username, username, {"reason": "invalid_credentials"}
+        )
         error = "Invalid credentials. Please try again."
 
-    return render_template('login.html', error=error)
+    return render_template("login.html", error=error)
 
 
-@auth_bp.route('/login/redirect')
+@auth_bp.route("/login/redirect")
 def login_redirect():
     if not is_oidc_enabled():
-        return redirect(url_for('home'))
+        return redirect(url_for("home"))
     try:
         config = get_oidc_config()
     except Exception as e:
         current_app.logger.error(f"OIDC provider configuration failed: {e}")
         return render_template(
-            'login.html',
+            "login.html",
             error="Single sign-on is temporarily unavailable. Please try again later.",
         ), 500
 
     auth_endpoint = config.get("authorization_endpoint")
     if not auth_endpoint:
-        return "Error: OIDC provider configuration does not define authorization_endpoint", 500
+        return (
+            "Error: OIDC provider configuration does not define authorization_endpoint",
+            500,
+        )
 
     # Prevent CSRF
     state = secrets.token_urlsafe(16)
@@ -157,24 +177,28 @@ def login_redirect():
         "response_type": "code",
         "scope": get_oidc_scopes(),
         "redirect_uri": get_oidc_redirect_uri(),
-        "state": state
+        "state": state,
     }
 
     auth_url = f"{auth_endpoint}?{urlencode(params)}"
     return redirect(auth_url)
 
 
-@auth_bp.route('/oidc/callback')
+@auth_bp.route("/oidc/callback")
 def oidc_callback():
     if not is_oidc_enabled():
-        return redirect(url_for('home'))
+        return redirect(url_for("home"))
 
-    state = request.args.get('state')
+    state = request.args.get("state")
     expected_state = session.pop("oidc_state", None)
-    if not state or not expected_state or not secrets.compare_digest(state, expected_state):
+    if (
+        not state
+        or not expected_state
+        or not secrets.compare_digest(state, expected_state)
+    ):
         return "Authentication error: CSRF state verification failed", 400
 
-    code = request.args.get('code')
+    code = request.args.get("code")
     if not code:
         return "Authentication error: Missing authorization code", 400
 
@@ -191,7 +215,7 @@ def oidc_callback():
             "code": code,
             "redirect_uri": get_oidc_redirect_uri(),
             "client_id": get_oidc_client_id(),
-            "client_secret": get_oidc_client_secret()
+            "client_secret": get_oidc_client_secret(),
         }
         token_res = requests.post(token_endpoint, data=payload, timeout=15)
         token_res.raise_for_status()
@@ -204,13 +228,19 @@ def oidc_callback():
         if not userinfo_endpoint:
             return "Error: OIDC userinfo endpoint not configured", 500
 
-        userinfo_res = requests.get(userinfo_endpoint, headers={
-            "Authorization": f"Bearer {access_token}"
-        }, timeout=15)
+        userinfo_res = requests.get(
+            userinfo_endpoint,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=15,
+        )
         userinfo_res.raise_for_status()
         userinfo_data = userinfo_res.json()
 
-        email = userinfo_data.get("email") or userinfo_data.get("sub") or userinfo_data.get("preferred_username")
+        email = (
+            userinfo_data.get("email")
+            or userinfo_data.get("sub")
+            or userinfo_data.get("preferred_username")
+        )
         if not email:
             return "Error: User identification claim not found in userinfo", 500
 
@@ -220,7 +250,9 @@ def oidc_callback():
         user_groups = userinfo_data.get("groups", [])
         if not isinstance(user_groups, list):
             user_groups = []
-        is_admin = (email in get_oidc_admin_users()) or (get_oidc_admin_group() in user_groups)
+        is_admin = (email in get_oidc_admin_users()) or (
+            get_oidc_admin_group() in user_groups
+        )
 
         # Fail closed: any DB error here must block login rather than fall
         # through to a granted session.
@@ -228,58 +260,66 @@ def oidc_callback():
             with get_conn() as conn:
                 cursor = conn.cursor()
 
-                cursor.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,))
+                cursor.execute(
+                    "SELECT id, is_admin FROM users WHERE email = ?", (email,)
+                )
                 user_row = cursor.fetchone()
 
                 if is_admin:
                     if not user_row:
                         cursor.execute(
                             "INSERT INTO users (email, is_admin) VALUES (?, 1)",
-                            (email,)
+                            (email,),
                         )
                     else:
                         cursor.execute(
-                            "UPDATE users SET is_admin = 1 WHERE email = ?",
-                            (email,)
+                            "UPDATE users SET is_admin = 1 WHERE email = ?", (email,)
                         )
                     conn.commit()
                 else:
                     # If they are not an administrator, check if they exist in the database (delegated user)
                     if not user_row:
-                        return render_template('login.html', error="You do not have access to this tool. Please contact an administrator.")
+                        return render_template(
+                            "login.html",
+                            error="You do not have access to this tool. Please contact an administrator.",
+                        )
         except Exception as db_err:
-            current_app.logger.error(f"Failed to query/insert OIDC user in database: {db_err}")
+            current_app.logger.error(
+                f"Failed to query/insert OIDC user in database: {db_err}"
+            )
             return render_template(
-                'login.html',
+                "login.html",
                 error="Sign-in is temporarily unavailable. Please try again later.",
             ), 503
 
-        _start_user_session(build_session_user(
-            email,
-            is_admin or bool(user_row and user_row[1]),
-        ))
+        _start_user_session(
+            build_session_user(
+                email,
+                is_admin or bool(user_row and user_row[1]),
+            )
+        )
 
         write_audit_log("auth.login", email, email, {"method": "oidc"})
-        return redirect(url_for('home'))
+        return redirect(url_for("home"))
     except Exception as e:
         current_app.logger.error(f"OIDC flow callback failure: {e}")
         return render_template(
-            'login.html',
+            "login.html",
             error="Authentication failed. Please try again or contact an administrator.",
         ), 500
 
 
-@auth_bp.route('/logout')
+@auth_bp.route("/logout")
 def logout():
     user = get_current_user()
     if user:
         email = user.get("email", "unknown")
         write_audit_log("auth.logout", email, email)
-    session.pop('user', None)
-    return redirect(url_for('auth.login_page'))
+    session.pop("user", None)
+    return redirect(url_for("auth.login_page"))
 
 
-@auth_bp.route('/api/me')
+@auth_bp.route("/api/me")
 def get_me():
     user = get_current_user()
     if user:
@@ -289,32 +329,40 @@ def get_me():
             try:
                 with get_conn() as conn:
                     cursor = conn.cursor()
-                    cursor.execute("SELECT is_admin FROM users WHERE email = ?", (email.lower(),))
+                    cursor.execute(
+                        "SELECT is_admin FROM users WHERE email = ?", (email.lower(),)
+                    )
                     row = cursor.fetchone()
                 if row:
                     is_admin = bool(row[0])
             except Exception as e:
-                current_app.logger.warning(f"Failed to refresh admin flag for {email}: {e}")
+                current_app.logger.warning(
+                    f"Failed to refresh admin flag for {email}: {e}"
+                )
 
             user = build_session_user(email, is_admin)
             session["user"] = user
 
-    return jsonify({
-        "success": True,
-        "oidc_enabled": is_oidc_enabled(),
-        "permissions": list(ALL_PERMISSIONS),
-        "user": {
-            "email": user.get("email"),
-            "contact_email": get_user_contact_email(user.get("email")),
-            "notification_email": resolve_notification_email(user.get("email")),
-            "is_admin": user.get("is_admin", False),
-            "delegated_domains": user.get("delegated_domains", []),
-            "domain_grants": user.get("domain_grants", {}),
-        } if user else None
-    })
+    return jsonify(
+        {
+            "success": True,
+            "oidc_enabled": is_oidc_enabled(),
+            "permissions": list(ALL_PERMISSIONS),
+            "user": {
+                "email": user.get("email"),
+                "contact_email": get_user_contact_email(user.get("email")),
+                "notification_email": resolve_notification_email(user.get("email")),
+                "is_admin": user.get("is_admin", False),
+                "delegated_domains": user.get("delegated_domains", []),
+                "domain_grants": user.get("domain_grants", {}),
+            }
+            if user
+            else None,
+        }
+    )
 
 
-@auth_bp.route('/api/me/profile', methods=['PATCH'])
+@auth_bp.route("/api/me/profile", methods=["PATCH"])
 def update_profile():
     user = get_current_user()
     if not user:
@@ -323,22 +371,35 @@ def update_profile():
     data = request.json or {}
     login_identifier = user.get("email", "").strip().lower()
     if "contact_email" not in data:
-        return jsonify({"success": False, "error": {"message": "No profile fields provided."}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "No profile fields provided."}}
+        ), 400
 
     contact_email = str(data.get("contact_email") or "").strip().lower() or None
     if contact_email and not is_email_identifier(contact_email):
-        return jsonify({"success": False, "error": {"message": "Invalid contact email format."}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid contact email format."}}
+        ), 400
 
     set_user_contact_email(
         login_identifier,
         contact_email,
         is_admin=user.get("is_admin", False),
     )
-    write_audit_log("profile.update", login_identifier, login_identifier, {"contact_email": contact_email})
-    return jsonify({
-        "success": True,
-        "data": {
-            "contact_email": contact_email,
-            "notification_email": resolve_notification_email(login_identifier, contact_email),
-        },
-    })
+    write_audit_log(
+        "profile.update",
+        login_identifier,
+        login_identifier,
+        {"contact_email": contact_email},
+    )
+    return jsonify(
+        {
+            "success": True,
+            "data": {
+                "contact_email": contact_email,
+                "notification_email": resolve_notification_email(
+                    login_identifier, contact_email
+                ),
+            },
+        }
+    )

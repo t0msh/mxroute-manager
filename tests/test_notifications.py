@@ -7,7 +7,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from models import db as db_module
-from tests.helpers import insert_user_with_grants, prime_authenticated_session, auth_post_headers
+from tests.helpers import (
+    insert_user_with_grants,
+    prime_authenticated_session,
+    auth_post_headers,
+)
 from utils.apprise_builder import (
     compile_service_url,
     mask_apprise_url,
@@ -38,25 +42,32 @@ def test_audit_action_catalog_has_entries():
 
 
 def test_compile_ntfy_url():
-    result = compile_service_url("ntfy", {
-        "host": "ntfy.example.com",
-        "topic": "alerts",
-        "token": "tk_test",
-        "priority": "high",
-        "secure": True,
-    })
+    result = compile_service_url(
+        "ntfy",
+        {
+            "host": "ntfy.example.com",
+            "topic": "alerts",
+            "token": "tk_test",
+            "priority": "high",
+            "secure": True,
+        },
+    )
     assert result["url"].startswith("ntfys://")
     assert "alerts" in result["url"]
     assert "auth=token" in result["url"]
 
 
 def test_compile_ntfy_token_in_env():
-    result = compile_service_url("ntfy", {
-        "host": "ntfy.example.com",
-        "topic": "alerts",
-        "token": "tk_test",
-        "secure": True,
-    }, token_in_env=True)
+    result = compile_service_url(
+        "ntfy",
+        {
+            "host": "ntfy.example.com",
+            "topic": "alerts",
+            "token": "tk_test",
+            "secure": True,
+        },
+        token_in_env=True,
+    )
     assert "tk_test" not in result["url"]
     assert result["cred_env"] == "APPRISE_CRED_NTFY"
     assert result["env_snippet"] == "APPRISE_CRED_NTFY=tk_test"
@@ -95,16 +106,20 @@ def test_parse_ntfy_db_stored_url(admin_client):
     with patch("routes.admin.validate_apprise_url", side_effect=lambda url: url):
         save_res = client.post(
             "/api/admin/notifications",
-            data=json.dumps({
-                "enabled": False,
-                "targets": [{
-                    "label": "ntfy",
-                    "url": full_url,
-                    "service": "ntfy",
-                    "service_id": "ntfy",
-                }],
-                "actions": [],
-            }),
+            data=json.dumps(
+                {
+                    "enabled": False,
+                    "targets": [
+                        {
+                            "label": "ntfy",
+                            "url": full_url,
+                            "service": "ntfy",
+                            "service_id": "ntfy",
+                        }
+                    ],
+                    "actions": [],
+                }
+            ),
             headers=auth_post_headers(token),
         )
     assert save_res.status_code == 200
@@ -131,7 +146,9 @@ def test_resolve_target_url_injects_env(monkeypatch):
 
 
 def test_inject_ntfy_secret():
-    url = _inject_secret_into_url("ntfys://ntfy.example.com/alerts?auth=token", "sekrit")
+    url = _inject_secret_into_url(
+        "ntfys://ntfy.example.com/alerts?auth=token", "sekrit"
+    )
     assert url.startswith("ntfys://sekrit@ntfy.example.com/")
 
 
@@ -147,40 +164,51 @@ def test_mask_apprise_url_hides_credentials():
 
 
 def test_format_audit_message_strips_password_keys():
-    title, body = format_audit_message({
-        "action": "mailbox.password_update",
-        "user": "admin@example.com",
-        "target": "user@domain.com",
-        "details": {"password": "secret", "quota": 500},
-    })
+    title, body = format_audit_message(
+        {
+            "action": "mailbox.password_update",
+            "user": "admin@example.com",
+            "target": "user@domain.com",
+            "details": {"password": "secret", "quota": 500},
+        }
+    )
     assert "mailbox.password_update" in title
     assert "quota=500" in body
 
 
 def test_should_notify_respects_subscription():
     entry = {"action": "mailbox.delete", "user": "a", "target": "b"}
-    with patch("services.notifications.get_notification_settings", return_value={
-        "enabled": True,
-        "actions": ["domain.delete"],
-        "targets": [],
-    }):
+    with patch(
+        "services.notifications.get_notification_settings",
+        return_value={
+            "enabled": True,
+            "actions": ["domain.delete"],
+            "targets": [],
+        },
+    ):
         assert _should_notify(entry) is False
 
-    with patch("services.notifications.get_notification_settings", return_value={
-        "enabled": True,
-        "actions": ["mailbox.delete"],
-        "targets": [],
-    }):
+    with patch(
+        "services.notifications.get_notification_settings",
+        return_value={
+            "enabled": True,
+            "actions": ["mailbox.delete"],
+            "targets": [],
+        },
+    ):
         assert _should_notify(entry) is True
 
 
 def test_should_notify_skips_test_action():
     entry = {"action": "notification.test", "user": "system", "target": "test"}
-    with patch("services.notifications.get_notification_settings", return_value={
-        "enabled": True,
-        "actions": ["notification.test"],
-        "targets": [],
-    }):
+    with patch(
+        "services.notifications.get_notification_settings",
+        return_value={
+            "enabled": True,
+            "actions": ["notification.test"],
+            "targets": [],
+        },
+    ):
         assert _should_notify(entry) is False
 
 
@@ -190,22 +218,38 @@ def test_notify_audit_event_calls_apprise(mock_apprise_cls):
     mock_apobj.notify.return_value = True
     mock_apprise_cls.return_value = mock_apobj
 
-    entry = {"action": "domain.delete", "user": "admin", "target": "example.com", "details": {}}
-    with patch("services.notifications.get_notification_settings", return_value={
-        "enabled": True,
-        "actions": ["domain.delete"],
-        "targets": [{"label": "t", "url": "json://localhost/test"}],
-    }), patch("services.notifications.resolve_apprise_urls", return_value=["json://localhost/test"]):
+    entry = {
+        "action": "domain.delete",
+        "user": "admin",
+        "target": "example.com",
+        "details": {},
+    }
+    with (
+        patch(
+            "services.notifications.get_notification_settings",
+            return_value={
+                "enabled": True,
+                "actions": ["domain.delete"],
+                "targets": [{"label": "t", "url": "json://localhost/test"}],
+            },
+        ),
+        patch(
+            "services.notifications.resolve_apprise_urls",
+            return_value=["json://localhost/test"],
+        ),
+    ):
         assert notify_audit_event(entry) is True
         mock_apobj.notify.assert_called_once()
 
 
 def test_resolve_apprise_urls_from_db(fresh_db):
-    db_module.save_notification_settings({
-        "enabled": True,
-        "targets": [{"label": "db", "url": "json://localhost/db"}],
-        "actions": ["domain.delete"],
-    })
+    db_module.save_notification_settings(
+        {
+            "enabled": True,
+            "targets": [{"label": "db", "url": "json://localhost/db"}],
+            "actions": ["domain.delete"],
+        }
+    )
     urls = resolve_apprise_urls()
     assert "json://localhost/db" in urls
 
@@ -213,19 +257,25 @@ def test_resolve_apprise_urls_from_db(fresh_db):
 def test_notification_api_round_trip(admin_client):
     client, token = admin_client
 
-    with patch("utils.apprise_builder.validate_apprise_url", side_effect=lambda url: url):
+    with patch(
+        "utils.apprise_builder.validate_apprise_url", side_effect=lambda url: url
+    ):
         save_res = client.post(
             "/api/admin/notifications",
-            data=json.dumps({
-                "enabled": True,
-                "targets": [{
-                    "label": "Hook",
-                    "url": "json://example.com/hook",
-                    "service": "json",
-                    "service_id": "json",
-                }],
-                "actions": ["mailbox.delete", "domain.delete"],
-            }),
+            data=json.dumps(
+                {
+                    "enabled": True,
+                    "targets": [
+                        {
+                            "label": "Hook",
+                            "url": "json://example.com/hook",
+                            "service": "json",
+                            "service_id": "json",
+                        }
+                    ],
+                    "actions": ["mailbox.delete", "domain.delete"],
+                }
+            ),
             headers=auth_post_headers(token),
         )
     assert save_res.status_code == 200
@@ -242,10 +292,12 @@ def test_notification_parse_endpoint(admin_client):
     client, token = admin_client
     parse_res = client.post(
         "/api/admin/notifications/builder/parse",
-        data=json.dumps({
-            "service_id": "ntfy",
-            "url": "ntfys://ntfy.example.com/alerts?auth=token&priority=high",
-        }),
+        data=json.dumps(
+            {
+                "service_id": "ntfy",
+                "url": "ntfys://ntfy.example.com/alerts?auth=token&priority=high",
+            }
+        ),
         headers=auth_post_headers(token),
     )
     assert parse_res.status_code == 200
@@ -256,13 +308,16 @@ def test_notification_parse_endpoint(admin_client):
 
 def test_notification_compile_endpoint(admin_client):
     client, token = admin_client
-    with patch("routes.admin.compile_service_url", return_value={
-        "url": "ntfy://alerts",
-        "masked_url": "ntfy://alerts",
-        "service": "ntfy",
-        "cred_env": None,
-        "env_snippet": None,
-    }):
+    with patch(
+        "routes.admin.compile_service_url",
+        return_value={
+            "url": "ntfy://alerts",
+            "masked_url": "ntfy://alerts",
+            "service": "ntfy",
+            "cred_env": None,
+            "env_snippet": None,
+        },
+    ):
         res = client.post(
             "/api/admin/notifications/builder/compile",
             data=json.dumps({"service_id": "ntfy", "fields": {"topic": "alerts"}}),

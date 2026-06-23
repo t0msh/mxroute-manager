@@ -1,11 +1,28 @@
 import os
 import secrets
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, g, abort
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    session,
+    redirect,
+    url_for,
+    g,
+    abort,
+)
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dotenv import load_dotenv
 
-from models.db import init_db, use_secure_cookies, get_or_create_secret_key, is_oidc_enabled, get_admin_user, get_reset_portal_by_host
+from models.db import (
+    init_db,
+    use_secure_cookies,
+    get_or_create_secret_key,
+    is_oidc_enabled,
+    get_admin_user,
+    get_reset_portal_by_host,
+)
 from app_meta import APP_VERSION, get_about_info, get_version_label
 from utils.icons import icon
 from routes import (
@@ -43,23 +60,24 @@ if _proxy_hops > 0:
         app.wsgi_app, x_for=_proxy_hops, x_proto=_proxy_hops, x_host=_proxy_hops
     )
 
-
 # Baseline Content-Security-Policy. Inline scripts/styles and inline event handlers
 # are still used in templates, so 'unsafe-inline' is required for now; the rest of
 # the policy still blocks plugins, framing, and unexpected origins. Google Fonts is
 # allowlisted because static/style.css imports it.
-CONTENT_SECURITY_POLICY = "; ".join([
-    "default-src 'self'",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'self'",
-    "img-src 'self' data:",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "script-src 'self' 'unsafe-inline'",
-    "connect-src 'self'",
-    "form-action 'self'",
-])
+CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'self'",
+        "img-src 'self' data:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "script-src 'self' 'unsafe-inline'",
+        "connect-src 'self'",
+        "form-action 'self'",
+    ]
+)
 
 # Register Blueprints
 app.register_blueprint(auth_bp)
@@ -71,23 +89,26 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(password_reset_bp)
 app.register_blueprint(reset_portal_bp)
 
+PUBLIC_PATHS = frozenset(
+    {
+        "/login",
+        "/login/redirect",
+        "/oidc/callback",
+        "/logout",
+        "/reset-password",
+        "/api/public/password-reset/status",
+        "/api/public/password-reset/request",
+        "/api/public/password-reset/confirm",
+        "/api/public/reset-portal/logo",
+    }
+)
 
-PUBLIC_PATHS = frozenset({
-    "/login",
-    "/login/redirect",
-    "/oidc/callback",
-    "/logout",
-    "/reset-password",
-    "/api/public/password-reset/status",
-    "/api/public/password-reset/request",
-    "/api/public/password-reset/confirm",
-    "/api/public/reset-portal/logo",
-})
-
-CSRF_EXEMPT_PATHS = frozenset({
-    "/login",
-    "/oidc/callback",
-})
+CSRF_EXEMPT_PATHS = frozenset(
+    {
+        "/login",
+        "/oidc/callback",
+    }
+)
 
 
 def _is_public_request():
@@ -128,10 +149,9 @@ app.secret_key = get_or_create_secret_key()
 app.config.update(
     SESSION_COOKIE_SECURE=use_secure_cookies(),
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SAMESITE="Lax",
 )
 
-# Run database initialization
 init_db(app.logger)
 
 
@@ -141,11 +161,13 @@ def check_authentication():
     if _is_public_request():
         return
 
-    user = session.get('user')
+    user = session.get("user")
     if not user:
-        if request.path.startswith('/api/'):
-            return jsonify({"success": False, "error": {"message": "Unauthorized"}}), 401
-        return redirect(url_for('auth.login_page'))
+        if request.path.startswith("/api/"):
+            return jsonify(
+                {"success": False, "error": {"message": "Unauthorized"}}
+            ), 401
+        return redirect(url_for("auth.login_page"))
 
 
 # CSRF protection implementation
@@ -167,7 +189,12 @@ def inject_global_vars():
 @app.after_request
 def set_csrf_cookie(response):
     if "csrf_token" in session:
-        response.set_cookie("csrf_token", session["csrf_token"], samesite="Lax", secure=use_secure_cookies())
+        response.set_cookie(
+            "csrf_token",
+            session["csrf_token"],
+            samesite="Lax",
+            secure=use_secure_cookies(),
+        )
     return response
 
 
@@ -196,11 +223,20 @@ def csrf_protect():
         token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
         expected_token = session.get("csrf_token")
 
-        if not expected_token or not token or not secrets.compare_digest(expected_token, token):
-            return jsonify({"success": False, "error": {"message": "Bad Request: CSRF token missing or invalid"}}), 400
+        if (
+            not expected_token
+            or not token
+            or not secrets.compare_digest(expected_token, token)
+        ):
+            return jsonify(
+                {
+                    "success": False,
+                    "error": {"message": "Bad Request: CSRF token missing or invalid"},
+                }
+            ), 400
 
 
-@app.route('/')
+@app.route("/")
 def home():
     portal = getattr(g, "reset_portal", None)
     if portal:
@@ -210,9 +246,9 @@ def home():
             reset_available=is_password_reset_available(),
             **branding,
         )
-    return render_template('index.html')
+    return render_template("index.html")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)

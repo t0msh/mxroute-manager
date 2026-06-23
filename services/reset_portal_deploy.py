@@ -4,7 +4,11 @@ import requests
 
 from models.db import build_portal_host
 from services.cf_origin_ca import cf_origin_ca_is_configured, create_origin_certificate
-from services.cloudflare import cf_is_configured, deploy_reset_portal_cname, check_reset_portal_dns, remove_reset_portal_cname
+from services.cloudflare import (
+    cf_is_configured,
+    deploy_reset_portal_cname,
+    remove_reset_portal_cname,
+)
 from services.mxroute import audit
 from services.reset_portal_mail import ensure_reset_sender_forwarder
 from services.npm import (
@@ -25,7 +29,9 @@ def missing_deploy_config():
     if not cf_is_configured():
         missing.append("Cloudflare (CF_API_TOKEN, CF_ACCOUNT_ID)")
     if not npm_is_configured():
-        missing.append("NPM_API_URL, NPM_IDENTITY, NPM_SECRET, NPM_FORWARD_HOST, NPM_FORWARD_PORT")
+        missing.append(
+            "NPM_API_URL, NPM_IDENTITY, NPM_SECRET, NPM_FORWARD_HOST, NPM_FORWARD_PORT"
+        )
     from models.db import get_reset_portal_cname_target
 
     if not get_reset_portal_cname_target():
@@ -40,12 +46,18 @@ def check_reset_portal_https_quick(portal_host):
 
 def _friendly_https_error(exc):
     text = str(exc).lower()
-    if "failed to resolve" in text or "name or service not known" in text or "nameresolution" in text:
+    if (
+        "failed to resolve" in text
+        or "name or service not known" in text
+        or "nameresolution" in text
+    ):
         return "Portal hostname does not resolve yet. Click Deploy Portal if you have not already."
     if "timed out" in text or "timeout" in text:
         return "Portal did not respond in time. After deploy, certificate and DNS propagation can take a few minutes."
     if "connection refused" in text:
-        return "Connection refused at origin. Check NPM proxy host and forwarding target."
+        return (
+            "Connection refused at origin. Check NPM proxy host and forwarding target."
+        )
     if "ssl" in text:
         return "SSL handshake failed. NPM certificate may still be issuing."
     return "Portal is not reachable yet."
@@ -110,11 +122,15 @@ def _check_reset_portal_https_once(portal_host, url, timeout):
 def _provision_npm_tls(portal_host, steps):
     if cf_origin_ca_is_configured():
         try:
-            steps.append(f"Issuing Cloudflare Origin CA certificate for {portal_host}...")
+            steps.append(
+                f"Issuing Cloudflare Origin CA certificate for {portal_host}..."
+            )
             certificate_pem, private_key_pem = create_origin_certificate(portal_host)
             steps.append(f"Origin CA certificate issued for {portal_host}")
             steps.append("Configuring Nginx Proxy Manager proxy host...")
-            return deploy_reset_portal_proxy(portal_host, certificate_pem, private_key_pem, steps)
+            return deploy_reset_portal_proxy(
+                portal_host, certificate_pem, private_key_pem, steps
+            )
         except ValueError as exc:
             steps.append(f"Origin CA skipped: {exc}")
 
@@ -127,7 +143,9 @@ def _provision_npm_tls(portal_host, steps):
 def deploy_reset_portal(domain, prefix, admin_email=None):
     missing = missing_deploy_config()
     if missing:
-        raise ValueError("Reset portal deploy is not fully configured: " + ", ".join(missing))
+        raise ValueError(
+            "Reset portal deploy is not fully configured: " + ", ".join(missing)
+        )
 
     prefix = (prefix or "").strip().lower()
     if not prefix:

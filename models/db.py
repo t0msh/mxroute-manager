@@ -11,32 +11,56 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 logger = logging.getLogger(__name__)
 
-DATABASE_FILE = os.getenv("DATABASE_FILE", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "mxroute-manager.db"))
-MAPPING_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "domain_mapping.json")
+DATABASE_FILE = os.getenv(
+    "DATABASE_FILE",
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "mxroute-manager.db",
+    ),
+)
+MAPPING_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "domain_mapping.json"
+)
 
 ALL_PERMISSIONS = ("dashboard", "emails", "forwarders", "spam", "dns")
 DEFAULT_PERMISSIONS = list(ALL_PERMISSIONS)
 
-ENV_ONLY_SECRET_KEYS = frozenset({
-    "MX_API_KEY",
-    "CF_API_TOKEN",
-    "CF_ORIGIN_CA_KEY",
-    "OIDC_CLIENT_SECRET",
-    "NPM_SECRET",
-    "RESET_SMTP_PASSWORD",
-})
-MASKED_SECRET_KEYS = ENV_ONLY_SECRET_KEYS | frozenset({
-    "ADMIN_PASSWORD", "SECRET_KEY",
-})
+ENV_ONLY_SECRET_KEYS = frozenset(
+    {
+        "MX_API_KEY",
+        "CF_API_TOKEN",
+        "CF_ORIGIN_CA_KEY",
+        "OIDC_CLIENT_SECRET",
+        "NPM_SECRET",
+        "RESET_SMTP_PASSWORD",
+    }
+)
+MASKED_SECRET_KEYS = ENV_ONLY_SECRET_KEYS | frozenset(
+    {
+        "ADMIN_PASSWORD",
+        "SECRET_KEY",
+    }
+)
 ADMIN_PASSWORD_HASH_KEY = "ADMIN_PASSWORD_HASH"
 RESET_TOKEN_TTL_HOURS = 1
 SETTINGS_UI_KEYS = [
-    "OIDC_ENABLED", "OIDC_CLIENT_ID", "OIDC_DISCOVERY_URL",
-    "OIDC_REDIRECT_URI", "OIDC_SCOPES", "OIDC_ADMIN_USERS", "OIDC_ADMIN_GROUP",
-    "MX_SERVER", "MX_USER", "CF_ACCOUNT_ID",
+    "OIDC_ENABLED",
+    "OIDC_CLIENT_ID",
+    "OIDC_DISCOVERY_URL",
+    "OIDC_REDIRECT_URI",
+    "OIDC_SCOPES",
+    "OIDC_ADMIN_USERS",
+    "OIDC_ADMIN_GROUP",
+    "MX_SERVER",
+    "MX_USER",
+    "CF_ACCOUNT_ID",
     "ADMIN_USER",
-    "MAILBOX_RESET_ENABLED", "RESET_SMTP_HOST", "RESET_SMTP_PORT",
-    "RESET_SMTP_USER", "RESET_SMTP_FROM", "RESET_SMTP_USE_TLS",
+    "MAILBOX_RESET_ENABLED",
+    "RESET_SMTP_HOST",
+    "RESET_SMTP_PORT",
+    "RESET_SMTP_USER",
+    "RESET_SMTP_FROM",
+    "RESET_SMTP_USE_TLS",
 ]
 SETTINGS_RESPONSE_KEYS = SETTINGS_UI_KEYS + sorted(MASKED_SECRET_KEYS)
 
@@ -95,7 +119,9 @@ def get_admin_password_hash():
     try:
         with get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,))
+            cursor.execute(
+                "SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,)
+            )
             row = cursor.fetchone()
         if row and row[0]:
             return row[0]
@@ -153,10 +179,16 @@ def migrate_settings_secrets(cursor):
 
     cursor.execute("SELECT value FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
     legacy_password_row = cursor.fetchone()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,))
+    cursor.execute(
+        "SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,)
+    )
     hash_row = cursor.fetchone()
 
-    if legacy_password_row and legacy_password_row[0] and not _looks_like_password_hash(legacy_password_row[0]):
+    if (
+        legacy_password_row
+        and legacy_password_row[0]
+        and not _looks_like_password_hash(legacy_password_row[0])
+    ):
         cursor.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
             (ADMIN_PASSWORD_HASH_KEY, generate_password_hash(legacy_password_row[0])),
@@ -170,7 +202,11 @@ def migrate_settings_secrets(cursor):
                 (ADMIN_PASSWORD_HASH_KEY, generate_password_hash(env_password)),
             )
             cursor.execute("DELETE FROM settings WHERE key = ?", ("ADMIN_PASSWORD",))
-    elif get_env_config("ADMIN_PASSWORD_FORCE_SYNC", "").lower() in ("true", "1", "yes"):
+    elif get_env_config("ADMIN_PASSWORD_FORCE_SYNC", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    ):
         # ponytail: one-shot recovery when ADMIN_PASSWORD in .env was changed after the
         # hash was already stored. Remove the flag after a successful restart.
         env_password = get_env_config("ADMIN_PASSWORD")
@@ -247,7 +283,9 @@ def get_oidc_scopes():
 
 def get_oidc_admin_users():
     admin_users_raw = get_config_value("OIDC_ADMIN_USERS", "")
-    return set(email.strip().lower() for email in admin_users_raw.split(",") if email.strip())
+    return set(
+        email.strip().lower() for email in admin_users_raw.split(",") if email.strip()
+    )
 
 
 def get_oidc_admin_group():
@@ -275,7 +313,11 @@ def use_secure_cookies():
 
 
 def is_mailbox_reset_enabled():
-    return get_config_value("MAILBOX_RESET_ENABLED", "false").lower() in ("true", "1", "yes")
+    return get_config_value("MAILBOX_RESET_ENABLED", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
 
 def get_reset_smtp_host():
@@ -299,7 +341,9 @@ def _get_legacy_reset_smtp_password():
     try:
         with get_conn() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",))
+            cursor.execute(
+                "SELECT value FROM settings WHERE key = ?", ("RESET_SMTP_PASSWORD",)
+            )
             row = cursor.fetchone()
         if row and row[0]:
             return row[0]
@@ -322,7 +366,11 @@ def get_reset_smtp_from():
 
 
 def reset_smtp_use_tls():
-    return get_config_value("RESET_SMTP_USE_TLS", "true").lower() in ("true", "1", "yes")
+    return get_config_value("RESET_SMTP_USE_TLS", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
 
 NOTIFICATION_SETTINGS_KEY = "NOTIFICATION_SETTINGS"
@@ -355,8 +403,12 @@ def save_notification_settings(config):
         raise ValueError("Notification settings must be an object")
     normalized = {
         "enabled": bool(config.get("enabled")),
-        "targets": config.get("targets") if isinstance(config.get("targets"), list) else [],
-        "actions": config.get("actions") if isinstance(config.get("actions"), list) else [],
+        "targets": config.get("targets")
+        if isinstance(config.get("targets"), list)
+        else [],
+        "actions": config.get("actions")
+        if isinstance(config.get("actions"), list)
+        else [],
     }
     with get_conn() as conn:
         cursor = conn.cursor()
@@ -457,8 +509,13 @@ def delete_recovery_email(mailbox_email):
         return
     with get_conn() as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM mailbox_recovery WHERE mailbox_email = ?", (mailbox_email,))
-        cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
+        cursor.execute(
+            "DELETE FROM mailbox_recovery WHERE mailbox_email = ?", (mailbox_email,)
+        )
+        cursor.execute(
+            "DELETE FROM password_reset_tokens WHERE mailbox_email = ?",
+            (mailbox_email,),
+        )
         conn.commit()
 
 
@@ -475,12 +532,17 @@ def create_reset_token(mailbox_email):
     raw_token = secrets.token_urlsafe(32)
     token_hash = _hash_reset_token(raw_token)
     expires_at = (
-        datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_TTL_HOURS)
-    ).replace(microsecond=0).isoformat()
+        (datetime.now(timezone.utc) + timedelta(hours=RESET_TOKEN_TTL_HOURS))
+        .replace(microsecond=0)
+        .isoformat()
+    )
     with get_conn() as conn:
         cursor = conn.cursor()
         _purge_expired_reset_tokens(cursor)
-        cursor.execute("DELETE FROM password_reset_tokens WHERE mailbox_email = ?", (mailbox_email,))
+        cursor.execute(
+            "DELETE FROM password_reset_tokens WHERE mailbox_email = ?",
+            (mailbox_email,),
+        )
         cursor.execute(
             """
             INSERT INTO password_reset_tokens (token_hash, mailbox_email, expires_at, used_at, created_at)
@@ -601,19 +663,25 @@ def load_delegations_detail():
         domain_list = [d for d in domains if d != "*"]
         grant_rows = []
         for domain in domain_list:
-            grant_rows.append({
-                "domain": domain,
-                "permissions": grant_map.get(email, {}).get(domain, list(DEFAULT_PERMISSIONS)),
-            })
+            grant_rows.append(
+                {
+                    "domain": domain,
+                    "permissions": grant_map.get(email, {}).get(
+                        domain, list(DEFAULT_PERMISSIONS)
+                    ),
+                }
+            )
         contact_email = contact_map.get(email)
-        records.append({
-            "email": email,
-            "contact_email": contact_email,
-            "notification_email": resolve_notification_email(email, contact_email),
-            "is_admin": is_admin,
-            "domains": domains,
-            "grants": grant_rows,
-        })
+        records.append(
+            {
+                "email": email,
+                "contact_email": contact_email,
+                "notification_email": resolve_notification_email(email, contact_email),
+                "is_admin": is_admin,
+                "domains": domains,
+                "grants": grant_rows,
+            }
+        )
     return records
 
 
@@ -736,7 +804,9 @@ def get_branding_dir():
 
 
 def get_reset_portal_cname_target():
-    return (get_env_config("RESET_PORTAL_CNAME_TARGET") or "").strip().lower().rstrip(".")
+    return (
+        (get_env_config("RESET_PORTAL_CNAME_TARGET") or "").strip().lower().rstrip(".")
+    )
 
 
 def _row_to_reset_portal(row):
@@ -801,7 +871,9 @@ def list_reset_portals():
     return [_row_to_reset_portal(row) for row in rows]
 
 
-def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None, portal_theme=None):
+def upsert_reset_portal(
+    domain, enabled, subdomain_prefix, portal_title=None, portal_theme=None
+):
     from utils.validators import validate_subdomain_prefix
     from utils.themes import normalize_theme
 
@@ -818,7 +890,9 @@ def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None, po
         if not ok:
             return False, message
 
-    portal_host = build_portal_host(subdomain_prefix, domain) if subdomain_prefix else ""
+    portal_host = (
+        build_portal_host(subdomain_prefix, domain) if subdomain_prefix else ""
+    )
 
     with get_conn() as conn:
         cursor = conn.cursor()
@@ -834,7 +908,14 @@ def upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title=None, po
                 portal_title = excluded.portal_title,
                 portal_theme = excluded.portal_theme
             """,
-            (domain, 1 if enabled else 0, subdomain_prefix, portal_host, portal_title, theme),
+            (
+                domain,
+                1 if enabled else 0,
+                subdomain_prefix,
+                portal_host,
+                portal_title,
+                theme,
+            ),
         )
         conn.commit()
     return True, ""
@@ -976,62 +1057,73 @@ def init_db(logger=None):
         # Perform migration from JSON if it exists
         if os.path.exists(MAPPING_FILE):
             try:
-                with open(MAPPING_FILE, 'r') as f:
+                with open(MAPPING_FILE, "r") as f:
                     mapping = json.load(f)
-                
+
                 for email, domains in mapping.items():
                     email = email.lower().strip()
                     if not email:
-                           continue
-                    is_admin = "*" in domains or email in get_oidc_admin_users() or email == get_admin_user() or email == "admin@local"
-                    
+                        continue
+                    is_admin = (
+                        "*" in domains
+                        or email in get_oidc_admin_users()
+                        or email == get_admin_user()
+                        or email == "admin@local"
+                    )
+
                     cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
                     user_row = cursor.fetchone()
                     if not user_row:
                         cursor.execute(
                             "INSERT INTO users (email, is_admin) VALUES (?, ?)",
-                            (email, 1 if is_admin else 0)
+                            (email, 1 if is_admin else 0),
                         )
                         user_id = cursor.lastrowid
                     else:
                         user_id = user_row[0]
-                    
+
                     for domain in domains:
                         domain = domain.lower().strip()
                         if domain == "*":
                             continue
                         cursor.execute(
                             "INSERT OR IGNORE INTO delegations (user_id, domain, permissions) VALUES (?, ?, ?)",
-                            (user_id, domain, json.dumps(DEFAULT_PERMISSIONS))
+                            (user_id, domain, json.dumps(DEFAULT_PERMISSIONS)),
                         )
                 conn.commit()
-                
+
                 # Rename mapping file to prevent future migrations
                 bak_file = MAPPING_FILE + ".bak"
                 os.rename(MAPPING_FILE, bak_file)
                 if logger:
-                    logger.info(f"Successfully migrated {MAPPING_FILE} to SQLite and renamed to {bak_file}")
+                    logger.info(
+                        f"Successfully migrated {MAPPING_FILE} to SQLite and renamed to {bak_file}"
+                    )
             except Exception as e:
                 if logger:
                     logger.error(f"Failed to migrate legacy mapping file: {e}")
- 
+
         migrate_settings_secrets(cursor)
         conn.commit()
 
         # Seed initial admin user if empty and an admin password hash exists
         cursor.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
         admin_count = cursor.fetchone()[0]
-        cursor.execute("SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,))
+        cursor.execute(
+            "SELECT value FROM settings WHERE key = ?", (ADMIN_PASSWORD_HASH_KEY,)
+        )
         admin_hash_row = cursor.fetchone()
         if admin_count == 0 and admin_hash_row and admin_hash_row[0]:
             admin_email = get_admin_user().lower().strip()
             cursor.execute(
                 "INSERT OR IGNORE INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
-                (admin_email, admin_hash_row[0])
+                (admin_email, admin_hash_row[0]),
             )
             conn.commit()
             if logger:
-                logger.info(f"Seeded initial admin user '{admin_email}' into SQLite database.")
+                logger.info(
+                    f"Seeded initial admin user '{admin_email}' into SQLite database."
+                )
         conn.close()
     except Exception as e:
         if logger:

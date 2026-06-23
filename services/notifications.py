@@ -16,11 +16,7 @@ _SKIP_NOTIFY_ACTIONS = frozenset({"notification.test", "notification.send_failed
 
 
 def _configured_cred_env_vars():
-    return {
-        key
-        for key in SERVICE_CRED_ENV.values()
-        if (os.getenv(key) or "").strip()
-    }
+    return {key for key in SERVICE_CRED_ENV.values() if (os.getenv(key) or "").strip()}
 
 
 def resolve_apprise_urls():
@@ -97,10 +93,14 @@ def notify_audit_event(entry):
     try:
         ok = apobj.notify(title=title, body=body)
         if not ok:
-            logger.warning("Apprise notify returned failure for action %s", entry.get("action"))
+            logger.warning(
+                "Apprise notify returned failure for action %s", entry.get("action")
+            )
         return bool(ok)
     except Exception as exc:
-        logger.warning("Notification failed for action %s: %s", entry.get("action"), exc)
+        logger.warning(
+            "Notification failed for action %s: %s", entry.get("action"), exc
+        )
         return False
 
 
@@ -139,13 +139,15 @@ def mask_notification_settings_for_response(config):
     for target in config.get("targets") or []:
         url = str((target or {}).get("url") or "").strip()
         cred_env = str((target or {}).get("cred_env") or "").strip() or None
-        masked["targets"].append({
-            "label": str((target or {}).get("label") or "").strip(),
-            "url": mask_apprise_url(url),
-            "service": (target or {}).get("service") or "",
-            "service_id": (target or {}).get("service_id") or "",
-            "cred_env": cred_env,
-            "cred_env_configured": bool(cred_env and cred_env in configured_env),
-        })
+        masked["targets"].append(
+            {
+                "label": str((target or {}).get("label") or "").strip(),
+                "url": mask_apprise_url(url),
+                "service": (target or {}).get("service") or "",
+                "service_id": (target or {}).get("service_id") or "",
+                "cred_env": cred_env,
+                "cred_env_configured": bool(cred_env and cred_env in configured_env),
+            }
+        )
     masked["target_count"] = len(masked["targets"])
     return masked

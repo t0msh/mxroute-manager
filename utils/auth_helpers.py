@@ -1,7 +1,7 @@
 import time
 import threading
 import requests
-from flask import session, jsonify, request, current_app
+from flask import session, jsonify, current_app
 from functools import wraps
 
 from models.db import (
@@ -30,7 +30,10 @@ def get_oidc_config():
         raise ValueError("OIDC_DISCOVERY_URL is not configured")
     with _oidc_config_lock:
         now = time.monotonic()
-        if _oidc_config is not None and (now - _oidc_config_fetched_at) < _OIDC_CONFIG_TTL:
+        if (
+            _oidc_config is not None
+            and (now - _oidc_config_fetched_at) < _OIDC_CONFIG_TTL
+        ):
             return _oidc_config
         try:
             res = requests.get(discovery_url, timeout=10)
@@ -112,17 +115,25 @@ def has_any_permission(user, domain, *permissions):
 
 
 def _forbidden_domain_message(domain):
-    return jsonify({
-        "success": False,
-        "error": {"message": f"Forbidden: You do not have access to domain '{domain}'"},
-    }), 403
+    return jsonify(
+        {
+            "success": False,
+            "error": {
+                "message": f"Forbidden: You do not have access to domain '{domain}'"
+            },
+        }
+    ), 403
 
 
 def _forbidden_permission_message(permission):
-    return jsonify({
-        "success": False,
-        "error": {"message": f"Forbidden: Missing '{permission}' permission for this domain"},
-    }), 403
+    return jsonify(
+        {
+            "success": False,
+            "error": {
+                "message": f"Forbidden: Missing '{permission}' permission for this domain"
+            },
+        }
+    ), 403
 
 
 def require_admin(f):
@@ -130,8 +141,14 @@ def require_admin(f):
     def decorated_function(*args, **kwargs):
         user = get_current_user()
         if not user or not is_user_admin(user):
-            return jsonify({"success": False, "error": {"message": "Forbidden: Admin access required"}}), 403
+            return jsonify(
+                {
+                    "success": False,
+                    "error": {"message": "Forbidden: Admin access required"},
+                }
+            ), 403
         return f(*args, **kwargs)
+
     return decorated_function
 
 
@@ -141,11 +158,17 @@ def require_domain_access(f):
         domain = kwargs.get("domain")
         if domain:
             if not validate_domain(domain):
-                return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+                return jsonify(
+                    {
+                        "success": False,
+                        "error": {"message": "Invalid domain name format"},
+                    }
+                ), 400
             user = get_current_user()
             if not user or not has_domain_access(user, domain):
                 return _forbidden_domain_message(domain)
         return f(*args, **kwargs)
+
     return decorated_function
 
 
@@ -156,14 +179,21 @@ def require_permission(permission):
             domain = kwargs.get("domain")
             if domain:
                 if not validate_domain(domain):
-                    return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+                    return jsonify(
+                        {
+                            "success": False,
+                            "error": {"message": "Invalid domain name format"},
+                        }
+                    ), 400
                 user = get_current_user()
                 if not user or not has_permission(user, domain, permission):
                     if user and has_domain_access(user, domain):
                         return _forbidden_permission_message(permission)
                     return _forbidden_domain_message(domain)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator
 
 
@@ -174,15 +204,26 @@ def require_any_permission(*permissions):
             domain = kwargs.get("domain")
             if domain:
                 if not validate_domain(domain):
-                    return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+                    return jsonify(
+                        {
+                            "success": False,
+                            "error": {"message": "Invalid domain name format"},
+                        }
+                    ), 400
                 user = get_current_user()
                 if not user or not has_any_permission(user, domain, *permissions):
                     if user and has_domain_access(user, domain):
-                        return jsonify({
-                            "success": False,
-                            "error": {"message": "Forbidden: Insufficient permissions for this domain"},
-                        }), 403
+                        return jsonify(
+                            {
+                                "success": False,
+                                "error": {
+                                    "message": "Forbidden: Insufficient permissions for this domain"
+                                },
+                            }
+                        ), 403
                     return _forbidden_domain_message(domain)
             return f(*args, **kwargs)
+
         return decorated_function
+
     return decorator

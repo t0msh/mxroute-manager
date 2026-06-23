@@ -1,4 +1,5 @@
 """Shared helpers for HTTP/integration tests."""
+
 import json
 import requests
 
@@ -15,7 +16,9 @@ def csrf_token_from_response(client, path="/", host="reset.example.com"):
     return None
 
 
-def insert_user_with_grants(conn, email, *, grants=None, is_admin=False, password="Abcd123!"):
+def insert_user_with_grants(
+    conn, email, *, grants=None, is_admin=False, password="Abcd123!"
+):
     """Insert a user and optional per-domain permission grants into the test DB."""
     grants = grants or []
     password_hash = generate_password_hash(password) if password else None
@@ -64,7 +67,9 @@ OIDC_DISCOVERY = {
 }
 
 
-def enable_oidc_settings(monkeypatch, *, admin_users="oidc-admin@example.com", admin_group="mxroute-admins"):
+def enable_oidc_settings(
+    monkeypatch, *, admin_users="oidc-admin@example.com", admin_group="mxroute-admins"
+):
     """Point OIDC config at test values and bust caches."""
     from models import db as db_module
     from utils.auth_helpers import clear_oidc_config_cache
@@ -73,7 +78,9 @@ def enable_oidc_settings(monkeypatch, *, admin_users="oidc-admin@example.com", a
     monkeypatch.setenv("OIDC_CLIENT_ID", "test-client-id")
     monkeypatch.setenv("OIDC_CLIENT_SECRET", "test-client-secret")
     monkeypatch.setenv("OIDC_REDIRECT_URI", "http://localhost:5000/oidc/callback")
-    monkeypatch.setenv("OIDC_DISCOVERY_URL", "https://idp.example/.well-known/openid-configuration")
+    monkeypatch.setenv(
+        "OIDC_DISCOVERY_URL", "https://idp.example/.well-known/openid-configuration"
+    )
     monkeypatch.setenv("OIDC_ADMIN_USERS", admin_users)
     monkeypatch.setenv("OIDC_ADMIN_GROUP", admin_group)
     db_module.invalidate_settings_cache()
@@ -101,17 +108,29 @@ class _MockHttpResponse:
 
 def patch_oidc_http(token_data=None, userinfo_data=None):
     """Return context managers patching token + userinfo HTTP calls in routes.auth."""
-    import requests
     from contextlib import contextmanager
     from unittest.mock import patch
 
-    token_data = token_data if token_data is not None else {"access_token": "access-token-123"}
-    userinfo_data = userinfo_data if userinfo_data is not None else {"email": "delegate@example.com", "groups": []}
+    token_data = (
+        token_data if token_data is not None else {"access_token": "access-token-123"}
+    )
+    userinfo_data = (
+        userinfo_data
+        if userinfo_data is not None
+        else {"email": "delegate@example.com", "groups": []}
+    )
 
     @contextmanager
     def _patch():
-        with patch("routes.auth.requests.post", return_value=_MockHttpResponse(token_data)) as mock_post, \
-             patch("routes.auth.requests.get", return_value=_MockHttpResponse(userinfo_data)) as mock_get:
+        with (
+            patch(
+                "routes.auth.requests.post", return_value=_MockHttpResponse(token_data)
+            ) as mock_post,
+            patch(
+                "routes.auth.requests.get",
+                return_value=_MockHttpResponse(userinfo_data),
+            ) as mock_get,
+        ):
             yield mock_post, mock_get
 
     return _patch()

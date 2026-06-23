@@ -1,4 +1,5 @@
 """Tests for branded reset portal email sender provisioning."""
+
 from unittest.mock import patch
 
 import pytest
@@ -12,12 +13,18 @@ from services.reset_portal_mail import (
 
 def test_build_portal_reset_from_address_uses_portal_title():
     portal = {"portal_title": "Acme Corp"}
-    assert build_portal_reset_from_address(portal, "Example.COM") == "Acme Corp <reset@example.com>"
+    assert (
+        build_portal_reset_from_address(portal, "Example.COM")
+        == "Acme Corp <reset@example.com>"
+    )
 
 
 def test_build_portal_reset_from_address_default_display_name():
     portal = {"portal_title": ""}
-    assert build_portal_reset_from_address(portal, "example.com") == "Password Reset <reset@example.com>"
+    assert (
+        build_portal_reset_from_address(portal, "example.com")
+        == "Password Reset <reset@example.com>"
+    )
 
 
 def test_ensure_reset_sender_forwarder_requires_admin_email():
@@ -30,7 +37,13 @@ def test_ensure_reset_sender_forwarder_skips_when_catch_all_address():
     with patch(
         "services.reset_portal_mail.mx_request_raw",
         side_effect=[
-            ({"success": True, "data": {"type": "address", "address": "catch@example.com"}}, 200),
+            (
+                {
+                    "success": True,
+                    "data": {"type": "address", "address": "catch@example.com"},
+                },
+                200,
+            ),
         ],
     ) as mock_mx:
         outcome = ensure_reset_sender_forwarder("example.com", "admin@ops.com", steps)
@@ -50,7 +63,10 @@ def test_ensure_reset_sender_forwarder_skips_existing_forwarder():
                 {
                     "success": True,
                     "data": [
-                        {"alias": RESET_SENDER_ALIAS, "destinations": ["admin@ops.com"]},
+                        {
+                            "alias": RESET_SENDER_ALIAS,
+                            "destinations": ["admin@ops.com"],
+                        },
                     ],
                 },
                 200,
@@ -95,7 +111,10 @@ def test_ensure_reset_sender_forwarder_updates_wrong_destination():
                 {
                     "success": True,
                     "data": [
-                        {"alias": RESET_SENDER_ALIAS, "destinations": ["old@example.com"]},
+                        {
+                            "alias": RESET_SENDER_ALIAS,
+                            "destinations": ["old@example.com"],
+                        },
                     ],
                 },
                 200,

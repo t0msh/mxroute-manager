@@ -9,7 +9,6 @@ from models.db import (
     clear_reset_portal_logo,
     get_reset_portal_cname_target,
 )
-from services.mail import is_password_reset_available
 from services.cloudflare import cf_is_configured, check_reset_portal_dns
 from services.reset_portal_deploy import (
     deploy_reset_portal,
@@ -118,7 +117,9 @@ def _portal_response(portal, include_live_checks=True):
 @require_permission("dns")
 def get_domain_reset_portal(domain):
     if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
     portal = get_reset_portal(domain)
     return jsonify({"success": True, "data": _portal_response(portal)})
 
@@ -127,7 +128,9 @@ def get_domain_reset_portal(domain):
 @require_permission("dns")
 def update_domain_reset_portal(domain):
     if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
 
     data = request.json or {}
     enabled = bool(data.get("enabled"))
@@ -136,7 +139,14 @@ def update_domain_reset_portal(domain):
     portal_theme = normalize_theme(data.get("portal_theme"))
 
     if enabled and not subdomain_prefix:
-        return jsonify({"success": False, "error": {"message": "Subdomain prefix is required when the portal is enabled."}}), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {
+                    "message": "Subdomain prefix is required when the portal is enabled."
+                },
+            }
+        ), 400
     if subdomain_prefix:
         ok, message = validate_subdomain_prefix(subdomain_prefix)
         if not ok:
@@ -145,7 +155,9 @@ def update_domain_reset_portal(domain):
     portal_before = get_reset_portal(domain)
     was_enabled = bool(portal_before and portal_before.get("enabled"))
 
-    ok, message = upsert_reset_portal(domain, enabled, subdomain_prefix, portal_title, portal_theme)
+    ok, message = upsert_reset_portal(
+        domain, enabled, subdomain_prefix, portal_title, portal_theme
+    )
     if not ok:
         return jsonify({"success": False, "error": {"message": message}}), 400
 
@@ -165,23 +177,39 @@ def update_domain_reset_portal(domain):
 @require_permission("dns")
 def upload_reset_portal_logo(domain):
     if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
 
     portal = _ensure_reset_portal_draft(domain)
     if not portal:
-        return jsonify({"success": False, "error": {"message": "Failed to initialize portal settings."}}), 500
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Failed to initialize portal settings."},
+            }
+        ), 500
 
     upload = request.files.get("logo")
     if not upload or not upload.filename:
-        return jsonify({"success": False, "error": {"message": "Logo file is required."}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Logo file is required."}}
+        ), 400
 
     ext = upload.filename.rsplit(".", 1)[-1].lower() if "." in upload.filename else ""
     if ext not in ALLOWED_LOGO_EXTENSIONS:
-        return jsonify({"success": False, "error": {"message": "Logo must be PNG, JPEG, WebP, or SVG."}}), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Logo must be PNG, JPEG, WebP, or SVG."},
+            }
+        ), 400
 
     data = upload.read(MAX_LOGO_BYTES + 1)
     if len(data) > MAX_LOGO_BYTES:
-        return jsonify({"success": False, "error": {"message": "Logo must be 512 KB or smaller."}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Logo must be 512 KB or smaller."}}
+        ), 400
 
     branding_dir = branding_path_for_domain(domain)
     os.makedirs(branding_dir, exist_ok=True)
@@ -205,32 +233,48 @@ def upload_reset_portal_logo(domain):
 @require_permission("dns")
 def delete_reset_portal_logo(domain):
     if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
     clear_reset_portal_logo(domain)
     portal = get_reset_portal(domain)
     return jsonify({"success": True, "data": _portal_response(portal)})
 
 
-@reset_portal_bp.route("/api/domains/<domain>/reset-portal/deploy-dns", methods=["POST"])
+@reset_portal_bp.route(
+    "/api/domains/<domain>/reset-portal/deploy-dns", methods=["POST"]
+)
 @require_permission("dns")
 def deploy_reset_portal_dns(domain):
     if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
 
     portal = get_reset_portal(domain)
     if not portal or not portal.get("enabled"):
-        return jsonify({"success": False, "error": {"message": "Enable the reset portal before deploying."}}), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Enable the reset portal before deploying."},
+            }
+        ), 400
     if not portal.get("subdomain_prefix"):
-        return jsonify({"success": False, "error": {"message": "Subdomain prefix is required."}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Subdomain prefix is required."}}
+        ), 400
 
     missing = missing_deploy_config()
     if missing:
-        return jsonify({
-            "success": False,
-            "error": {
-                "message": "Reset portal deploy is not fully configured: " + ", ".join(missing),
-            },
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {
+                    "message": "Reset portal deploy is not fully configured: "
+                    + ", ".join(missing),
+                },
+            }
+        ), 400
 
     current_user = get_current_user()
     login_identifier = (current_user or {}).get("email", "").strip().lower()
@@ -239,29 +283,37 @@ def deploy_reset_portal_dns(domain):
         get_user_contact_email(login_identifier),
     )
     if not admin_email:
-        return jsonify({
-            "success": False,
-            "error": {
-                "message": (
-                    "No deliverable contact email for your account. "
-                    "Add a contact email in Settings or Access Control, "
-                    "or sign in with an email-based login."
-                ),
-            },
-        }), 400
+        return jsonify(
+            {
+                "success": False,
+                "error": {
+                    "message": (
+                        "No deliverable contact email for your account. "
+                        "Add a contact email in Settings or Access Control, "
+                        "or sign in with an email-based login."
+                    ),
+                },
+            }
+        ), 400
 
     try:
-        result = deploy_reset_portal(domain, portal["subdomain_prefix"], admin_email=admin_email)
+        result = deploy_reset_portal(
+            domain, portal["subdomain_prefix"], admin_email=admin_email
+        )
         return jsonify({"success": True, "data": result})
     except Exception as exc:
         return jsonify({"success": False, "error": {"message": str(exc)}}), 400
 
 
-@reset_portal_bp.route("/api/domains/<domain>/reset-portal/logo-preview", methods=["GET"])
+@reset_portal_bp.route(
+    "/api/domains/<domain>/reset-portal/logo-preview", methods=["GET"]
+)
 @require_permission("dns")
 def preview_reset_portal_logo(domain):
     if not validate_domain(domain):
-        return jsonify({"success": False, "error": {"message": "Invalid domain name format"}}), 400
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
     portal = get_reset_portal(domain)
     logo_path = logo_path_for_portal(portal)
     if not logo_path or not os.path.isfile(logo_path):

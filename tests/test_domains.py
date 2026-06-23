@@ -1,4 +1,5 @@
 """HTTP tests for domain list and admin domain management routes."""
+
 from unittest.mock import patch
 
 import pytest

@@ -47,7 +47,9 @@ def smtp_config_from_overrides(data):
         "port": port,
         "user": str(overrides.get("RESET_SMTP_USER", saved["user"] or "")).strip(),
         "password": password,
-        "from_address": str(overrides.get("RESET_SMTP_FROM", saved["from_address"] or "")).strip(),
+        "from_address": str(
+            overrides.get("RESET_SMTP_FROM", saved["from_address"] or "")
+        ).strip(),
         "use_tls": use_tls,
     }
 
@@ -109,16 +111,18 @@ def send_password_reset_email(
     smtp_config=None,
     from_address=None,
 ):
-    body = "\n".join([
-        "You requested a password reset for your mailbox.",
-        "",
-        f"Mailbox: {mailbox_email}",
-        "",
-        "To choose a new password, open this link (valid for 1 hour):",
-        reset_url,
-        "",
-        "If you did not request this, you can ignore this email.",
-    ])
+    body = "\n".join(
+        [
+            "You requested a password reset for your mailbox.",
+            "",
+            f"Mailbox: {mailbox_email}",
+            "",
+            "To choose a new password, open this link (valid for 1 hour):",
+            reset_url,
+            "",
+            "If you did not request this, you can ignore this email.",
+        ]
+    )
     send_email(
         recovery_email,
         "Reset your mailbox password",
@@ -128,11 +132,13 @@ def send_password_reset_email(
 
 
 def send_test_email(recipient, smtp_config=None):
-    body = "\n".join([
-        "This is a test email from MXroute Manager.",
-        "",
-        "Your SMTP settings appear to be working correctly.",
-    ])
+    body = "\n".join(
+        [
+            "This is a test email from MXroute Manager.",
+            "",
+            "Your SMTP settings appear to be working correctly.",
+        ]
+    )
     send_email(
         recipient,
         "MXroute Manager SMTP test",

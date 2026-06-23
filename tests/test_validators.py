@@ -1,4 +1,5 @@
 """Tests for input validation helpers (pure logic, no I/O)."""
+
 import pytest
 
 from utils.validators import (
@@ -13,37 +14,46 @@ from utils.validators import (
 )
 
 
-@pytest.mark.parametrize("domain,expected", [
-    ("example.com", True),
-    ("mail.example.co.uk", True),
-    ("", False),
-    (None, False),
-    ("not-a-domain", False),
-    ("-bad.com", False),
-])
+@pytest.mark.parametrize(
+    "domain,expected",
+    [
+        ("example.com", True),
+        ("mail.example.co.uk", True),
+        ("", False),
+        (None, False),
+        ("not-a-domain", False),
+        ("-bad.com", False),
+    ],
+)
 def test_validate_domain(domain, expected):
     assert validate_domain(domain) is expected
 
 
-@pytest.mark.parametrize("username,expected", [
-    ("alex", True),
-    ("alex.smith", True),
-    ("alex_smith", True),
-    ("", False),
-    ("bad space", False),
-    ("user@domain", False),
-])
+@pytest.mark.parametrize(
+    "username,expected",
+    [
+        ("alex", True),
+        ("alex.smith", True),
+        ("alex_smith", True),
+        ("", False),
+        ("bad space", False),
+        ("user@domain", False),
+    ],
+)
 def test_validate_username(username, expected):
     assert validate_username(username) is expected
 
 
-@pytest.mark.parametrize("identifier,expected", [
-    ("billy", True),
-    ("user@local", True),
-    ("admin@example.com", True),
-    ("", False),
-    ("bad space", False),
-])
+@pytest.mark.parametrize(
+    "identifier,expected",
+    [
+        ("billy", True),
+        ("user@local", True),
+        ("admin@example.com", True),
+        ("", False),
+        ("bad space", False),
+    ],
+)
 def test_validate_local_user_identifier(identifier, expected):
     assert validate_local_user_identifier(identifier) is expected
 
@@ -60,13 +70,16 @@ def test_requires_local_password():
     assert requires_local_password("billy", oidc_enabled=False) is True
 
 
-@pytest.mark.parametrize("password,expected", [
-    ("Abcd123!", True),
-    ("weak", False),
-    ("NoDigits!", False),
-    ("nodigits1", False),
-    ("", False),
-])
+@pytest.mark.parametrize(
+    "password,expected",
+    [
+        ("Abcd123!", True),
+        ("weak", False),
+        ("NoDigits!", False),
+        ("nodigits1", False),
+        ("", False),
+    ],
+)
 def test_validate_mailbox_password(password, expected):
     assert validate_mailbox_password(password) is expected
 

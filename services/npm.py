@@ -28,7 +28,11 @@ def npm_is_configured():
 
 
 def npm_tls_verify():
-    return (get_env_config("NPM_TLS_VERIFY", "true") or "true").lower() in ("true", "1", "yes")
+    return (get_env_config("NPM_TLS_VERIFY", "true") or "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
 
 def npm_forward_target():
@@ -41,6 +45,18 @@ def npm_forward_target():
     if not host:
         raise ValueError("NPM_FORWARD_HOST is not configured")
     return host, port
+
+
+def _parse_npm_token_expiry(expires_raw, default_ts):
+    """Parse NPM token expiry; fall back when the API returns an unknown format."""
+    if not isinstance(expires_raw, str):
+        return default_ts
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(expires_raw.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return default_ts
 
 
 def _fetch_npm_token():
@@ -67,15 +83,7 @@ def _fetch_npm_token():
     if not token:
         raise ValueError("NPM authentication failed: no token returned")
 
-    expires_raw = payload.get("expires")
-    expires_at = now + 3600
-    if isinstance(expires_raw, str):
-        try:
-            from datetime import datetime
-
-            expires_at = datetime.fromisoformat(expires_raw.replace("Z", "+00:00")).timestamp()
-        except ValueError:
-            pass
+    expires_at = _parse_npm_token_expiry(payload.get("expires"), now + 3600)
 
     _cached_npm_token = token
     _cached_npm_token_expires = expires_at
@@ -108,7 +116,11 @@ def npm_request(method, path, json_payload=None, files=None):
         current_app.logger.error("NPM HTTP error %s %s: %s", method, path, body)
         try:
             payload = response.json()
-            message = payload.get("error", {}).get("message") or payload.get("message") or body
+            message = (
+                payload.get("error", {}).get("message")
+                or payload.get("message")
+                or body
+            )
         except ValueError:
             message = body or f"NPM request failed ({response.status_code})"
         raise ValueError(message)
@@ -158,8 +170,16 @@ def npm_upsert_custom_certificate(hostname, certificate_pem, private_key_pem, st
             "POST",
             f"/nginx/certificates/{cert_id}/upload",
             files={
-                "certificate": (f"{hostname}.crt", certificate_pem, "application/x-pem-file"),
-                "certificate_key": (f"{hostname}.key", private_key_pem, "application/x-pem-file"),
+                "certificate": (
+                    f"{hostname}.crt",
+                    certificate_pem,
+                    "application/x-pem-file",
+                ),
+                "certificate_key": (
+                    f"{hostname}.key",
+                    private_key_pem,
+                    "application/x-pem-file",
+                ),
             },
         )
         return cert_id, "updated"
@@ -183,8 +203,16 @@ def npm_upsert_custom_certificate(hostname, certificate_pem, private_key_pem, st
         "POST",
         f"/nginx/certificates/{cert_id}/upload",
         files={
-            "certificate": (f"{hostname}.crt", certificate_pem, "application/x-pem-file"),
-            "certificate_key": (f"{hostname}.key", private_key_pem, "application/x-pem-file"),
+            "certificate": (
+                f"{hostname}.crt",
+                certificate_pem,
+                "application/x-pem-file",
+            ),
+            "certificate_key": (
+                f"{hostname}.key",
+                private_key_pem,
+                "application/x-pem-file",
+            ),
         },
     )
     return cert_id, "created"
@@ -225,19 +253,27 @@ def npm_upsert_proxy_host(hostname, certificate_id, steps):
 
     if existing:
         host_id = existing["id"]
-        payload = _proxy_host_payload(hostname, certificate_id, forward_host, forward_port)
+        payload = _proxy_host_payload(
+            hostname, certificate_id, forward_host, forward_port
+        )
         if steps is not None:
-            steps.append(f"Updating NPM proxy host for {hostname} → {forward_host}:{forward_port}")
+            steps.append(
+                f"Updating NPM proxy host for {hostname} → {forward_host}:{forward_port}"
+            )
         npm_request("PUT", f"/nginx/proxy-hosts/{host_id}", json_payload=payload)
         npm_enable_proxy_host(host_id)
         return host_id, "updated"
 
     if steps is not None:
-        steps.append(f"Creating NPM proxy host for {hostname} → {forward_host}:{forward_port}")
+        steps.append(
+            f"Creating NPM proxy host for {hostname} → {forward_host}:{forward_port}"
+        )
     created = npm_request(
         "POST",
         "/nginx/proxy-hosts",
-        json_payload=_proxy_host_payload(hostname, certificate_id, forward_host, forward_port),
+        json_payload=_proxy_host_payload(
+            hostname, certificate_id, forward_host, forward_port
+        ),
     )
     host_id = created.get("id")
     if not host_id:
@@ -261,9 +297,13 @@ def deploy_reset_portal_proxy(hostname, certificate_pem, private_key_pem, steps)
 
 
 def _letsencrypt_email():
-    email = (get_env_config("NPM_LETSENCRYPT_EMAIL") or get_env_config("NPM_IDENTITY") or "").strip()
+    email = (
+        get_env_config("NPM_LETSENCRYPT_EMAIL") or get_env_config("NPM_IDENTITY") or ""
+    ).strip()
     if not email:
-        raise ValueError("NPM_IDENTITY or NPM_LETSENCRYPT_EMAIL is required for Let's Encrypt")
+        raise ValueError(
+            "NPM_IDENTITY or NPM_LETSENCRYPT_EMAIL is required for Let's Encrypt"
+        )
     return email
 
 

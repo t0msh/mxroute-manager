@@ -42,7 +42,7 @@ pytest tests/test_emails.py -v
 pytest tests/test_emails.py::test_create_email_saves_recovery_on_success -v
 ```
 
-GitHub Actions runs this on every push and PR - see [`.github/workflows/test.yml`](../.github/workflows/test.yml).
+GitHub Actions runs this on every push and PR - see [`.github/workflows/test.yml`](https://github.com/t0msh/mxroute-manager/blob/dev/.github/workflows/test.yml).
 
 ## Three layers (fast → thorough)
 

@@ -2,7 +2,7 @@
 
 MXroute Manager reads settings from environment variables (`.env` or container env) and from the **Settings** tab in the UI. Secrets in the UI are stored in SQLite; API keys and OIDC client secrets are **environment-only** and are not written to the database.
 
-Copy `.env.example` to `.env` as a starting point. For a guided first deploy, start with [Getting started](getting-started.md).
+Copy `.env.example` to `.env` as a starting point. For a guided first deploy, start with [Getting started](getting-started.md). For what each **Settings** field does in the UI, see [Settings walkthrough](settings-walkthrough.md).
 
 ## Setup tiers
 

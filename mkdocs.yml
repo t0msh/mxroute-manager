@@ -1,0 +1,78 @@
+site_name: MXroute Manager
+site_description: Self-hosted control panel for MXroute domains, mail, DNS, and more.
+site_url: https://t0msh.github.io/mxroute-manager/
+repo_url: https://github.com/t0msh/mxroute-manager
+repo_name: t0msh/mxroute-manager
+edit_uri: edit/dev/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  logo: assets/logo-emerald.svg
+  favicon: assets/logo-emerald.svg
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: README.md
+  - Setup:
+      - Getting started: getting-started.md
+      - Configuration: configuration.md
+      - Settings walkthrough: settings-walkthrough.md
+      - Local admin password: admin-password.md
+      - Reverse proxy: reverse-proxy.md
+  - Features:
+      - Adding a domain: adding-a-domain.md
+      - Bulk mailbox CSV: bulk-mailbox-csv.md
+      - Fleet overview: fleet-overview.md
+      - Access control: access-control.md
+      - HTTP API: api.md
+      - API example scripts: examples/README.md
+      - Mailbox password reset: password-reset.md
+      - Notifications: notifications.md
+      - Audit logs: audit-logs.md
+  - UI reference:
+      - App tour: app-tour.md
+      - Themes: themes.md
+  - Development:
+      - Testing: testing.md
+      - Frontend app scripts: frontend-app-scripts.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/t0msh/mxroute-manager

@@ -173,6 +173,51 @@ curl -sS -X POST \
 
 Webmail is opt-in per domain; bulk fix does not add webmail CNAMEs automatically.
 
+## Example scripts (PowerShell and Bash)
+
+Ready-made scripts live in [docs/examples/](examples/README.md):
+
+| Script | Use case |
+| --- | --- |
+| `deploy-mailbox.ps1` / `deploy-mailbox.sh` | Provision a mailbox from a terminal or CI job |
+| `blacklist-sender.ps1` / `blacklist-sender.sh` | Add an address to SpamAssassin blacklist (Karen from HR, politely) |
+
+Set `MXM_URL` and `MXM_TOKEN`, create a scoped API token, then run. The PowerShell mailbox example:
+
+```powershell
+$env:MXM_URL = "https://manager.example.com"
+$env:MXM_TOKEN = "mxm_your_token_here"
+.\docs\examples\deploy-mailbox.ps1 -Domain "example.com" -Username "alex" -Password "Abcd1234!"
+```
+
+Blacklist example (requires `spam` on the domain):
+
+```powershell
+.\docs\examples\blacklist-sender.ps1 -Domain "example.com" -Entry "karen@hr.example.com"
+```
+
+Bash equivalents use `curl` and the same env vars. See each script's header comments.
+
+### SpamAssassin API quick reference
+
+```bash
+# List blacklist
+curl -sS -H "Authorization: Bearer $MXM_TOKEN" \
+  https://manager.example.com/api/domains/example.com/spam/blacklist
+
+# Add entry (local part or full address)
+curl -sS -X POST \
+  -H "Authorization: Bearer $MXM_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"entry":"karen@hr.example.com"}' \
+  https://manager.example.com/api/domains/example.com/spam/blacklist
+
+# Remove entry (URL-encode special characters)
+curl -sS -X DELETE \
+  -H "Authorization: Bearer $MXM_TOKEN" \
+  "https://manager.example.com/api/domains/example.com/spam/blacklist/karen%40hr.example.com"
+```
+
 ## Route groups (cheat sheet)
 
 The in-app **Settings → API reference** link opens `/api/docs` with the live route table. Broad groups:
@@ -210,6 +255,7 @@ Path parameters use the real domain name (`example.com`), not an internal ID.
 
 | Guide | Topic |
 | --- | --- |
+| [Example scripts](examples/README.md) | PowerShell and Bash starters |
 | [Access control](access-control.md) | Delegations, API tokens, permission matrix |
 | [Configuration](configuration.md) | Env vars, production TLS |
 | [Notifications](notifications.md) | DNS health alerts via Apprise |

@@ -75,7 +75,7 @@ After login, work through these in order:
 2. **Dashboard** - confirm DNS health and mail-hosting status for the active domain.
 3. **Domains** - run the DNS setup wizard if the domain uses Cloudflare (requires `CF_API_TOKEN` and `CF_ACCOUNT_ID` in `.env` or Settings).
 4. **Email Accounts** - provision mailboxes, set recovery emails, copy **Client setup** settings, manage quotas.
-5. **Settings** - review MXroute connectivity, OIDC, SMTP, security options, and open the **API reference**.
+5. **Settings** - review MXroute connectivity, OIDC, SMTP, security options, and open the **API reference**. See [Settings walkthrough](settings-walkthrough.md) for every field.
 
 Most non-secret settings can be changed in **Settings** after first boot. API keys and OIDC client secrets remain environment-only.
 

@@ -90,6 +90,14 @@ High-contrast cyan and magenta on near-black.
 
 Deep purple-tinted dark surfaces with hot-pink accents. Panel cards get a continuously spinning rainbow outline.
 
+**Sign In**
+
+![Unicorn Puke sign in](images/themes/login-rainbow-signin.png)
+
+**Reset Mailbox Password**
+
+![Unicorn Puke reset](images/themes/login-rainbow-reset.png)
+
 ### Light themes
 
 #### Mint Paper (`emerald-light`)
@@ -143,6 +151,14 @@ Light theme with rose-pink accent color.
 #### Cotton Candy (`rainbow-light`)
 
 Light pastel surfaces with animated rainbow card outlines (same family as Unicorn Puke).
+
+**Sign In**
+
+![Cotton Candy sign in](images/themes/login-rainbow-light-signin.png)
+
+**Reset Mailbox Password**
+
+![Cotton Candy reset](images/themes/login-rainbow-light-reset.png)
 
 ## Branded reset portals
 

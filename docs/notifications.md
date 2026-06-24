@@ -2,6 +2,8 @@
 
 MXroute Manager can send alerts when audit events occur (domain deleted, mailbox removed, admin password changed, and so on). Delivery uses [Apprise](https://github.com/caronc/apprise), so one configuration supports ntfy, Discord, Slack, webhooks, email, and many other services.
 
+![Notifications tab](images/app-tour/tab-notifications.png)
+
 ## Quick start
 
 1. Sign in as an **admin** and open the **Notifications** tab.

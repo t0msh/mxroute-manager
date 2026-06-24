@@ -1,6 +1,6 @@
 # App tour
 
-A visual overview of MXroute Manager after login. Screenshots were taken using a couple of differnt workspace themes. For all login and theme variants, see [Themes](themes.md).
+A visual overview of MXroute Manager after login. Screenshots use the **Emerald Glass** workspace theme unless noted. For all login and theme variants, see [Themes](themes.md).
 
 The **global domain selector** at the top of most tabs sets which domain you are managing. Dashboard, Email Accounts, Forwarders, and Spam Controls all respect that selection.
 
@@ -18,15 +18,15 @@ Domain and DNS setup wizard, **Active Domains** list (search + pagination), bulk
 
 ### Password reset portal (admin)
 
-Configure a branded reset page on a subdomain. Example from `cleaver.click`:
+Configure a branded reset page on a subdomain. Example from `actualrealwebsite.com`:
 
-![Reset portal configuration](images/app-tour/domains-reset-portal-cleaver-click.png)
+![Reset portal configuration](images/app-tour/domains-reset-portal-actualrealwebsite.png)
 
 ### Password reset portal (public)
 
 Live portal served at the subdomain after deploy:
 
-![Live reset portal](images/app-tour/reset-portal-cleaver-click.png)
+![Live reset portal](images/app-tour/reset-portal-actualrealwebsite.png)
 
 ## Email Accounts
 
@@ -66,7 +66,9 @@ See [Access control](access-control.md) for permission details and [HTTP API](ap
 
 ## Notifications
 
-Configure Apprise delivery targets, audit event subscriptions, and optional **DNS health monitoring** (scheduled checks with alert/recovery notifications).
+Configure Apprise delivery targets, audit event subscriptions, and optional **DNS health monitoring** (scheduled checks with alert/recovery notifications). See [Notifications](notifications.md).
+
+![Notifications tab](images/app-tour/tab-notifications.png)
 
 ## Logs
 

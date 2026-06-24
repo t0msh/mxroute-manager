@@ -4,7 +4,7 @@ This guide walks through onboarding a **new domain** in MXroute Manager: domain 
 
 To fix DNS, manage routing, set up webmail, or delete an **existing** domain, use that domain's **Actions** menu in the **Active Domains** table (see [Managing existing domains](#managing-existing-domains)).
 
-Screenshots in this guide come from a live setup of `randomwebsite.xyz`. Your domain name and record values will differ, but the steps are the same.
+Screenshots in this guide come from a live setup of `actualrealwebsite.com`. Your domain name and record values will differ, but the steps are the same.
 
 ## Before you start
 
@@ -32,7 +32,7 @@ Mail records (MX, SPF, DKIM, DMARC) only exist **after** Step 3, which is why re
 
 1. Open **Domains** in the sidebar.
 2. In **Add a New Domain**, confirm the domain's nameservers already point to Cloudflare.
-3. Enter the domain name (for example `randomwebsite.xyz`).
+3. Enter the domain name (for example `actualrealwebsite.com`).
 4. Click **Continue to Verification**.
 
 ![Step 1: enter a new domain](images/adding-a-domain/01-step1-new-domain.png)

@@ -94,7 +94,70 @@ def normalize_notification_payload(data):
         if not targets:
             raise ValueError("Add at least one notification target")
 
-    return {"enabled": enabled, "targets": targets, "actions": actions}
+    monitor_raw = (
+        data.get("dns_monitor") if isinstance(data.get("dns_monitor"), dict) else {}
+    )
+    if not monitor_raw and isinstance(existing.get("dns_monitor"), dict):
+        monitor_raw = existing.get("dns_monitor")
+    monitor_enabled = bool(monitor_raw.get("enabled"))
+    try:
+        interval_hours = int(monitor_raw.get("interval_hours", 24))
+    except (TypeError, ValueError):
+        interval_hours = 24
+    interval_hours = max(1, min(168, interval_hours))
+
+    if monitor_enabled:
+        for action_id in ("dns.health_alert", "dns.health_recovered"):
+            if action_id not in actions:
+                actions.append(action_id)
+
+    quota_raw = (
+        data.get("quota_monitor") if isinstance(data.get("quota_monitor"), dict) else {}
+    )
+    if not quota_raw and isinstance(existing.get("quota_monitor"), dict):
+        quota_raw = existing.get("quota_monitor")
+    quota_enabled = bool(quota_raw.get("enabled"))
+    try:
+        quota_interval = int(quota_raw.get("interval_hours", 12))
+    except (TypeError, ValueError):
+        quota_interval = 12
+    quota_interval = max(1, min(168, quota_interval))
+    try:
+        quota_percent = int(quota_raw.get("quota_percent", 90))
+    except (TypeError, ValueError):
+        quota_percent = 90
+    quota_percent = max(50, min(99, quota_percent))
+    try:
+        send_percent = int(quota_raw.get("send_percent", 90))
+    except (TypeError, ValueError):
+        send_percent = 90
+    send_percent = max(50, min(99, send_percent))
+
+    if quota_enabled:
+        for action_id in (
+            "mailbox.quota_alert",
+            "mailbox.quota_recovered",
+            "mailbox.send_limit_alert",
+            "mailbox.send_limit_recovered",
+        ):
+            if action_id not in actions:
+                actions.append(action_id)
+
+    return {
+        "enabled": enabled,
+        "targets": targets,
+        "actions": actions,
+        "dns_monitor": {
+            "enabled": monitor_enabled,
+            "interval_hours": interval_hours,
+        },
+        "quota_monitor": {
+            "enabled": quota_enabled,
+            "interval_hours": quota_interval,
+            "quota_percent": quota_percent,
+            "send_percent": send_percent,
+        },
+    }
 
 
 def resolve_apprise_urls_for_test():

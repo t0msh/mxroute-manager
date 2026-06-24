@@ -178,7 +178,7 @@ Failed SMTP sends do not reveal errors to the end user; the request still return
 | Reset tab hidden on login | `MAILBOX_RESET_ENABLED`, SMTP configured, `/api/public/password-reset/status` |
 | No email received | Recovery email set, SMTP test in Settings, spam folder, audit log for `smtp.send_failed` |
 | Link goes to wrong host | Branded portal enabled/disabled for that domain; `FORCE_HTTPS` and public URL |
-| Portal deploy button missing | Cloudflare + reverse proxy env vars — [Configuration](configuration.md#branded-reset-portals) |
+| Portal deploy button missing | Cloudflare + reverse proxy env vars - [Configuration](configuration.md#branded-reset-portals) |
 | Portal deploy fails on contact email | Add a contact email for your account in Settings or Access Control, or sign in with an email-based login |
 | Reset email From rejected by MXroute | Ensure `reset@{domain}` forwarder exists (re-deploy portal) or domain has catch-all; see [MXroute sender verify](https://docs.mxroute.com/docs/troubleshooting/sender-verify-failed.html) |
 | “Invalid or expired reset link” | Token older than 1 hour, already used, or wrong portal domain |

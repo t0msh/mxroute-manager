@@ -34,6 +34,11 @@
                 <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: var(--color-secondary); cursor: pointer; user-select: none;">
                     <input type="checkbox" id="logs-auto-refresh" style="width: auto; height: auto; margin: 0; cursor: pointer;"> Auto-refresh (10s)
                 </label>
+                <select id="logs-download-format" style="padding: 0.55rem 0.8rem; font-size: 0.85rem; border-radius: 8px;">
+                    <option value="csv" selected>CSV</option>
+                    <option value="jsonl">JSONL</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" id="btn-download-logs" style="padding: 0.55rem 1rem;">{{ icon('download') }} Download</button>
                 <button class="btn btn-secondary btn-sm" id="btn-refresh-logs" style="padding: 0.55rem 1rem;">{{ icon('arrow-clockwise') }} Reload Logs</button>
             </div>
         </div>
@@ -51,9 +56,9 @@
                     </tr>
                 </thead>
                 <tbody id="logs-list-tbody">
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: var(--color-muted); padding: 2rem;">No logs loaded.</td>
-                    </tr>
+                        <tr class="table-empty-row">
+                            <td colspan="5"><div class="table-empty-message">No logs loaded.</div></td>
+                        </tr>
                 </tbody>
             </table>
         </div>

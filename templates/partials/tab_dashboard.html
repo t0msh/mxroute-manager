@@ -31,6 +31,31 @@
         </div>
     </div>
 
+    <div class="glass-card" id="fleet-health-card" style="display: none;">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <span>{{ icon('grid-3x3-gap') }} Fleet overview</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-fleet-health">{{ icon('arrow-clockwise') }} Refresh fleet</button>
+        </div>
+        <p class="stat-card-subtitle mb-4" id="fleet-health-meta">Mail routing, DNS health, and mailbox counts across all domains you can access.</p>
+        <div class="table-container" style="max-height: 360px; overflow: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Domain</th>
+                        <th>Mail</th>
+                        <th>DNS</th>
+                        <th style="text-align: right;">Mailboxes</th>
+                    </tr>
+                </thead>
+                <tbody id="fleet-health-tbody">
+                    <tr class="table-empty-row">
+                        <td colspan="4"><div class="table-empty-message">Loading fleet status...</div></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Detailed Quota Breakdown -->
     <div class="glass-card" id="dash-quota-card">
         <h3 class="card-title">{{ icon('hdd-stack') }} Account Quota Telemetry</h3>

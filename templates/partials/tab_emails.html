@@ -10,6 +10,10 @@
             </p>
         </div>
         <h3 class="card-title">{{ icon('plus-circle') }} Provision New Email Account</h3>
+        <div class="flex-row justify-between align-center mb-4" style="flex-wrap: wrap; gap: 0.75rem;">
+            <p class="stat-card-subtitle" style="margin: 0;">Create one mailbox at a time, or import many from CSV.</p>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-open-mailbox-import">{{ icon('upload') }} Import CSV</button>
+        </div>
         <form id="form-create-email">
             <div class="form-row">
                 <div class="form-group">
@@ -79,31 +83,43 @@
         </form>
     </div>
 
+    <div class="glass-card" id="mailbox-import-progress-card" style="display: none;">
+        <h3 class="card-title">{{ icon('upload') }} Mailbox import</h3>
+        <p id="mailbox-import-progress-label" class="stat-card-subtitle mb-2">0 / 0 processed</p>
+        <p id="mailbox-import-progress-counts" class="stat-card-subtitle mb-4" style="margin-top: 0;">0 created · 0 failed</p>
+        <div class="quota-bar import-progress-bar mb-4">
+            <div class="quota-bar-fill" id="mailbox-import-progress-bar" style="width: 0%; background: var(--accent);"></div>
+        </div>
+        <ul id="mailbox-import-log" class="import-progress-log mb-4"></ul>
+        <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-mailbox-import-download-results" style="display: none;">{{ icon('download') }} Download results CSV</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-mailbox-import-dismiss-progress">Dismiss</button>
+        </div>
+    </div>
+
     <!-- Credentials Output Card -->
     <div id="credentials-output-card" class="glass-card"
         style="display: none; border-color: var(--success); box-shadow: 0 0 20px var(--success-glow);">
         <div class="flex-row justify-between align-center mb-4">
-            <h3 class="card-title" style="color: var(--success); margin-bottom: 0;">{{ icon('check-circle-fill') }} Mailbox Created
+            <h3 id="mail-client-setup-title" class="card-title" style="color: var(--success); margin-bottom: 0;">{{ icon('check-circle-fill') }} Mailbox Created
                 Successfully!</h3>
             <div class="flex-row" style="gap: 0.5rem;">
-                <button type="button" class="btn btn-primary btn-sm" id="btn-copy-mailbox-credentials">{{ icon('clipboard') }} Copy Credentials</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-copy-mailbox-credentials">{{ icon('clipboard') }} Copy All</button>
                 <button class="btn btn-secondary btn-sm"
                     onclick="document.getElementById('credentials-output-card').style.display='none'">Dismiss</button>
             </div>
         </div>
-        <p class="stat-card-subtitle mb-4">Copy or screenshot these configurations to onboard the user:</p>
-        <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid var(--glass-border); border-radius: 8px; padding: 1rem; font-family: monospace; font-size: 0.85rem; color: #adbac7; line-height: 1.6;">
-            <div style="margin-bottom: 0.5rem;"><strong>Username (Email):</strong> <span id="out-email-addr"></span></div>
-            <div style="margin-bottom: 0.5rem;"><strong>Password:</strong> <span id="out-email-pass"></span></div>
-            <div style="margin-bottom: 0.5rem;"><strong>IMAP Hostname:</strong> <span id="out-imap-host"></span> (Port 993, SSL/TLS)</div>
-            <div style="margin-bottom: 0.5rem;"><strong>SMTP Hostname:</strong> <span id="out-smtp-host"></span> (Port 465, SSL/TLS)</div>
-            <div id="out-webmail-row" style="display: none;"><strong>Webmail Link:</strong> <span id="out-webmail-url"></span></div>
-        </div>
+        <p class="stat-card-subtitle mb-4">Share these settings with the mailbox user or import them into a mail client:</p>
+        <div id="mail-client-setup-body"></div>
     </div>
 
     <!-- List Email Accounts -->
-    <div class="glass-card">
-        <h3 class="card-title">{{ icon('clipboard') }} Active Domain Mailboxes</h3>
+    <div class="glass-card" id="emails-list-card">
+        <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+            <span>{{ icon('clipboard') }} Active Mailboxes</span>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-export-mailboxes-csv">{{ icon('download') }} Export CSV</button>
+        </div>
+        <div id="emails-table-controls"></div>
         <div class="table-container">
             <table>
                 <thead>
@@ -116,9 +132,8 @@
                     </tr>
                 </thead>
                 <tbody id="emails-list-tbody">
-                    <tr>
-                        <td colspan="5" style="text-align: center; color: var(--color-muted);">Select a domain
-                            to see email accounts.</td>
+                    <tr class="table-empty-row">
+                        <td colspan="5"><div class="table-empty-message">Select a domain to see email accounts.</div></td>
                     </tr>
                 </tbody>
             </table>

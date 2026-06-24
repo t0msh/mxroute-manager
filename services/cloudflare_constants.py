@@ -1,3 +1,5 @@
+from urllib.parse import urlunparse
+
 MAIL_DNS_RECORD_TYPES = ("mx", "spf", "dkim", "dmarc")
 DNS_RECORD_TYPES = ("verification",) + MAIL_DNS_RECORD_TYPES
 # webmail is deployable/checkable but opt-in: never auto-included by fix-all.
@@ -12,6 +14,13 @@ PENDING_MAIL_CHECK = {
 
 def webmail_host(domain):
     return f"webmail.{domain.lower().strip()}"
+
+
+def webmail_public_url(domain):
+    from os import getenv
+
+    scheme = (getenv("PUBLIC_URL_SCHEME") or "https").strip().rstrip(":")
+    return urlunparse((scheme, webmail_host(domain), "", "", "", ""))
 
 
 def get_webmail_target():

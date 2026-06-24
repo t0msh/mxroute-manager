@@ -6,7 +6,14 @@ from models.db import (
     set_recovery_email,
 )
 from utils.validators import validate_username, validate_recovery_email
-from utils.auth_helpers import require_permission, require_any_permission
+from utils.auth_helpers import (
+    get_current_user,
+    require_permission,
+    require_any_permission,
+)
+from services.mail_client import build_domain_mail_client_settings
+from services.mailbox_import import preview_mailbox_import
+from services.mailbox_provision import provision_mailbox
 from services.mxroute import mx_request, audited_mx, audit
 
 emails_bp = Blueprint("emails", __name__)
@@ -16,10 +23,10 @@ def _mailbox_address(username, domain):
     return f"{username}@{domain}".lower()
 
 
-def _mx_payload_without_recovery(data):
-    if not isinstance(data, dict):
-        return data
-    return {key: value for key, value in data.items() if key != "recovery_email"}
+@emails_bp.route("/api/domains/<domain>/mail-client-settings", methods=["GET"])
+@require_any_permission("dashboard", "emails")
+def get_mail_client_settings(domain):
+    return jsonify({"success": True, "data": build_domain_mail_client_settings(domain)})
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts", methods=["GET"])
@@ -52,36 +59,35 @@ def list_emails(domain):
 @require_permission("emails")
 def create_email_api(domain):
     data = request.json or {}
-    username = data.get("username")
-    if not validate_username(username):
-        return jsonify(
-            {"success": False, "error": {"message": "Invalid mailbox username format"}}
-        ), 400
+    result = provision_mailbox(domain, data)
+    if result.get("ok"):
+        return jsonify({"success": True}), result.get("status", 201)
+    return jsonify(
+        {"success": False, "error": {"message": result.get("message")}}
+    ), result.get("status", 400)
 
-    recovery_email = (data.get("recovery_email") or "").strip().lower() or None
-    mailbox_email = _mailbox_address(username, domain)
-    if recovery_email:
-        ok, message = validate_recovery_email(mailbox_email, recovery_email)
-        if not ok:
-            return jsonify({"success": False, "error": {"message": message}}), 400
 
-    response, status = audited_mx(
-        "POST",
-        f"/domains/{domain}/email-accounts",
-        _mx_payload_without_recovery(data),
-        "mailbox.create",
-        target=mailbox_email,
+@emails_bp.route("/api/email-accounts/import/preview", methods=["POST"])
+def preview_mailbox_import_api():
+    user = get_current_user()
+    if not user:
+        return jsonify({"success": False, "error": {"message": "Unauthorized"}}), 401
+
+    data = request.json or {}
+    rows = data.get("rows") or []
+    default_domain = str(data.get("default_domain") or "").strip().lower()
+    existing_by_domain = data.get("existing_by_domain")
+    preview = preview_mailbox_import(
+        rows,
+        user=user,
+        default_domain=default_domain,
+        existing_by_domain=existing_by_domain,
     )
-    if status in (200, 201, 204):
-        payload = response.get_json()
-        if payload.get("success", True) and recovery_email:
-            set_recovery_email(mailbox_email, recovery_email)
-            audit(
-                "mailbox.recovery_update",
-                target=mailbox_email,
-                recovery_email=recovery_email,
-            )
-    return response, status
+    if not preview.get("ok"):
+        return jsonify(
+            {"success": False, "error": {"message": preview.get("message")}}
+        ), preview.get("status", 400)
+    return jsonify({"success": True, "data": preview["data"]})
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["GET"])

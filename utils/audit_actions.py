@@ -29,6 +29,8 @@ AUDIT_ACTIONS = [
         "description": "Contact email changed",
     },
     # Access control / settings
+    {"id": "api_token.create", "label": "API token created", "group": "Access control"},
+    {"id": "api_token.revoke", "label": "API token revoked", "group": "Access control"},
     {
         "id": "delegation.update",
         "label": "Delegation updated",
@@ -83,6 +85,30 @@ AUDIT_ACTIONS = [
         "group": "Mailboxes",
     },
     {
+        "id": "mailbox.quota_alert",
+        "label": "Mailbox storage threshold exceeded",
+        "group": "Mailboxes",
+        "description": "Scheduled monitor detected high quota usage",
+    },
+    {
+        "id": "mailbox.quota_recovered",
+        "label": "Mailbox storage usage recovered",
+        "group": "Mailboxes",
+        "description": "Scheduled monitor detected quota usage dropped below threshold",
+    },
+    {
+        "id": "mailbox.send_limit_alert",
+        "label": "Mailbox daily send limit threshold exceeded",
+        "group": "Mailboxes",
+        "description": "Scheduled monitor detected high outbound volume",
+    },
+    {
+        "id": "mailbox.send_limit_recovered",
+        "label": "Mailbox daily send usage recovered",
+        "group": "Mailboxes",
+        "description": "Scheduled monitor detected send usage dropped below threshold",
+    },
+    {
         "id": "mailbox.reset_requested",
         "label": "Password reset requested",
         "group": "Mailboxes",
@@ -124,6 +150,24 @@ AUDIT_ACTIONS = [
     {"id": "cloudflare.setup", "label": "Cloudflare DNS setup", "group": "DNS"},
     {"id": "dns.fix", "label": "DNS records fixed", "group": "DNS"},
     {
+        "id": "dns.fix_bulk",
+        "label": "Bulk DNS fix",
+        "group": "DNS",
+        "description": "Multiple domains repaired in one operation",
+    },
+    {
+        "id": "dns.health_alert",
+        "label": "DNS health degraded",
+        "group": "DNS",
+        "description": "Scheduled monitor detected unhealthy or degraded DNS",
+    },
+    {
+        "id": "dns.health_recovered",
+        "label": "DNS health recovered",
+        "group": "DNS",
+        "description": "Scheduled monitor detected DNS returned to healthy",
+    },
+    {
         "id": "reset_portal.dns_deploy",
         "label": "Reset portal DNS deployed",
         "group": "DNS",
@@ -161,6 +205,7 @@ DESTRUCTIVE_ACTION_IDS = frozenset(
         "forwarder.delete",
         "pointer.delete",
         "delegation.revoke",
+        "api_token.revoke",
         "reset_portal.teardown",
         "reset_portal.dns_remove",
         "spam.whitelist_remove",

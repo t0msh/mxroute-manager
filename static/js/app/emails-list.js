@@ -16,6 +16,10 @@ function mailboxActionsMenuHtml(account) {
             </button>
             <div class="action-menu-panel" role="menu" hidden>
                 <button type="button" class="action-menu-item" role="menuitem"
+                    data-action="client-setup" data-username="${username}">
+                    ${bi("envelope-at")} Client setup
+                </button>
+                <button type="button" class="action-menu-item" role="menuitem"
                     data-action="recovery" data-username="${username}" data-recovery-email="${recoveryEmail}">
                     ${bi("envelope")} Recovery email
                 </button>
@@ -43,7 +47,9 @@ function initMailboxActionMenus() {
         const action = item.dataset.action;
         if (!username || !action) return;
 
-        if (action === "recovery") {
+        if (action === "client-setup") {
+            openMailClientSetupModal(username);
+        } else if (action === "recovery") {
             openRecoveryModal(username, item.dataset.recoveryEmail || "");
         } else if (action === "password") {
             openPasswordModal(username);
@@ -163,6 +169,34 @@ async function handleDomainToggleRouting(domain) {
     }
 }
 
+let mailboxesListAll = [];
+let mailboxesListDomain = "";
+let mailboxesTableControls = null;
+
+function renderMailboxesTableView(domain) {
+    if (!mailboxesTableControls) {
+        mailboxesTableControls = mountTableControls("emails-table-controls", {
+            storageKey: "mxm-mailboxes-table",
+            placeholder: "Search mailboxes…",
+            onChange: () => renderMailboxesTableView(mailboxesListDomain),
+        });
+    }
+    if (!mailboxesTableControls) return;
+
+    applyTableView({
+        allItems: mailboxesListAll,
+        controls: mailboxesTableControls,
+        getSearchText: (account) => {
+            const address = `${account.username}@${domain}`;
+            const recovery = account.recovery_email || "";
+            return `${address} ${recovery}`;
+        },
+        renderItems: (accounts) => {
+            renderEmailsList({ success: true, data: accounts }, domain);
+        },
+    });
+}
+
 function renderEmailsList(result, domain) {
     const tbody = document.getElementById("emails-list-tbody");
     setTrustedHtml(tbody, "");
@@ -215,7 +249,11 @@ function renderEmailsList(result, domain) {
             tbody.appendChild(tr);
         });
     } else {
-        setTrustedHtml(tbody, '<tr><td colspan="5" style="text-align: center; color: var(--color-muted);">No mailboxes found for this domain.</td></tr>');
+        const state = mailboxesTableControls?.getState();
+        const message = mailboxesListAll.length && state?.query?.trim()
+            ? "No mailboxes match your search."
+            : "No mailboxes found for this domain.";
+        setTrustedHtml(tbody, tablePlaceholderRowHtml(5, message));
     }
     tbody.dataset.loaded = "true";
 }
@@ -225,12 +263,21 @@ async function loadEmailsList(domain, { force = false } = {}) {
     const card = tbody?.closest(".glass-card");
     const firstLoad = !tbody.querySelector("tr[data-username]") && tbody.dataset.loaded !== "true";
 
+    if (domain !== mailboxesListDomain) {
+        mailboxesListDomain = domain;
+        mailboxesListAll = [];
+        mailboxesTableControls?.setState({ query: "", page: 1 });
+    }
+
     await fetchCachedList({
         url: `/api/domains/${domain}/email-accounts`,
         tbody, card, force, firstLoad,
-        render: (result) => renderEmailsList(result, domain),
-        loadingHtml: loadingRowHtml(5, "Querying mailboxes..."),
-        errorHtml: (err) => `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Failed to load email accounts: ${escapeHtml(err.message)}</td></tr>`,
+        render: (result) => {
+            mailboxesListAll = result?.success && result.data ? result.data : [];
+            renderMailboxesTableView(domain);
+        },
+        loadingHtml: tablePlaceholderRowHtml(5, "Querying mailboxes..."),
+        errorHtml: (err) => tablePlaceholderRowHtml(5, `Failed to load email accounts: ${err.message}`, { error: true }),
     });
 }
 

@@ -1,6 +1,6 @@
 import os
 
-from flask import current_app, jsonify, request
+from flask import Response, current_app, jsonify, request, send_file
 
 from models.db import (
     SETTINGS_UI_KEYS,
@@ -26,6 +26,7 @@ from utils.audit_log import (
     normalize_log_limit,
     read_recent_log_entries,
     resolve_log_file,
+    stream_audit_csv,
 )
 
 
@@ -194,4 +195,39 @@ def get_logs():
                 "available_dates": available_dates,
             },
         }
+    )
+
+
+@admin_bp.route("/api/admin/logs/download", methods=["GET"])
+@require_admin
+def download_logs():
+    log_format = (request.args.get("format") or "csv").strip().lower()
+    if log_format not in ("csv", "jsonl"):
+        return jsonify(
+            {"success": False, "error": {"message": "format must be csv or jsonl"}}
+        ), 400
+
+    try:
+        log_file, current_date = resolve_log_file(request.args.get("date") or None)
+    except ValueError as exc:
+        return jsonify({"success": False, "error": {"message": str(exc)}}), 400
+
+    if not log_file or not os.path.exists(log_file):
+        return jsonify(
+            {"success": False, "error": {"message": "No log file for that date"}}
+        ), 404
+
+    filename = f"audit-{current_date}.{log_format}"
+    if log_format == "jsonl":
+        return send_file(
+            log_file,
+            mimetype="application/x-ndjson",
+            as_attachment=True,
+            download_name=filename,
+        )
+
+    return Response(
+        stream_audit_csv(log_file),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

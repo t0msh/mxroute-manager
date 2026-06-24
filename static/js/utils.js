@@ -23,16 +23,35 @@ export function jsAttrString(value) {
     return escapeHtml(JSON.stringify(String(value ?? "")));
 }
 
-export function formatMailboxCredentialsText(creds) {
-    const lines = [
-        `Username (Email): ${creds.email}`,
-        `Password: ${creds.password}`,
-        `IMAP Hostname: ${creds.imapHost} (Port 993, SSL/TLS)`,
-        `SMTP Hostname: ${creds.smtpHost} (Port 465, SSL/TLS)`,
-    ];
-    if (creds.webmailUrl) {
-        lines.push(`Webmail Link: ${creds.webmailUrl}`);
+export function formatMailboxCredentialsText({ email, password, settings }) {
+    const lines = [`Email address: ${email}`];
+    if (password) {
+        lines.push(`Password: ${password}`);
     }
+    lines.push(
+        "",
+        "IMAP (incoming mail)",
+        `  Server: ${settings.imap.host}`,
+        `  Port: ${settings.imap.port}`,
+        "  Encryption: SSL/TLS",
+        "",
+        "SMTP (outgoing mail) — SSL",
+        `  Server: ${settings.smtp_ssl.host}`,
+        `  Port: ${settings.smtp_ssl.port}`,
+        "  Encryption: SSL/TLS",
+        "",
+        "SMTP (outgoing mail) — STARTTLS",
+        `  Server: ${settings.smtp_starttls.host}`,
+        `  Port: ${settings.smtp_starttls.port}`,
+        "  Encryption: STARTTLS",
+    );
+    if (settings.webmail?.url) {
+        lines.push("", `Webmail: ${settings.webmail.url}`);
+        if (settings.webmail.status === "pending") {
+            lines.push("  (DNS may still be propagating)");
+        }
+    }
+    lines.push("", settings.username_note || "Use your full email address as the username.");
     return lines.join("\n");
 }
 

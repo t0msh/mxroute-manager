@@ -20,15 +20,15 @@ async function loadPointersList(domain, { force = false } = {}) {
                 tbody.appendChild(tr);
             });
         } else {
-            setTrustedHtml(tbody, '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">No pointers configured</td></tr>');
+            setTrustedHtml(tbody, tablePlaceholderRowHtml(3, "No pointers configured"));
         }
     };
 
     await fetchCachedList({
         url: `/api/domains/${domain}/pointers`,
         tbody, card, force, firstLoad, render: renderPointers,
-        loadingHtml: loadingRowHtml(3, "Loading pointers..."),
-        errorHtml: '<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load pointers</td></tr>',
+        loadingHtml: tablePlaceholderRowHtml(3, "Loading pointers..."),
+        errorHtml: tablePlaceholderRowHtml(3, "Failed to load pointers", { error: true }),
     });
 }
 

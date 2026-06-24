@@ -39,8 +39,10 @@ function bumpApiActivity(delta) {
     setApiActivityActive(pendingApiActivity > 0);
 }
 
-function loadingRowHtml(colspan, text) {
-    return `<tr><td colspan="${colspan}" style="text-align: center; color: var(--color-muted);">${escapeHtml(text)}</td></tr>`;
+function tablePlaceholderRowHtml(colspan, text, { error = false } = {}) {
+    const rowClass = error ? "table-empty-row table-empty-row--error" : "table-empty-row";
+    const msgClass = error ? "table-empty-message is-error" : "table-empty-message";
+    return `<tr class="${rowClass}"><td colspan="${colspan}"><div class="${msgClass}">${escapeHtml(text)}</div></td></tr>`;
 }
 
 function rememberBtnIdle(btn) {
@@ -113,6 +115,18 @@ function applyDomainsSectionVisibility() {
     // Adding a new domain registers it on MXroute, which is admin-only.
     const wizard = document.getElementById("domain-setup-wizard");
     if (wizard) wizard.style.display = isAdmin ? "" : "none";
+    updateBulkFixDnsButtonVisibility();
+}
+
+function updateBulkFixDnsButtonVisibility() {
+    const btn = document.getElementById("btn-bulk-fix-dns");
+    if (!btn) return;
+    if (!currentUser?.is_admin) {
+        btn.style.display = "none";
+        return;
+    }
+    const hasUnhealthy = [...domainRowCache.values()].some((row) => row.fixDnsVisible);
+    btn.style.display = hasUnhealthy ? "" : "none";
 }
 
 function applyUserPermissionsUI() {

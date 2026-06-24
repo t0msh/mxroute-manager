@@ -32,7 +32,8 @@ env/
 .aislop/history.jsonl
 .aislop/hook.lock
 
-# OS/IDE metadata
+# MkDocs build output
+site/
 .DS_Store
 .vscode/
 .idea/

@@ -9,7 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-from services.cloudflare import CfDeployContext, deploy_dns_record_to_cf, _webmail_health_check
+from services.cloudflare import (
+    CfDeployContext,
+    deploy_dns_record_to_cf,
+    _webmail_health_check,
+)
 from tests.helpers import (
     auth_post_headers,
     insert_user_with_grants,

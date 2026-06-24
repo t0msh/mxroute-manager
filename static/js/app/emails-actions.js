@@ -78,22 +78,13 @@ document.getElementById("form-create-email").addEventListener("submit", async (e
 
         await apiRequest(`/api/domains/${activeDomain}/email-accounts`, "POST", payload);
 
-        let webmailUrl = null;
-        try {
-            const health = await cachedFetch(`/api/domains/${activeDomain}/dns/setup-health`);
-            if (health?.success && health.data?.checks?.webmail?.status === "pass") {
-                webmailUrl = `https://webmail.${activeDomain}`;
-            }
-        } catch {
-            // ponytail: skip webmail line when health check unavailable
-        }
-
+        const settingsResult = await apiRequest(
+            `/api/domains/${activeDomain}/mail-client-settings`,
+        );
         showMailboxCredentials({
             email: `${username}@${activeDomain}`,
             password,
-            imapHost: `mail.${activeDomain}`,
-            smtpHost: `mail.${activeDomain}`,
-            webmailUrl,
+            settings: settingsResult.data,
         });
         
         showAlert("success", `Mailbox ${username}@${activeDomain} created successfully!`);

@@ -2,8 +2,8 @@ const APP_LOGO_PATH = "/static/logo.svg";
 
 function getThemeIds() {
     return window.Mxm?.themes?.THEME_IDS ?? [
-        "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk",
-        "emerald-light", "indigo-light", "slate-light", "rose-light",
+        "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk", "rainbow",
+        "emerald-light", "indigo-light", "slate-light", "rose-light", "rainbow-light",
     ];
 }
 

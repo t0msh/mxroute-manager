@@ -156,7 +156,7 @@ function renderDelegationsTable(listBody, delegationsRes) {
     knownDelegationUsers = new Set();
     const rows = delegationsRes.success && delegationsRes.data ? delegationsRes.data : [];
     if (!rows.length) {
-        setTrustedHtml(listBody, '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">No delegations configured yet.</td></tr>');
+        setTrustedHtml(listBody, tablePlaceholderRowHtml(3, "No delegations configured yet."));
         return;
     }
     rows.forEach((item) => appendDelegationRow(listBody, item));
@@ -164,7 +164,7 @@ function renderDelegationsTable(listBody, delegationsRes) {
 
 async function loadDelegationsPage(options = {}) {
     const listBody = document.getElementById("delegations-list-tbody");
-    setTrustedHtml(listBody, '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">Querying access delegations...</td></tr>');
+    setTrustedHtml(listBody, tablePlaceholderRowHtml(3, "Querying access delegations..."));
 
     const checklist = document.getElementById("delegation-domains-checklist");
     setTrustedHtml(checklist, '<div style="color: var(--color-muted); font-size: 0.9rem;">Loading available domains...</div>');
@@ -181,8 +181,9 @@ async function loadDelegationsPage(options = {}) {
         renderDelegationDomainsChecklist(domainsRes, checklist);
         renderDelegationsTable(listBody, delegationsRes);
         updateDelegationPasswordHint();
+        await loadApiTokensPage(domainsRes);
     } catch (err) {
-        setTrustedHtml(listBody, `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load delegations: ${escapeHtml(err.message)}</td></tr>`);
+        setTrustedHtml(listBody, tablePlaceholderRowHtml(3, `Failed to load delegations: ${err.message}`, { error: true }));
         setTrustedHtml(checklist, `<div style="color: var(--danger); font-size: 0.9rem;">Failed to load domains: ${escapeHtml(err.message)}</div>`);
     }
 }

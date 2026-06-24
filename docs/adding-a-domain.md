@@ -2,7 +2,7 @@
 
 This guide walks through onboarding a **new domain** in MXroute Manager: domain verification, MXroute registration, and mail DNS at Cloudflare. The flow uses the **Add a New Domain** wizard on the **Domains** tab.
 
-To fix DNS, manage routing, set up webmail, or delete an **existing** domain, use that domain's **Actions** menu in the **Active Account Domains** table (see [Managing existing domains](#managing-existing-domains)).
+To fix DNS, manage routing, set up webmail, or delete an **existing** domain, use that domain's **Actions** menu in the **Active Domains** table (see [Managing existing domains](#managing-existing-domains)).
 
 Screenshots in this guide come from a live setup of `randomwebsite.xyz`. Your domain name and record values will differ, but the steps are the same.
 
@@ -82,7 +82,9 @@ When everything looks good, click **Finish Setup**.
 
 ## Managing existing domains
 
-Each row in **Active Account Domains** has an **Actions** menu (the `⋮` button) for ongoing management:
+The **Active Domains** card lists every domain on the account. Use the search box and pagination (5/10/20 rows) when you manage many zones. Admins also get **Fix unhealthy DNS** to repair all domains that fail the public DNS checklist in one action (webmail CNAME not included).
+
+Each row has an **Actions** menu (the `⋮` button) for ongoing management:
 
 | Action | Who | What it does |
 | --- | --- | --- |
@@ -122,7 +124,8 @@ Mail routing is usually on after registration. If it isn't, use **Enable Routing
 
 | Goal | Guide |
 | --- | --- |
-| Create mailboxes | **Email Accounts** tab in the UI |
+| Create mailboxes | **Email Accounts** tab (search + pagination on large lists) |
+| Script mailbox or DNS changes | [HTTP API](api.md) |
 | Branded password reset portal | [Password reset - Branded portals](password-reset.md#branded-reset-portals) |
 | Delegate access to a domain | [Access control](access-control.md) |
 | Environment and API keys | [Configuration](configuration.md) |

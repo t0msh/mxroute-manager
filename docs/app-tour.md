@@ -6,13 +6,13 @@ The **global domain selector** at the top of most tabs sets which domain you are
 
 ## Dashboard
 
-Overview of the active domain: mail hosting toggle, mailbox count, DNS health, and account quota usage.
+Overview of the active domain: mail hosting toggle, mailbox count, DNS health, and account quota usage. With two or more domains, a **Fleet overview** table shows mail routing, DNS status, and mailbox counts across the account (click a row to switch domains). Details: [Fleet overview](fleet-overview.md).
 
 ![Dashboard](images/app-tour/dashboard.png)
 
 ## Domains
 
-Domain and DNS setup wizard, domain list, and password reset portal configuration. See [Adding a domain](adding-a-domain.md) for the full onboarding walkthrough.
+Domain and DNS setup wizard, **Active Domains** list (search + pagination), bulk DNS fix, and password reset portal configuration. See [Adding a domain](adding-a-domain.md) for the full onboarding walkthrough.
 
 ![Domains tab](images/app-tour/tab-domains.png)
 
@@ -30,13 +30,13 @@ Live portal served at the subdomain after deploy:
 
 ## Email Accounts
 
-Provision mailboxes, view usage and limits, and open per-mailbox actions.
+Provision mailboxes, view usage and limits, search and paginate the **Active Mailboxes** list, **import or export CSV**, and open per-mailbox actions (including **Client setup** for IMAP/SMTP settings).
 
 ![Email Accounts tab](images/app-tour/tab-emails.png)
 
 ### Mailbox actions menu
 
-Recovery email, password, limits, and delete:
+Client setup, recovery email, password, limits, and delete:
 
 ![Mailbox actions menu](images/app-tour/mailbox-actions-menu.png)
 
@@ -58,21 +58,25 @@ SpamAssassin threshold, whitelist, and blacklist for the active domain.
 
 ## Access Control
 
-Create delegated users and assign per-domain permissions.
+Create delegated users, assign per-domain permissions, and manage **API tokens** for automation.
 
 ![Access Control tab](images/app-tour/tab-delegations.png)
 
-See [Access control](access-control.md) for permission details.
+See [Access control](access-control.md) for permission details and [HTTP API](api.md) for scripting.
+
+## Notifications
+
+Configure Apprise delivery targets, audit event subscriptions, and optional **DNS health monitoring** (scheduled checks with alert/recovery notifications).
 
 ## Logs
 
-Audit log of sign-ins, config changes, and admin actions. Filterable and optionally auto-refreshed.
+Audit log of sign-ins, config changes, and admin actions. Filterable, optionally auto-refreshed, and downloadable as CSV or JSONL for the full day. See [Audit logs](audit-logs.md).
 
 ![Logs tab](images/app-tour/tab-logs.png)
 
 ## Settings
 
-MXroute and Cloudflare API settings, OIDC, SMTP for mailbox reset, local admin password, and **theme selection**.
+MXroute and Cloudflare API settings, OIDC, SMTP for mailbox reset, local admin password, **API reference** link, and **theme selection**. Field-by-field guide: [Settings walkthrough](settings-walkthrough.md).
 
 ![Settings tab](images/app-tour/tab-settings.png)
 
@@ -104,7 +108,8 @@ Destructive actions require typing the mailbox address to confirm:
 
 | Guide | Topic |
 | --- | --- |
-| [Themes](themes.md) | All 10 login screen themes |
+| [HTTP API](api.md) | Bearer tokens and curl examples |
+| [Themes](themes.md) | All 12 login screen themes |
 | [Adding a domain](adding-a-domain.md) | Domain wizard step by step |
 | [Access control](access-control.md) | Delegated users |
 | [Password reset](password-reset.md) | Self-service and branded portals |

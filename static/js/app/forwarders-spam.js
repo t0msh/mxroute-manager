@@ -19,7 +19,7 @@ function renderForwardersList(result, domain) {
             tbody.appendChild(tr);
         });
     } else {
-        setTrustedHtml(tbody, '<tr><td colspan="3" style="text-align: center; color: var(--color-muted);">No forwarders active for this domain.</td></tr>');
+        setTrustedHtml(tbody, tablePlaceholderRowHtml(3, "No forwarders active for this domain."));
     }
     tbody.dataset.loaded = "true";
 }
@@ -33,8 +33,8 @@ async function loadForwardersList(domain, { force = false } = {}) {
         url: `/api/domains/${domain}/forwarders`,
         tbody, card, force, firstLoad,
         render: (result) => renderForwardersList(result, domain),
-        loadingHtml: loadingRowHtml(3, "Loading forwarders..."),
-        errorHtml: (err) => `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load forwarders: ${escapeHtml(err.message)}</td></tr>`,
+        loadingHtml: tablePlaceholderRowHtml(3, "Loading forwarders..."),
+        errorHtml: (err) => tablePlaceholderRowHtml(3, `Failed to load forwarders: ${err.message}`, { error: true }),
     });
 }
 
@@ -150,7 +150,7 @@ async function loadSpamList(domain, type, { force = false } = {}) {
                 tbody.appendChild(tr);
             });
         } else {
-            setTrustedHtml(tbody, `<tr><td colspan="2" style="text-align: center; color: var(--color-muted);">No ${type} entries</td></tr>`);
+            setTrustedHtml(tbody, tablePlaceholderRowHtml(2, `No ${type} entries`));
         }
         tbody.dataset.loaded = "true";
     };
@@ -158,8 +158,8 @@ async function loadSpamList(domain, type, { force = false } = {}) {
     await fetchCachedList({
         url: `/api/domains/${domain}/spam/${type}`,
         tbody, card, force, firstLoad, render,
-        loadingHtml: loadingRowHtml(2, `Loading ${type}...`),
-        errorHtml: `<tr><td colspan="2" style="text-align: center; color: var(--danger);">Error loading ${type}</td></tr>`,
+        loadingHtml: tablePlaceholderRowHtml(2, `Loading ${type}...`),
+        errorHtml: (err) => tablePlaceholderRowHtml(2, `Error loading ${type}`, { error: true }),
     });
 }
 

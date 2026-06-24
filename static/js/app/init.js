@@ -28,6 +28,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         refreshDomainsStatusBtn.addEventListener("click", () => refreshDomainsListStatus());
     }
 
+    document.getElementById("btn-bulk-fix-dns")?.addEventListener("click", () => handleBulkFixDns());
+
     // 1. Fetch current user context
     try {
         const meResult = await apiRequest("/api/me");

@@ -163,6 +163,7 @@
                     <button type="button" class="portal-theme-card" data-portal-theme="amber" style="--swatch: #f59e0b;" title="Amber Sunset"><span class="portal-theme-swatch"></span></button>
                     <button type="button" class="portal-theme-card" data-portal-theme="amethyst" style="--swatch: #a855f7;" title="Amethyst Glow"><span class="portal-theme-swatch"></span></button>
                     <button type="button" class="portal-theme-card" data-portal-theme="cyberpunk" style="--swatch: #00f0ff;" title="Cyberpunk"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="rainbow" style="--swatch: conic-gradient(#ff3366, #ff9933, #ffee33, #33ff99, #33ddff, #aa66ff, #ff3366);" title="Unicorn Puke"><span class="portal-theme-swatch portal-theme-swatch-rainbow"></span></button>
                 </div>
                 <h4 class="portal-theme-section-title">Light</h4>
                 <div class="portal-theme-grid" id="reset-portal-theme-grid-light">
@@ -170,6 +171,7 @@
                     <button type="button" class="portal-theme-card" data-portal-theme="indigo-light" style="--swatch: #4f46e5;" title="Indigo Day"><span class="portal-theme-swatch"></span></button>
                     <button type="button" class="portal-theme-card" data-portal-theme="slate-light" style="--swatch: #475569;" title="Slate Office"><span class="portal-theme-swatch"></span></button>
                     <button type="button" class="portal-theme-card" data-portal-theme="rose-light" style="--swatch: #e11d48;" title="Rose Blush"><span class="portal-theme-swatch"></span></button>
+                    <button type="button" class="portal-theme-card" data-portal-theme="rainbow-light" style="--swatch: conic-gradient(#ff6b9d, #ffb347, #fff176, #7bed9f, #70a1ff, #c77dff, #ff6b9d);" title="Cotton Candy"><span class="portal-theme-swatch portal-theme-swatch-rainbow"></span></button>
                 </div>
             </div>
 
@@ -179,7 +181,7 @@
                 <div class="flex-row align-center" style="gap: 1rem; flex-wrap: wrap;">
                     <img id="reset-portal-logo-preview" alt="" style="display: none; max-width: 180px; max-height: 64px; object-fit: contain; border-radius: 8px; background: rgba(0,0,0,0.2); padding: 0.5rem;">
                     <div class="flex-row" style="gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                        <input type="file" id="reset-portal-logo" class="portal-logo-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                        <input type="file" id="reset-portal-logo" class="visually-hidden-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml">
                         <label for="reset-portal-logo" class="btn btn-secondary btn-sm">Browse</label>
                         <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-portal-logo-delete" style="display: none;">Remove logo</button>
                     </div>
@@ -227,9 +229,13 @@
     <div class="glass-card" id="domains-list-card">
         <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
             <span>{{ icon('clipboard') }} Active Domains</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">{{ icon('arrow-clockwise') }} Refresh status</button>
+            <div class="flex-row" style="gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-bulk-fix-dns" style="display: none;">{{ icon('wrench') }} Fix unhealthy DNS</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">{{ icon('arrow-clockwise') }} Refresh status</button>
+            </div>
         </div>
         <p class="stat-card-subtitle mb-4" id="domains-list-status-hint">Mail and DNS status loads in the background and stays cached until a domain change. Click Refresh status to force a recheck.</p>
+        <div id="domains-table-controls"></div>
         <div class="table-container">
             <table>
                 <thead>
@@ -241,9 +247,8 @@
                     </tr>
                 </thead>
                 <tbody id="domains-list-tbody">
-                    <tr>
-                        <td colspan="4" style="text-align: center; color: var(--color-muted);">Loading active
-                            domains...</td>
+                    <tr class="table-empty-row">
+                        <td colspan="4"><div class="table-empty-message">Loading active domains...</div></td>
                     </tr>
                 </tbody>
             </table>
@@ -252,18 +257,6 @@
 </div>
 
 <style>
-    .portal-logo-file-input {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-    }
-
     .portal-theme-section-title {
         font-size: 0.7rem;
         font-weight: 600;
@@ -301,6 +294,10 @@
         border-radius: 7px;
         background: var(--swatch);
         box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+
+    .portal-theme-swatch-rainbow {
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 0 10px rgba(255, 120, 200, 0.35);
     }
 
     .portal-theme-card.active {

@@ -31,6 +31,9 @@ __all__ = [
     "get_dmarc_record",
     "get_env_config",
     "get_notification_settings",
+    "get_dns_health_state",
+    "get_fleet_overview_state",
+    "get_quota_monitor_state",
     "get_oidc_admin_group",
     "get_oidc_admin_users",
     "get_oidc_client_id",
@@ -66,6 +69,9 @@ __all__ = [
     "reset_smtp_use_tls",
     "resolve_notification_email",
     "save_notification_settings",
+    "save_dns_health_state",
+    "save_fleet_overview_state",
+    "save_quota_monitor_state",
     "set_admin_password_hash",
     "set_recovery_email",
     "set_reset_portal_logo",
@@ -130,7 +136,6 @@ from models.db_settings import (
     get_admin_user,
     get_config_value,
     get_dmarc_record,
-    get_notification_settings,
     get_oidc_admin_group,
     get_oidc_admin_users,
     get_oidc_client_id,
@@ -150,10 +155,19 @@ from models.db_settings import (
     mask_settings_for_response,
     migrate_settings_secrets,
     reset_smtp_use_tls,
-    save_notification_settings,
     set_admin_password_hash,
     use_secure_cookies,
     verify_admin_password,
+)
+from models.db_notifications import (
+    get_dns_health_state,
+    get_fleet_overview_state,
+    get_notification_settings,
+    get_quota_monitor_state,
+    save_dns_health_state,
+    save_fleet_overview_state,
+    save_notification_settings,
+    save_quota_monitor_state,
 )
 
 

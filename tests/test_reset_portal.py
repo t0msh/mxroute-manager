@@ -91,6 +91,8 @@ def test_reset_portal_theme_round_trip_and_validation(fresh_db):
 def test_normalize_theme():
     assert normalize_theme("indigo") == "indigo"
     assert normalize_theme(" INDIGO-LIGHT ") == "indigo-light"
+    assert normalize_theme("rainbow") == "rainbow"
+    assert normalize_theme("rainbow-light") == "rainbow-light"
     assert normalize_theme("bogus") == "emerald"
     assert normalize_theme(None) == "emerald"
 

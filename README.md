@@ -1,7 +1,9 @@
 # MXroute Manager
 
-[![Tests](https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml/badge.svg)](https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml)
-[![aislop](https://badges.scanaislop.com/score/t0msh/mxroute-manager.svg)](https://scanaislop.com/t0msh/mxroute-manager)
+<p align="center">
+  <a href="https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml"><img src="https://github.com/t0msh/mxroute-manager/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="https://scanaislop.com/t0msh/mxroute-manager"><img src="https://badges.scanaislop.com/score/t0msh/mxroute-manager.svg" alt="aislop score"></a>
+</p>
 
 <p align="center">
   <img src="static/logo-emerald.svg" alt="MXroute Manager logo" width="220" />
@@ -9,13 +11,11 @@
 
 > [!NOTE]
 >
-> MXroute Manager began as a personal tool to simplify MXroute domain and mailbox management. Most of the codebase was built iteratively with AI-assisted development (Cursor), combined with hands-on work in Python, JavaScript, and third-party APIs.
+> This is a control panel for MXroute. It solves personal annoyances I had with managing many domains and mailboxes, and users that forget their passwords. Full disclosure, a lot of it was written with AI help (Cursor) and then beaten into shape with tests, security review, and real-world DNS pain.
 >
-> The project ships with an automated test suite (Python and JavaScript) covering authentication, delegations, DNS idempotency, and reset-portal isolation - without requiring live MXroute, Cloudflare, or NPM credentials in CI. Security-sensitive paths use CSRF protection, rate limiting, hashed credentials, server-side permission checks, and JSON-line audit logging.
->
-> Run it on infrastructure you control, back up your SQLite database, and review [Getting started](docs/getting-started.md) before exposing the app to the internet.
+> It's meant to run on **your** server. Back up the SQLite database, put it behind TLS, and read [Getting started](docs/getting-started.md) before you expose it to the internet. The test suite runs in CI without live MXroute or Cloudflare keys. Sensitive paths use CSRF, rate limits, hashed credentials, and audit logging.
 
-MXroute Manager is a self-hosted Flask application for managing MXroute domains, mailboxes, forwarders, DNS setup, delegated access, and branded password-reset portals from a single UI.
+A self-hosted Flask app for managing MXroute domains, mailboxes, forwarders, Cloudflare DNS, delegated access, API tokens, and branded password-reset portals. One UI instead of juggling panels and API docs, and yes, it does more than you'd reasonably expect from a side project.
 
 ## Quickstart
 
@@ -31,121 +31,76 @@ docker compose up --build -d
 
 Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` (or `ADMIN_USER`) and your `ADMIN_PASSWORD`.
 
-**Full setup walkthrough** (production TLS, Cloudflare, SMTP, portals): [docs/getting-started.md](docs/getting-started.md)
+Production TLS, Cloudflare, SMTP, portals: [Getting started](docs/getting-started.md)
+
+## What you get
+
+**Tired of five tabs, three panels, and a prayer to the DNS gods?** MXroute Manager is the absurdly over-engineered answer to a simple question: *why can't one app do all of this?*
+
+Spoiler: it can. _And it brought friends._
+
+### Mail, but make it civilised
+
+Provision mailboxes like you're running a boutique ESP. Forwarders, catch-alls, domain pointers, SpamAssassin knobs (whitelist, blacklist, threshold): the whole routing circus. **Bulk CSV import and export** when you have dozens of accounts to onboard and zero patience for one-by-one forms. Per-mailbox **client setup cards** so you never dig through MXroute docs again. Recovery emails, quotas, send limits, and typed-delete confirmations, because mistakes should require commitment.
+
+### DNS that mostly behaves
+
+Cloudflare-aware **setup wizard**, live **health checks**, and a **bulk fix** button for when propagation lied to you. Scheduled **DNS monitoring** watches your public records and screams through Apprise when something drifts, then politely celebrates when it recovers. *(Results may vary. The internet is still the internet.)*
+
+### Command your fleet
+
+Dashboard **fleet overview**: every domain at a glance (mail routing, DNS status, mailbox counts). Click a row, switch context. No more spreadsheet cosplay.
+
+### Access control for grown-ups
+
+**Delegated users** with per-domain permissions (dashboard, mail, forwarders, spam, DNS; mix and match). **API tokens** for the automation gremlins. **OIDC** for the SSO crowd. Your intern gets emails-only on `client-a.com`; your DNS contractor gets DNS-only. Revolutionary concept: *least privilege*.
+
+### Branded password-reset portals
+
+Users forgot their password again? Deploy a **branded reset portal** on your own subdomain: logo, colours, the whole tradeshow booth. Self-service on the login page, or full Cloudflare + reverse-proxy glamour when you want the premium experience.
+
+### Ops that actually notify you
+
+**Apprise** hooks for audit events (domain deleted, mailbox nuked, admin password rotated; pick your nightmares). **Quota and send-limit alerts** before mailboxes hit the wall. Filterable **audit logs** with CSV/JSONL download for the compliance cosplay. Something happened? You'll hear about it on ntfy, Discord, Slack, email, or one of 140+ other services Apprise supports.
+
+### Look good while you suffer
+
+**12 themes**: dark, light, and animated rainbow options for when you're having *that* kind of Tuesday. Because deleting a mailbox at 2am shouldn't look like 2009 cPanel.
+
+---
+
+*Still want the sober walkthrough? The docs table below has you covered.*
 
 ## Documentation
 
-Full index: [docs/README.md](docs/README.md)
+**Online:** [t0msh.github.io/mxroute-manager](https://t0msh.github.io/mxroute-manager/) (MkDocs, published from `main`)
 
-### Setup
+Index: [docs/README.md](docs/README.md)
 
-| Guide | Description |
+| Area | Start here |
 | --- | --- |
-| [docs/getting-started.md](docs/getting-started.md) | First deploy, UI walkthrough, production checklist |
-| [docs/configuration.md](docs/configuration.md) | Environment variables and in-app Settings |
-| [docs/admin-password.md](docs/admin-password.md) | Local admin credentials and recovery |
-| [docs/reverse-proxy.md](docs/reverse-proxy.md) | TLS and branded reset portals (Nginx Proxy Manager) |
-
-### Features
-
-| Guide | Description |
-| --- | --- |
-| [docs/adding-a-domain.md](docs/adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
-| [docs/access-control.md](docs/access-control.md) | Delegated users and per-domain permissions |
-| [docs/password-reset.md](docs/password-reset.md) | Login-page and branded mailbox password reset |
-| [docs/notifications.md](docs/notifications.md) | Audit event alerts via Apprise (ntfy, webhooks, email, etc.) |
-
-### UI reference
-
-| Guide | Description |
-| --- | --- |
-| [docs/app-tour.md](docs/app-tour.md) | Screenshots of every main tab, modals, and reset portal |
-| [docs/themes.md](docs/themes.md) | All 10 workspace themes on the login screen |
-
-### Development
-
-| Guide | Description |
-| --- | --- |
-| [docs/testing.md](docs/testing.md) | Test suite layout and how to run it |
-| [docs/frontend-app-scripts.md](docs/frontend-app-scripts.md) | Split `static/js/app/` files and script load order |
-
-## Features
-
-### Mail and domain operations
-- Register and remove domains on MXroute
-- Provision mailboxes with password, quota, and send-limit controls
-- Optional recovery email per mailbox for self-service password reset
-- Change password, update limits, and delete mailboxes
-- Manage domain pointers and catch-all routing
-- Create and remove forwarders
-- Configure SpamAssassin threshold, whitelist, and blacklist
-- Enable or disable mail hosting for a domain (admin only)
-
-### DNS and Cloudflare workflow
-- 3-step Domain & DNS setup wizard with one-click Cloudflare deploy
-- DNS health checks for MX, SPF, DKIM, DMARC, and verification records
-- Global DNS health status in the UI header
-
-### Branded password-reset portals
-- Per-domain reset pages on a subdomain you choose (e.g. `reset.example.com`)
-- Logo, title, and theme branding
-- One-click **Deploy Portal**: saves settings, uploads logo, and publishes Cloudflare CNAME + [Nginx Proxy Manager](docs/reverse-proxy.md) TLS
-- Teardown removes DNS and NPM resources when a portal is disabled
-
-### Access control and authentication
-- OIDC/SSO login flow with local credential fallback
-- Per-domain permission matrix for delegated users - [docs/access-control.md](docs/access-control.md)
-- Self-service mailbox password reset (login page and branded portals) - [docs/password-reset.md](docs/password-reset.md)
-- Typed confirmations for destructive operations
-
-### Settings and UX
-- In-app Settings for MXroute, OIDC, Cloudflare, SMTP, and local admin
-- Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk, and light variants)
-- Client-side API caching with stale-while-revalidate behaviour
-- Global activity bar and responsive mailbox actions menu
-
-### Security and observability
-- CSRF protection, secure cookies (`FORCE_HTTPS`), server-side permission checks
-- JSON-line audit logs for admin/user actions
-- Hashed single-use reset tokens and rate limiting
+| First deploy | [Getting started](docs/getting-started.md) |
+| Settings tab | [Settings walkthrough](docs/settings-walkthrough.md) |
+| Domains and DNS | [Adding a domain](docs/adding-a-domain.md) |
+| Bulk mailboxes | [Bulk CSV import/export](docs/bulk-mailbox-csv.md) |
+| Team access | [Access control](docs/access-control.md) |
+| Scripting | [HTTP API](docs/api.md) · [Example scripts](docs/examples/README.md) |
+| Alerts and logs | [Notifications](docs/notifications.md) · [Audit logs](docs/audit-logs.md) |
+| UI tour | [App tour](docs/app-tour.md) |
 
 ## Development
-
-### Local (without Docker)
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-python app.py
-```
-
-### Running tests
-
-Tests run automatically in [GitHub Actions](.github/workflows/test.yml) on push and PR.
 
 ```bash
 pip install -r requirements-dev.txt
 pytest
 ```
 
-Coverage:
-
-```bash
-pytest --cov=services --cov=models --cov=utils --cov-report=term-missing
-```
-
-No live API keys needed - tests use a temp SQLite file and mocked APIs. Details: [docs/testing.md](docs/testing.md).
-
-## Roadmap
-
-- [x] Reverse proxy support beyond Nginx Proxy Manager (Cloudflare Tunnel, Caddy, Traefik, manual docs)
-- [ ] Additional deployment examples (systemd, Kubernetes)
-
-## Related guides
-
-See [docs/README.md](docs/README.md) for typical setup paths and the same guide list grouped by topic.
+Details: [Testing](docs/testing.md) · [Frontend scripts](docs/frontend-app-scripts.md) · `mkdocs serve` for docs preview
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
+
+## A note on MXroute
+
+[MXroute](https://mxroute.com) is a genuinely good service. Reliable mail hosting, sensible pricing, and an API that does what it says on the tin. This project exists because *my users* forget passwords, break DNS, and occasionally need forty mailboxes provisioned before the weekend. That is not MXroute's problem. Credit where it's due.

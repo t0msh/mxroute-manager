@@ -6,8 +6,8 @@ function loadTheme() {
 
 function setTheme(theme, save = true) {
     const themes = window.Mxm?.themes?.THEME_IDS ?? [
-        "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk",
-        "emerald-light", "indigo-light", "slate-light", "rose-light",
+        "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk", "rainbow",
+        "emerald-light", "indigo-light", "slate-light", "rose-light", "rainbow-light",
     ];
     const safeTheme = themes.includes(theme) ? theme : "emerald";
     

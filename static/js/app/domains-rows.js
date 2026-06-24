@@ -1,50 +1,106 @@
-async function refreshDomainRowDetails(domain, { force = false } = {}) {
+let domainsListAll = [];
+let domainsTableControls = null;
+
+function renderDomainsTableView() {
+    if (!domainsTableControls) {
+        domainsTableControls = mountTableControls("domains-table-controls", {
+            storageKey: "mxm-domains-table",
+            placeholder: "Search domains…",
+            onChange: () => renderDomainsTableView(),
+        });
+    }
+    if (!domainsTableControls) return;
+
+    const page = applyTableView({
+        allItems: domainsListAll,
+        controls: domainsTableControls,
+        getSearchText: (domain) => domain,
+        renderItems: (domains) => {
+            const tbody = document.getElementById("domains-list-tbody");
+            if (!domains.length) {
+                const state = domainsTableControls.getState();
+                const message = domainsListAll.length
+                    ? (state.query.trim()
+                        ? "No domains match your search."
+                        : "No domains on this page.")
+                    : "No domains found on this account.";
+                setTrustedHtml(
+                    tbody,
+                    tablePlaceholderRowHtml(4, message),
+                );
+                return;
+            }
+            renderDomainsTableRows(domains);
+            prefetchDomainsListStatus(domains);
+        },
+    });
+    return page;
+}
+
+async function ensureDomainRowStatus(domain, { force = false, includeMailboxes = false } = {}) {
+    const detailsUrl = `/api/domains/${domain}`;
+    const healthUrl = `/api/domains/${domain}/dns/setup-health`;
+    const mailboxesUrl = `/api/domains/${domain}/email-accounts`;
     const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
     const mailCell = document.getElementById(`domain-mail-${safeId}`);
     const dnsCell = document.getElementById(`domain-dns-${safeId}`);
-    if (!mailCell || !dnsCell) return;
 
-    const detailsUrl = `/api/domains/${domain}`;
-    const healthUrl = `/api/domains/${domain}/dns/setup-health`;
-    const rowCached = domainRowCache.get(domain);
+    const needsDetails = force || !isCacheFresh(detailsUrl);
+    const needsHealth = force || !isCacheFresh(healthUrl);
+    const needsMailboxes = includeMailboxes && (force || !isCacheFresh(mailboxesUrl));
 
-    if (rowCached) {
-        setTrustedHtml(mailCell, rowCached.mailHtml);
-        setTrustedHtml(dnsCell, rowCached.dnsHtml);
-        renderDomainActionsCell(domain);
+    const cached = domainRowCache.get(domain);
+    if (!needsDetails && !needsHealth && !needsMailboxes) {
+        return cached;
     }
 
-    const needsRefresh = force || !isCacheFresh(detailsUrl) || !isCacheFresh(healthUrl);
-    if (!needsRefresh) return;
+    if (cached) {
+        paintDomainRowCells(domain, cached);
+    }
 
-    const applyFromCache = () => {
-        const dEntry = apiCache.get(detailsUrl);
-        const hEntry = apiCache.get(healthUrl);
-        if (dEntry?.data || hEntry?.data) {
-            applyDomainRowDetails(domain, dEntry?.data, hEntry?.data);
-        }
-    };
+    const detailPromise = needsDetails
+        ? cachedFetch(detailsUrl, {
+            force,
+            onRefreshStart: () => setCellRefreshing(mailCell, true),
+            onRefreshEnd: () => setCellRefreshing(mailCell, false),
+        })
+        : Promise.resolve(apiCache.get(detailsUrl)?.data);
+    const healthPromise = needsHealth
+        ? cachedFetch(healthUrl, {
+            force,
+            onRefreshStart: () => setCellRefreshing(dnsCell, true),
+            onRefreshEnd: () => setCellRefreshing(dnsCell, false),
+        })
+        : Promise.resolve(apiCache.get(healthUrl)?.data);
+    const mailboxPromise = needsMailboxes
+        ? cachedFetch(mailboxesUrl, { force })
+        : Promise.resolve(null);
 
     try {
-        await Promise.all([
-            cachedFetch(detailsUrl, {
-                force,
-                onRefreshStart: () => setCellRefreshing(mailCell, true),
-                onRefreshEnd: () => setCellRefreshing(mailCell, false),
-                onUpdated: applyFromCache,
-            }),
-            cachedFetch(healthUrl, {
-                force,
-                onRefreshStart: () => setCellRefreshing(dnsCell, true),
-                onRefreshEnd: () => setCellRefreshing(dnsCell, false),
-                onUpdated: applyFromCache,
-            }),
+        const [detailsRes, healthRes, mailboxRes] = await Promise.all([
+            detailPromise,
+            healthPromise,
+            mailboxPromise,
         ]);
-        applyFromCache();
+
+        if (needsDetails || needsHealth) {
+            applyDomainRowDetails(domain, detailsRes, healthRes);
+        }
+
+        if (needsMailboxes && mailboxRes?.success && Array.isArray(mailboxRes.data)) {
+            const prev = domainRowCache.get(domain) || {};
+            domainRowCache.set(domain, { ...prev, mailboxCount: mailboxRes.data.length });
+        }
     } catch (err) {
         setCellRefreshing(mailCell, false);
         setCellRefreshing(dnsCell, false);
     }
+
+    return domainRowCache.get(domain);
+}
+
+async function refreshDomainRowDetails(domain, { force = false } = {}) {
+    await ensureDomainRowStatus(domain, { force, includeMailboxes: false });
 }
 
 function renderDomainsTableRows(domains) {
@@ -68,26 +124,25 @@ function renderDomainsTableRows(domains) {
 
 async function refreshDomainsListStatus() {
     const tbody = document.getElementById("domains-list-tbody");
-    const domains = [...tbody.querySelectorAll("tr[data-domain]")].map(row => row.dataset.domain);
+    const domains = [...tbody.querySelectorAll("tr[data-domain]")].map((row) => row.dataset.domain);
     if (!domains.length) {
         showAlert("warning", "No domains to refresh.");
         return;
     }
     const btn = document.getElementById("btn-refresh-domains-status");
+    const card = document.getElementById("domains-list-card");
     if (btn) {
         btn.disabled = true;
         setTrustedHtml(btn, btnLabel("arrow-clockwise", "Refreshing...", true));
     }
     try {
-        await window.Mxm.utils.mapWithConcurrency(
-            domains,
-            5,
-            (domain) => refreshDomainRowDetails(domain, { force: true })
-        );
+        setElementRefreshing(card, true);
+        await hydrateDomainRowsFromFleet({ force: true, paint: true });
         showAlert("success", "Domain mail and DNS status refreshed.");
     } catch (err) {
         showAlert("error", err.message);
     } finally {
+        setElementRefreshing(card, false);
         if (btn) {
             btn.disabled = false;
             setTrustedHtml(btn, btnLabel("arrow-clockwise", "Refresh status"));
@@ -102,7 +157,7 @@ async function loadDomainsList({ force = false } = {}) {
     const firstLoad = !hasRows;
 
     if (firstLoad) {
-        setTrustedHtml(tbody, loadingRowHtml(4, "Querying domains..."));
+        setTrustedHtml(tbody, tablePlaceholderRowHtml(4, "Querying domains..."));
     }
 
     try {
@@ -111,33 +166,34 @@ async function loadDomainsList({ force = false } = {}) {
             onRefreshStart: () => setElementRefreshing(card, true),
             onRefreshEnd: () => setElementRefreshing(card, false),
             onUpdated: (updated) => {
-                if (updated?.success && updated.data?.length) {
-                    const existing = [...tbody.querySelectorAll("tr[data-domain]")].map(r => r.dataset.domain);
-                    const sameList = existing.length === updated.data.length
-                        && updated.data.every(d => existing.includes(d));
-                    if (!sameList) renderDomainsTableRows(updated.data);
+                if (updated?.success) {
+                    domainsListAll = updated.data || [];
+                    renderDomainsTableView();
                 }
             },
         });
 
         if (!result.success || !result.data || result.data.length === 0) {
-            setTrustedHtml(tbody, '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">No domains found on this account.</td></tr>');
+            domainsListAll = [];
+            renderDomainsTableView();
             return;
         }
 
-        const domains = result.data;
-        const existingDomains = [...tbody.querySelectorAll("tr[data-domain]")].map(r => r.dataset.domain);
+        domainsListAll = result.data;
+        const existingDomains = [...tbody.querySelectorAll("tr[data-domain]")].map((r) => r.dataset.domain);
         const sameList = hasRows
-            && existingDomains.length === domains.length
-            && domains.every(d => existingDomains.includes(d));
+            && existingDomains.length === domainsListAll.length
+            && domainsListAll.every((d) => existingDomains.includes(d))
+            && !domainsTableControls?.getState().query;
 
         if (!sameList) {
-            renderDomainsTableRows(domains);
+            renderDomainsTableView();
+        } else {
+            prefetchDomainsListStatus(domainsListAll);
         }
-        prefetchDomainsListStatus(domains);
     } catch (err) {
         if (firstLoad || !hasRows) {
-            setTrustedHtml(tbody, `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: 500;">Failed to load domains: ${escapeHtml(err.message)}</td></tr>`);
+            setTrustedHtml(tbody, tablePlaceholderRowHtml(4, `Failed to load domains: ${err.message}`, { error: true }));
         } else {
             showAlert("error", `Failed to refresh domains: ${err.message}`);
         }

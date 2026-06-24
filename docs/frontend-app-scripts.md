@@ -11,19 +11,23 @@ Scripts must load in the order below. `templates/index.html` lists them in this 
 | File | Role |
 | --- | --- |
 | `state-api.js` | App state, permissions wrappers, `apiRequest`, JSON parsing |
+| `table-controls.js` | Shared search + pagination for domain and mailbox tables |
 | `api-cache.js` | `cachedFetch`, `fetchCachedList`, cache invalidation, refresh indicators |
 | `ui.js` | Alerts, modals, action menus, mobile nav, shared UI helpers |
-| `domains-list.js` | Domain table list, filters, domain action menu markup |
-| `domains-rows.js` | Per-row status refresh, mail/DNS cells, row detail application |
+| `domains-list.js` | Domain table list, bulk DNS fix, domain action menu markup |
+| `domains-rows.js` | Per-row status refresh, mail/DNS cells, paginated domain render |
 | `domain-detail.js` | Single-domain detail panel |
 | `portal.js` | Reset portal settings, deploy, logo upload |
 | `setup-dns.js` | Setup wizard DNS health display |
 | `setup-wizard.js` | Multi-step domain setup wizard |
 | `pointers-dns.js` | DNS pointers tab, cached list loaders |
-| `emails-list.js` | Mailbox list table |
-| `emails-actions.js` | Create, edit, delete mailbox actions |
+| `emails-list.js` | Mailbox list table, search, pagination, client setup modal hooks |
+| `emails-actions.js` | Create, edit, delete mailbox actions, mail client settings |
+| `emails-import.js` | CSV mailbox bulk import/export and progress UI |
+| `fleet-health.js` | Dashboard fleet overview across all domains |
 | `forwarders-spam.js` | Forwarders and spam filter UI |
 | `delegations.js` | Admin delegations page |
+| `api-tokens.js` | API token create/list/revoke UI |
 | `init.js` | `DOMContentLoaded` wiring, tab loaders, global event listeners |
 | `theme-smtp.js` | Theme picker and SMTP settings panel |
 | `notifications-render.js` | Notification settings form rendering |

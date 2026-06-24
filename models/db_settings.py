@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 
@@ -9,7 +8,6 @@ from models.db_constants import (
     ADMIN_PASSWORD_HASH_KEY,
     ENV_ONLY_SECRET_KEYS,
     MASKED_SECRET_KEYS,
-    NOTIFICATION_SETTINGS_KEY,
     SETTINGS_RESPONSE_KEYS,
 )
 
@@ -306,48 +304,3 @@ def reset_smtp_use_tls():
         "1",
         "yes",
     )
-
-
-def _default_notification_settings():
-    return {"enabled": False, "targets": [], "actions": []}
-
-
-def get_notification_settings():
-    raw = get_config_value(NOTIFICATION_SETTINGS_KEY, "")
-    if not raw:
-        return _default_notification_settings()
-    try:
-        data = json.loads(raw)
-    except (TypeError, json.JSONDecodeError):
-        logger.warning("Invalid notification settings JSON; using defaults")
-        return _default_notification_settings()
-    if not isinstance(data, dict):
-        return _default_notification_settings()
-    return {
-        "enabled": bool(data.get("enabled")),
-        "targets": data.get("targets") if isinstance(data.get("targets"), list) else [],
-        "actions": data.get("actions") if isinstance(data.get("actions"), list) else [],
-    }
-
-
-def save_notification_settings(config):
-    if not isinstance(config, dict):
-        raise ValueError("Notification settings must be an object")
-    normalized = {
-        "enabled": bool(config.get("enabled")),
-        "targets": config.get("targets")
-        if isinstance(config.get("targets"), list)
-        else [],
-        "actions": config.get("actions")
-        if isinstance(config.get("actions"), list)
-        else [],
-    }
-    with get_conn() as conn:
-        cursor = conn.cursor()
-        cursor.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-            (NOTIFICATION_SETTINGS_KEY, json.dumps(normalized, ensure_ascii=False)),
-        )
-        conn.commit()
-    invalidate_settings_cache()
-    return normalized

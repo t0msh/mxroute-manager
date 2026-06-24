@@ -2,7 +2,7 @@
 
 MXroute Manager reads settings from environment variables (`.env` or container env) and from the **Settings** tab in the UI. Secrets in the UI are stored in SQLite; API keys and OIDC client secrets are **environment-only** and are not written to the database.
 
-Copy `.env.example` to `.env` as a starting point. For a guided first deploy, start with [Getting started](getting-started.md).
+Copy `.env.example` to `.env` as a starting point. For a guided first deploy, start with [Getting started](getting-started.md). For what each **Settings** field does in the UI, see [Settings walkthrough](settings-walkthrough.md).
 
 ## Setup tiers
 
@@ -71,6 +71,13 @@ Optional. Powers the Domain & DNS wizard, one-click DNS fixes, and branded reset
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
 | `DMARC_RECORD` | No | `v=DMARC1; p=none; ...` | DMARC TXT value used for Cloudflare auto-setup and health checks |
+| `PUBLIC_URL_SCHEME` | No | `https` | URL scheme for generated webmail links in mail-client settings |
+
+## API and automation
+
+API tokens, Bearer auth, and example `curl` commands: [HTTP API](api.md).
+
+The in-app **API reference** (`/api/docs`, admin session) lists every registered route. Open it from **Settings** or read `GET /api/openapi.json` for tooling.
 
 ## Mailbox password reset
 
@@ -150,6 +157,7 @@ Event subscriptions and non-secret target URLs are stored in the database via **
 
 | Guide | Topic |
 | --- | --- |
+| [HTTP API](api.md) | Bearer tokens and route overview |
 | [Getting started](getting-started.md) | First deploy walkthrough |
 | [Local admin password](admin-password.md) | Admin credential seeding and recovery |
 | [Access control](access-control.md) | OIDC and delegated users |

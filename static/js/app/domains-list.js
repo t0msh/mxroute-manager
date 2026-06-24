@@ -16,6 +16,7 @@ async function triggerDataRefresh(options = {}) {
                     tasks.push(loadDomainDetails(activeDomain, { force }));
                     tasks.push(loadDnsHealth(activeDomain, { force }));
                 }
+                tasks.push(loadFleetHealth({ force }));
                 applyDashboardSectionVisibility();
                 await Promise.all(tasks);
                 break;
@@ -219,13 +220,9 @@ function initTableActionMenus(tbodyId, onItemAction) {
 
 function prefetchDomainsListStatus(domains) {
     if (!domains?.length) return;
-    // ponytail: defer so interactive requests (reset portal, dropdowns) get browser connection slots first
+    // ponytail: one fleet snapshot hydrates all domain rows — no per-domain API fan-out
     window.setTimeout(() => {
-        void window.Mxm.utils.mapWithConcurrency(
-            domains,
-            3,
-            (domain) => refreshDomainRowDetails(domain)
-        ).catch(() => {});
+        void hydrateDomainRowsFromFleet({ paint: true }).catch(() => {});
     }, 400);
 }
 
@@ -284,15 +281,9 @@ function renderDomainActionsCell(domain) {
     }));
 }
 
-function applyDomainRowDetails(domain, detailsResult, healthResult) {
-    const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
-    const mailCell = document.getElementById(`domain-mail-${safeId}`);
-    const dnsCell = document.getElementById(`domain-dns-${safeId}`);
-    if (!mailCell || !dnsCell) return;
-
-    const prev = domainRowCache.get(domain) || {};
-    let mailHtml = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
-    let dnsHtml = `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
+function buildDomainRowSnapshot(detailsResult, healthResult, prev = {}) {
+    let mailHtml = prev.mailHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
+    let dnsHtml = prev.dnsHtml || `<span style="color: var(--color-muted); font-size: 0.85rem;">Unknown</span>`;
     let fixDnsVisible = prev.fixDnsVisible ?? false;
     let mailOn = prev.mailOn ?? null;
     let webmailReady = prev.webmailReady ?? false;
@@ -313,10 +304,133 @@ function applyDomainRowDetails(domain, detailsResult, healthResult) {
         cfConfigured = !!health.cf_configured;
     }
 
-    setTrustedHtml(mailCell, mailHtml);
-    setTrustedHtml(dnsCell, dnsHtml);
+    return { mailHtml, dnsHtml, fixDnsVisible, mailOn, webmailReady, cfConfigured };
+}
 
-    domainRowCache.set(domain, { mailHtml, dnsHtml, fixDnsVisible, mailOn, webmailReady, cfConfigured });
-    renderDomainActionsCell(domain);
+function paintDomainRowCells(domain, snapshot) {
+    const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
+    const mailCell = document.getElementById(`domain-mail-${safeId}`);
+    const dnsCell = document.getElementById(`domain-dns-${safeId}`);
+    if (mailCell) setTrustedHtml(mailCell, snapshot.mailHtml);
+    if (dnsCell) setTrustedHtml(dnsCell, snapshot.dnsHtml);
+    if (mailCell || dnsCell) {
+        renderDomainActionsCell(domain);
+        updateBulkFixDnsButtonVisibility();
+    }
+}
+
+function applyDomainRowDetails(domain, detailsResult, healthResult) {
+    const prev = domainRowCache.get(domain) || {};
+    const snapshot = buildDomainRowSnapshot(detailsResult, healthResult, prev);
+    domainRowCache.set(domain, { ...prev, ...snapshot });
+    paintDomainRowCells(domain, snapshot);
+}
+
+function domainSnapshotFromFleetEntry(entry) {
+    const hasMail = entry.mail_hosting != null;
+    const hasDns = !!entry.dns;
+    const detailsResult = hasMail
+        ? { success: true, data: { mail_hosting: entry.mail_hosting } }
+        : null;
+    const healthResult = hasDns
+        ? { success: true, data: entry.dns }
+        : null;
+    return buildDomainRowSnapshot(detailsResult, healthResult, {});
+}
+
+function applyFleetOverviewPayload(payload, { paint = true } = {}) {
+    for (const entry of payload?.domains || []) {
+        const domain = entry?.domain;
+        if (!domain) continue;
+        const prev = domainRowCache.get(domain) || {};
+        const snapshot = domainSnapshotFromFleetEntry(entry);
+        const next = { ...prev, ...snapshot };
+        if (entry.mailbox_count != null) {
+            next.mailboxCount = entry.mailbox_count;
+        }
+        domainRowCache.set(domain, next);
+        if (paint) {
+            paintDomainRowCells(domain, next);
+        }
+    }
+}
+
+async function fetchFleetOverview({ force = false } = {}) {
+    return force
+        ? apiRequest("/api/fleet/overview/refresh", "POST")
+        : apiRequest("/api/fleet/overview", "GET");
+}
+
+async function hydrateDomainRowsFromFleet({ force = false, paint = true } = {}) {
+    const result = await fetchFleetOverview({ force });
+    const payload = result?.data || {};
+    applyFleetOverviewPayload(payload, { paint });
+    return payload;
+}
+
+function fleetTableRowFromEntry(entry) {
+    const domain = entry.domain;
+    const fallback = `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`;
+    const snapshot = domainSnapshotFromFleetEntry(entry);
+    const hasMail = entry.mail_hosting != null;
+    const hasDns = !!entry.dns;
+    const canLoadMail = userHasPermission("emails", domain) || userHasPermission("dashboard", domain);
+    return {
+        domain,
+        mailHtml: hasMail ? snapshot.mailHtml : fallback,
+        dnsHtml: hasDns ? snapshot.dnsHtml : fallback,
+        mailboxCount: canLoadMail && entry.mailbox_count != null
+            ? String(entry.mailbox_count)
+            : "—",
+    };
+}
+
+async function handleBulkFixDns() {
+    const confirmed = await showConfirm({
+        title: "Fix unhealthy DNS",
+        message:
+            "Deploy missing mail DNS records for every domain that is not fully healthy? Webmail CNAME is not included.",
+        confirmLabel: "Fix DNS",
+    });
+    if (!confirmed) return;
+
+    const btn = document.getElementById("btn-bulk-fix-dns");
+    if (btn) {
+        btn.disabled = true;
+        setTrustedHtml(btn, btnLabel("wrench", "Fixing...", true));
+    }
+    try {
+        const result = await apiRequest("/api/cloudflare/dns/fix-bulk", "POST", {
+            only_unhealthy: true,
+        });
+        const outcomes = result.data?.results || {};
+        const fixedCount = Object.values(outcomes).filter(
+            (entry) => entry?.success && (entry.fixed || []).length
+        ).length;
+        const errorCount = Object.values(outcomes).filter((entry) => entry?.success === false).length;
+        if (fixedCount > 0) {
+            showAlert(
+                "success",
+                `DNS updated on ${fixedCount} domain(s). Propagation may take a few minutes.`,
+            );
+        } else if (errorCount > 0) {
+            showAlert("error", `Bulk fix completed with ${errorCount} error(s).`);
+        } else {
+            showAlert("info", "No unhealthy domains needed DNS fixes.");
+        }
+        invalidateApiCache("/api/domains");
+        await loadDomainsList({ force: true });
+        if (fixedCount > 0) {
+            await hydrateDomainRowsFromFleet({ force: true, paint: true });
+        }
+    } catch (err) {
+        showAlert("error", err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            setTrustedHtml(btn, btnLabel("wrench", "Fix unhealthy DNS"));
+            updateBulkFixDnsButtonVisibility();
+        }
+    }
 }
 

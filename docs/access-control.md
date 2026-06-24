@@ -56,6 +56,22 @@ Only administrators can open the **Access Control** tab.
 
 Use **Revoke** on a row in the delegations list. You cannot revoke your own account while signed in as that user.
 
+## API tokens (automation)
+
+Administrators can create **API tokens** at the bottom of the **Access Control** tab. Tokens are for scripts, CI, and other non-browser clients that call the HTTP API.
+
+| Topic | Detail |
+| --- | --- |
+| Format | `mxm_<secret>` shown once at creation |
+| Auth header | `Authorization: Bearer mxm_…` |
+| Scopes | Same permission keys as delegations (`emails`, `dns`, etc.) or full admin |
+| CSRF | Not required for token requests |
+| Management | Create and revoke tokens in the UI only (tokens cannot manage other tokens) |
+
+Example: a token with `emails` on `shop.example.com` can create mailboxes there via `POST /api/domains/shop.example.com/email-accounts` but cannot open **Settings** or list other users' delegations.
+
+Full curl examples and route overview: [HTTP API](api.md).
+
 ## Permission matrix
 
 Each domain grant includes one or more of these permissions:
@@ -85,7 +101,7 @@ These remain restricted to administrators even when a delegated user has broad p
 | --- | --- |
 | Register or delete domains on MXroute | Account-level lifecycle |
 | Toggle mail hosting | Affects entire domain delivery |
-| **Access Control** and **Audit Logs** | Security and governance |
+| **Access Control**, **API Tokens**, and **Audit Logs** | Security and governance |
 | System **Settings** (MXroute keys, OIDC, SMTP, Cloudflare) | Global configuration |
 | Account quota sidebar and dashboard quota card | Account-wide MXroute limits |
 | DNS wizard - register **new** domain on MXroute (step 3) | Creates account resources |
@@ -113,12 +129,13 @@ See [Configuration - Authentication](configuration.md#authentication) for OIDC v
 
 ## Audit trail
 
-Delegation changes are written to the JSON-line audit log (`delegation.update`, `delegation.revoke`). Administrators can review entries under **Audit Logs**.
+Delegation changes are written to the JSON-line audit log (`delegation.update`, `delegation.revoke`). API token lifecycle events use `api_token.create` and `api_token.revoke`. Administrators can review entries under **Audit Logs**.
 
 ## Related guides
 
 | Guide | Topic |
 | --- | --- |
+| [HTTP API](api.md) | Bearer tokens and automation |
 | [Getting started](getting-started.md) | First deploy and initial login |
 | [Configuration](configuration.md) | OIDC and security environment variables |
 | [Local admin password](admin-password.md) | Break-glass admin credentials |

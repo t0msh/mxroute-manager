@@ -132,3 +132,76 @@ def test_mail_status_toggle_admin_only(fresh_db, client, dashboard_token):
 
     assert response.status_code == 403
     mock_mx.assert_not_called()
+
+
+def test_fleet_overview_returns_cached_domains(fresh_db, client, admin_token):
+    import time
+
+    fresh_db.save_fleet_overview_state(
+        {
+            "last_run_at": time.time(),
+            "domains": {
+                "alpha.com": {
+                    "mail_hosting": True,
+                    "dns": {"overall": "healthy", "checks": {"mx": {"status": "pass"}}},
+                    "mailbox_count": 2,
+                },
+                "beta.com": {
+                    "mail_hosting": False,
+                    "dns": {"overall": "degraded", "checks": {}},
+                    "mailbox_count": 0,
+                },
+            },
+        }
+    )
+    with patch(
+        "routes.domains.mx_request_raw",
+        return_value=({"data": ["alpha.com", "beta.com"]}, 200),
+    ):
+        response = client.get("/api/fleet/overview")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert len(payload["data"]["domains"]) == 2
+    assert payload["data"]["domains"][0]["domain"] == "alpha.com"
+
+
+def test_fleet_overview_hides_mailbox_count_without_permission(
+    fresh_db, client, db_connection
+):
+    import time
+
+    insert_user_with_grants(
+        db_connection,
+        "dns@local",
+        grants=[
+            {"domain": "alpha.com", "permissions": ["dns"]},
+            {"domain": "beta.com", "permissions": ["dns"]},
+        ],
+    )
+    prime_authenticated_session(client, "dns@local")
+    fresh_db.save_fleet_overview_state(
+        {
+            "last_run_at": time.time(),
+            "domains": {
+                "alpha.com": {
+                    "mail_hosting": True,
+                    "dns": {"overall": "healthy", "checks": {}},
+                    "mailbox_count": 9,
+                },
+                "beta.com": {
+                    "mail_hosting": True,
+                    "dns": {"overall": "healthy", "checks": {}},
+                    "mailbox_count": 1,
+                },
+            },
+        }
+    )
+    response = client.get("/api/fleet/overview")
+
+    assert response.status_code == 200
+    rows = {row["domain"]: row for row in response.get_json()["data"]["domains"]}
+    assert "mailbox_count" not in rows["alpha.com"]
+    assert "mailbox_count" not in rows["beta.com"]
+

@@ -130,20 +130,19 @@ async function refreshDomainsListStatus() {
         return;
     }
     const btn = document.getElementById("btn-refresh-domains-status");
+    const card = document.getElementById("domains-list-card");
     if (btn) {
         btn.disabled = true;
         setTrustedHtml(btn, btnLabel("arrow-clockwise", "Refreshing...", true));
     }
     try {
-        await window.Mxm.utils.mapWithConcurrency(
-            domains,
-            5,
-            (domain) => refreshDomainRowDetails(domain, { force: true })
-        );
+        setElementRefreshing(card, true);
+        await hydrateDomainRowsFromFleet({ force: true, paint: true });
         showAlert("success", "Domain mail and DNS status refreshed.");
     } catch (err) {
         showAlert("error", err.message);
     } finally {
+        setElementRefreshing(card, false);
         if (btn) {
             btn.disabled = false;
             setTrustedHtml(btn, btnLabel("arrow-clockwise", "Refresh status"));

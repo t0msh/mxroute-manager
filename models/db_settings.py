@@ -8,6 +8,7 @@ from models.db_conn import get_conn, get_env_config
 from models.db_constants import (
     ADMIN_PASSWORD_HASH_KEY,
     DNS_HEALTH_STATE_KEY,
+    FLEET_OVERVIEW_STATE_KEY,
     ENV_ONLY_SECRET_KEYS,
     MASKED_SECRET_KEYS,
     NOTIFICATION_SETTINGS_KEY,
@@ -421,6 +422,42 @@ def save_dns_health_state(state):
         cursor.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
             (DNS_HEALTH_STATE_KEY, json.dumps(normalized, ensure_ascii=False)),
+        )
+        conn.commit()
+    invalidate_settings_cache()
+    return normalized
+
+
+def get_fleet_overview_state():
+    raw = get_config_value(FLEET_OVERVIEW_STATE_KEY, "")
+    if not raw:
+        return {"last_run_at": None, "domains": {}}
+    try:
+        data = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return {"last_run_at": None, "domains": {}}
+    if not isinstance(data, dict):
+        return {"last_run_at": None, "domains": {}}
+    domains = data.get("domains")
+    return {
+        "last_run_at": data.get("last_run_at"),
+        "domains": domains if isinstance(domains, dict) else {},
+    }
+
+
+def save_fleet_overview_state(state):
+    if not isinstance(state, dict):
+        raise ValueError("Fleet overview state must be an object")
+    domains = state.get("domains")
+    normalized = {
+        "last_run_at": state.get("last_run_at"),
+        "domains": domains if isinstance(domains, dict) else {},
+    }
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (FLEET_OVERVIEW_STATE_KEY, json.dumps(normalized, ensure_ascii=False)),
         )
         conn.commit()
     invalidate_settings_cache()

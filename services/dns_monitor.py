@@ -13,6 +13,7 @@ from models.db import (
 from services.cloudflare import build_setup_health, cf_is_configured
 from services.mxroute import audit, mx_request_raw
 from services.quota_monitor import maybe_run_quota_monitor
+from services.fleet_monitor import maybe_run_fleet_overview
 
 logger = logging.getLogger(__name__)
 
@@ -102,15 +103,20 @@ def maybe_run_dns_health_monitor():
 def start_dns_health_monitor(app):
     """Background loop; checks every POLL_SECONDS whether monitors are due."""
 
+    def tick():
+        try:
+            with app.app_context():
+                maybe_run_fleet_overview()
+                maybe_run_dns_health_monitor()
+                maybe_run_quota_monitor()
+        except Exception as exc:
+            logger.exception("Background monitor tick failed: %s", exc)
+
     def loop():
+        tick()
         while True:
             time.sleep(POLL_SECONDS)
-            try:
-                with app.app_context():
-                    maybe_run_dns_health_monitor()
-                    maybe_run_quota_monitor()
-            except Exception as exc:
-                logger.exception("DNS health monitor tick failed: %s", exc)
+            tick()
 
     thread = threading.Thread(target=loop, daemon=True, name="background-monitor")
     thread.start()

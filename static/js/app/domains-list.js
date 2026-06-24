@@ -220,13 +220,9 @@ function initTableActionMenus(tbodyId, onItemAction) {
 
 function prefetchDomainsListStatus(domains) {
     if (!domains?.length) return;
-    // ponytail: defer so interactive requests (reset portal, dropdowns) get browser connection slots first
+    // ponytail: one fleet snapshot hydrates all domain rows — no per-domain API fan-out
     window.setTimeout(() => {
-        void window.Mxm.utils.mapWithConcurrency(
-            domains,
-            3,
-            (domain) => refreshDomainRowDetails(domain)
-        ).catch(() => {});
+        void hydrateDomainRowsFromFleet({ paint: true }).catch(() => {});
     }, 400);
 }
 
@@ -330,6 +326,65 @@ function applyDomainRowDetails(domain, detailsResult, healthResult) {
     paintDomainRowCells(domain, snapshot);
 }
 
+function domainSnapshotFromFleetEntry(entry) {
+    const hasMail = entry.mail_hosting != null;
+    const hasDns = !!entry.dns;
+    const detailsResult = hasMail
+        ? { success: true, data: { mail_hosting: entry.mail_hosting } }
+        : null;
+    const healthResult = hasDns
+        ? { success: true, data: entry.dns }
+        : null;
+    return buildDomainRowSnapshot(detailsResult, healthResult, {});
+}
+
+function applyFleetOverviewPayload(payload, { paint = true } = {}) {
+    for (const entry of payload?.domains || []) {
+        const domain = entry?.domain;
+        if (!domain) continue;
+        const prev = domainRowCache.get(domain) || {};
+        const snapshot = domainSnapshotFromFleetEntry(entry);
+        const next = { ...prev, ...snapshot };
+        if (entry.mailbox_count != null) {
+            next.mailboxCount = entry.mailbox_count;
+        }
+        domainRowCache.set(domain, next);
+        if (paint) {
+            paintDomainRowCells(domain, next);
+        }
+    }
+}
+
+async function fetchFleetOverview({ force = false } = {}) {
+    return force
+        ? apiRequest("/api/fleet/overview/refresh", "POST")
+        : apiRequest("/api/fleet/overview", "GET");
+}
+
+async function hydrateDomainRowsFromFleet({ force = false, paint = true } = {}) {
+    const result = await fetchFleetOverview({ force });
+    const payload = result?.data || {};
+    applyFleetOverviewPayload(payload, { paint });
+    return payload;
+}
+
+function fleetTableRowFromEntry(entry) {
+    const domain = entry.domain;
+    const fallback = `<span style="color: var(--color-muted); font-size: 0.85rem;">—</span>`;
+    const snapshot = domainSnapshotFromFleetEntry(entry);
+    const hasMail = entry.mail_hosting != null;
+    const hasDns = !!entry.dns;
+    const canLoadMail = userHasPermission("emails", domain) || userHasPermission("dashboard", domain);
+    return {
+        domain,
+        mailHtml: hasMail ? snapshot.mailHtml : fallback,
+        dnsHtml: hasDns ? snapshot.dnsHtml : fallback,
+        mailboxCount: canLoadMail && entry.mailbox_count != null
+            ? String(entry.mailbox_count)
+            : "—",
+    };
+}
+
 async function handleBulkFixDns() {
     const confirmed = await showConfirm({
         title: "Fix unhealthy DNS",
@@ -365,6 +420,9 @@ async function handleBulkFixDns() {
         }
         invalidateApiCache("/api/domains");
         await loadDomainsList({ force: true });
+        if (fixedCount > 0) {
+            await hydrateDomainRowsFromFleet({ force: true, paint: true });
+        }
     } catch (err) {
         showAlert("error", err.message);
     } finally {

@@ -179,7 +179,7 @@
                 <div class="flex-row align-center" style="gap: 1rem; flex-wrap: wrap;">
                     <img id="reset-portal-logo-preview" alt="" style="display: none; max-width: 180px; max-height: 64px; object-fit: contain; border-radius: 8px; background: rgba(0,0,0,0.2); padding: 0.5rem;">
                     <div class="flex-row" style="gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-                        <input type="file" id="reset-portal-logo" class="portal-logo-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                        <input type="file" id="reset-portal-logo" class="visually-hidden-file-input" accept="image/png,image/jpeg,image/webp,image/svg+xml">
                         <label for="reset-portal-logo" class="btn btn-secondary btn-sm">Browse</label>
                         <button type="button" class="btn btn-secondary btn-sm" id="btn-reset-portal-logo-delete" style="display: none;">Remove logo</button>
                     </div>
@@ -256,18 +256,6 @@
 </div>
 
 <style>
-    .portal-logo-file-input {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
-    }
-
     .portal-theme-section-title {
         font-size: 0.7rem;
         font-weight: 600;

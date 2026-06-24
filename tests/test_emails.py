@@ -41,7 +41,7 @@ def test_create_email_requires_login(client):
 
 
 def test_create_email_requires_csrf(fresh_db, client, db_connection, emails_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("services.mailbox_provision.audited_mx") as mock_mx:
         response = client.post(
             f"/api/domains/{DOMAIN}/email-accounts",
             json={"username": "alex", "password": "Abcd123!"},
@@ -53,7 +53,7 @@ def test_create_email_requires_csrf(fresh_db, client, db_connection, emails_toke
 
 
 def test_create_email_rejects_invalid_username(fresh_db, client, emails_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("services.mailbox_provision.audited_mx") as mock_mx:
         response = client.post(
             f"/api/domains/{DOMAIN}/email-accounts",
             headers=auth_post_headers(emails_token),
@@ -66,7 +66,7 @@ def test_create_email_rejects_invalid_username(fresh_db, client, emails_token):
 
 
 def test_create_email_rejects_recovery_same_as_mailbox(fresh_db, client, emails_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("services.mailbox_provision.audited_mx") as mock_mx:
         response = client.post(
             f"/api/domains/{DOMAIN}/email-accounts",
             headers=auth_post_headers(emails_token),
@@ -85,7 +85,7 @@ def test_create_email_rejects_recovery_same_as_mailbox(fresh_db, client, emails_
 def test_create_email_strips_recovery_from_mx_payload(fresh_db, client, emails_token):
     with (
         patch(
-            "routes.emails.audited_mx",
+            "services.mailbox_provision.audited_mx",
             return_value=mx_json_response({"success": True}, 201),
         ) as mock_mx,
         patch("routes.emails.audit"),
@@ -111,7 +111,7 @@ def test_create_email_saves_recovery_on_success(
 ):
     with (
         patch(
-            "routes.emails.audited_mx",
+            "services.mailbox_provision.audited_mx",
             return_value=mx_json_response({"success": True}, 201),
         ),
         patch("routes.emails.audit"),

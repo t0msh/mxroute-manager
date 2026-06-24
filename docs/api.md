@@ -120,6 +120,20 @@ curl -sS -X POST \
   https://manager.example.com/api/domains/example.com/email-accounts
 ```
 
+### Preview a CSV mailbox import
+
+Validate rows before creating mailboxes (same permission checks as create). The UI parses CSV client-side, then calls this endpoint:
+
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $MXM_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"default_domain":"example.com","rows":[{"username":"alice","password":"Abcd123!"}]}' \
+  https://manager.example.com/api/email-accounts/import/preview
+```
+
+Creation still uses one `POST` per mailbox (the UI caps parallel requests at 3). Download the template from **Email Accounts → Import CSV** in the app.
+
 ### Fetch IMAP/SMTP settings for a mailbox
 
 ```bash

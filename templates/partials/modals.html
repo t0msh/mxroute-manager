@@ -251,3 +251,65 @@
         </div>
     </div>
 </div>
+
+<!-- Modal: Bulk mailbox CSV import -->
+<div class="modal-overlay" id="modal-mailbox-import">
+    <div class="modal-content" style="max-width: 760px;">
+        <div class="modal-header">
+            <h3>Import mailboxes from CSV</h3>
+            <button type="button" class="alert-banner-close" style="font-size: 1.5rem;" onclick="closeModal('modal-mailbox-import')">×</button>
+        </div>
+        <p class="stat-card-subtitle mb-4">
+            Default domain: <strong id="mailbox-import-domain-hint">example.com</strong>.
+            Add a <code>domain</code> column to import across multiple domains you can access.
+        </p>
+
+        <div id="mailbox-import-step-upload">
+            <div class="form-group mb-4">
+                <label>CSV file</label>
+                <div class="file-input-control">
+                    <input type="file" id="mailbox-import-file" class="visually-hidden-file-input" accept=".csv,text/csv" />
+                    <label for="mailbox-import-file" class="btn btn-secondary btn-sm">{{ icon('upload') }} Browse</label>
+                    <span id="mailbox-import-file-name" class="file-input-name is-empty">No file chosen</span>
+                </div>
+                <p class="stat-card-subtitle" style="margin-top: 0.5rem;">
+                    Columns: <code>username</code>, <code>password</code>, optional <code>quota</code>, <code>limit</code>, <code>recovery_email</code>, <code>domain</code>.
+                </p>
+            </div>
+            <label class="flex-row align-center mb-4" style="gap: 0.6rem;">
+                <input type="checkbox" id="mailbox-import-generate-passwords" checked style="width: auto; height: auto;">
+                <span>Generate secure passwords when the password column is blank</span>
+            </label>
+            <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-mailbox-import-template">{{ icon('download') }} Download template</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-mailbox-import-preview">{{ icon('search') }} Preview import</button>
+            </div>
+        </div>
+
+        <div id="mailbox-import-step-preview" style="display: none;">
+            <p id="mailbox-import-preview-summary" class="stat-card-subtitle mb-4">0 ready</p>
+            <div class="table-container mb-4" style="max-height: 320px; overflow: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Line</th>
+                            <th>Mailbox</th>
+                            <th>Quota</th>
+                            <th>Status</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mailbox-import-preview-tbody">
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--color-muted);">No preview yet.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-mailbox-import-back">Back</button>
+                <button type="button" class="btn btn-primary btn-sm" id="btn-mailbox-import-start" disabled>{{ icon('upload') }} Start import</button>
+            </div>
+        </div>
+    </div>
+</div>

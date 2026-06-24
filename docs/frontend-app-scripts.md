@@ -23,6 +23,7 @@ Scripts must load in the order below. `templates/index.html` lists them in this 
 | `pointers-dns.js` | DNS pointers tab, cached list loaders |
 | `emails-list.js` | Mailbox list table, search, pagination, client setup modal hooks |
 | `emails-actions.js` | Create, edit, delete mailbox actions, mail client settings |
+| `emails-import.js` | CSV mailbox bulk import with progress UI |
 | `forwarders-spam.js` | Forwarders and spam filter UI |
 | `delegations.js` | Admin delegations page |
 | `api-tokens.js` | API token create/list/revoke UI |

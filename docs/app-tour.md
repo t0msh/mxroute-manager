@@ -30,7 +30,7 @@ Live portal served at the subdomain after deploy:
 
 ## Email Accounts
 
-Provision mailboxes, view usage and limits, search and paginate the **Active Mailboxes** list, and open per-mailbox actions (including **Client setup** for IMAP/SMTP settings).
+Provision mailboxes, view usage and limits, search and paginate the **Active Mailboxes** list, **import many from CSV**, and open per-mailbox actions (including **Client setup** for IMAP/SMTP settings).
 
 ![Email Accounts tab](images/app-tour/tab-emails.png)
 

@@ -86,7 +86,7 @@ def test_api_token_skips_csrf(fresh_db, client):
         grants=[{"domain": DOMAIN, "permissions": ["emails"]}],
     )
     with patch(
-        "routes.emails.audited_mx",
+        "services.mailbox_provision.audited_mx",
         return_value=mx_json_response({"success": True}, 201),
     ):
         response = client.post(

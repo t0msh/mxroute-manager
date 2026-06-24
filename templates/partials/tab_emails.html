@@ -10,6 +10,10 @@
             </p>
         </div>
         <h3 class="card-title">{{ icon('plus-circle') }} Provision New Email Account</h3>
+        <div class="flex-row justify-between align-center mb-4" style="flex-wrap: wrap; gap: 0.75rem;">
+            <p class="stat-card-subtitle" style="margin: 0;">Create one mailbox at a time, or import many from CSV.</p>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-open-mailbox-import">{{ icon('upload') }} Import CSV</button>
+        </div>
         <form id="form-create-email">
             <div class="form-row">
                 <div class="form-group">
@@ -77,6 +81,20 @@
             <button type="submit" id="btn-provision-submit" class="btn btn-primary mt-4" disabled>Provision
                 Mailbox</button>
         </form>
+    </div>
+
+    <div class="glass-card" id="mailbox-import-progress-card" style="display: none;">
+        <h3 class="card-title">{{ icon('upload') }} Mailbox import</h3>
+        <p id="mailbox-import-progress-label" class="stat-card-subtitle mb-2">0 / 0 processed</p>
+        <p id="mailbox-import-progress-counts" class="stat-card-subtitle mb-4" style="margin-top: 0;">0 created · 0 failed</p>
+        <div class="quota-bar import-progress-bar mb-4">
+            <div class="quota-bar-fill" id="mailbox-import-progress-bar" style="width: 0%; background: var(--accent);"></div>
+        </div>
+        <ul id="mailbox-import-log" class="import-progress-log mb-4"></ul>
+        <div class="flex-row" style="gap: 0.75rem; flex-wrap: wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-mailbox-import-download-results" style="display: none;">{{ icon('download') }} Download results CSV</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-mailbox-import-dismiss-progress">Dismiss</button>
+        </div>
     </div>
 
     <!-- Credentials Output Card -->

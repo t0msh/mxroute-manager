@@ -8,4 +8,5 @@ def test_admin_settings_routes_registered():
     assert "/api/quota" in rules
     assert "/api/admin/settings" in rules
     assert "/api/admin/logs" in rules
+    assert "/api/admin/logs/download" in rules
     assert "/api/admin/api-tokens" in rules

@@ -85,9 +85,7 @@ def _fleet_overview_payload(user):
 def get_fleet_overview():
     user = get_current_user()
     if not user:
-        return jsonify(
-            {"success": False, "error": {"message": "Unauthorized"}}
-        ), 401
+        return jsonify({"success": False, "error": {"message": "Unauthorized"}}), 401
     return jsonify({"success": True, "data": _fleet_overview_payload(user)})
 
 
@@ -95,9 +93,7 @@ def get_fleet_overview():
 def refresh_fleet_overview():
     user = get_current_user()
     if not user:
-        return jsonify(
-            {"success": False, "error": {"message": "Unauthorized"}}
-        ), 401
+        return jsonify({"success": False, "error": {"message": "Unauthorized"}}), 401
     if not _user_account_domains(user):
         return jsonify(
             {

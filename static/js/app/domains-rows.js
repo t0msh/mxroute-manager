@@ -157,7 +157,7 @@ async function loadDomainsList({ force = false } = {}) {
     const firstLoad = !hasRows;
 
     if (firstLoad) {
-        setTrustedHtml(tbody, loadingRowHtml(4, "Querying domains..."));
+        setTrustedHtml(tbody, tablePlaceholderRowHtml(4, "Querying domains..."));
     }
 
     try {

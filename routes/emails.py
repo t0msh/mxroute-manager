@@ -62,18 +62,16 @@ def create_email_api(domain):
     result = provision_mailbox(domain, data)
     if result.get("ok"):
         return jsonify({"success": True}), result.get("status", 201)
-    return jsonify({"success": False, "error": {"message": result.get("message")}}), result.get(
-        "status", 400
-    )
+    return jsonify(
+        {"success": False, "error": {"message": result.get("message")}}
+    ), result.get("status", 400)
 
 
 @emails_bp.route("/api/email-accounts/import/preview", methods=["POST"])
 def preview_mailbox_import_api():
     user = get_current_user()
     if not user:
-        return jsonify(
-            {"success": False, "error": {"message": "Unauthorized"}}
-        ), 401
+        return jsonify({"success": False, "error": {"message": "Unauthorized"}}), 401
 
     data = request.json or {}
     rows = data.get("rows") or []

@@ -45,10 +45,6 @@ function tablePlaceholderRowHtml(colspan, text, { error = false } = {}) {
     return `<tr class="${rowClass}"><td colspan="${colspan}"><div class="${msgClass}">${escapeHtml(text)}</div></td></tr>`;
 }
 
-function loadingRowHtml(colspan, text) {
-    return tablePlaceholderRowHtml(colspan, text);
-}
-
 function rememberBtnIdle(btn) {
     if (btn && !btn.dataset.idleHtml) {
         btn.dataset.idleHtml = btn.innerHTML;

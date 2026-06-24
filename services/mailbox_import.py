@@ -1,6 +1,13 @@
 """CSV / bulk mailbox import validation."""
 
 from services.mailbox_provision import DEFAULT_LIMIT, DEFAULT_QUOTA, MAX_IMPORT_ROWS
+from utils.auth_helpers import has_permission, is_user_admin
+from utils.validators import (
+    validate_domain,
+    validate_mailbox_password,
+    validate_recovery_email,
+    validate_username,
+)
 
 MAILBOX_CSV_COLUMNS = (
     "username",
@@ -9,13 +16,6 @@ MAILBOX_CSV_COLUMNS = (
     "limit",
     "recovery_email",
     "domain",
-)
-from utils.auth_helpers import has_permission, is_user_admin
-from utils.validators import (
-    validate_domain,
-    validate_mailbox_password,
-    validate_recovery_email,
-    validate_username,
 )
 
 _USERNAME_KEYS = ("username", "user")
@@ -92,7 +92,9 @@ def validate_import_row(row, *, user, default_domain=""):
         errors.append("Domain is required (column or active domain selector).")
     elif not validate_domain(domain):
         errors.append(f"Invalid domain: {domain}")
-    elif user and not is_user_admin(user) and not has_permission(user, domain, "emails"):
+    elif (
+        user and not is_user_admin(user) and not has_permission(user, domain, "emails")
+    ):
         errors.append(f"No emails permission for {domain}")
 
     if not username:
@@ -193,7 +195,8 @@ def preview_mailbox_import(rows, *, user, default_domain="", existing_by_domain=
         }
 
     evaluated = [
-        validate_import_row(row, user=user, default_domain=default_domain) for row in rows
+        validate_import_row(row, user=user, default_domain=default_domain)
+        for row in rows
     ]
     _apply_import_duplicate_checks(evaluated, existing_by_domain)
     valid_count = sum(1 for row in evaluated if row["valid"])

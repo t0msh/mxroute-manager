@@ -33,7 +33,7 @@ async function loadForwardersList(domain, { force = false } = {}) {
         url: `/api/domains/${domain}/forwarders`,
         tbody, card, force, firstLoad,
         render: (result) => renderForwardersList(result, domain),
-        loadingHtml: loadingRowHtml(3, "Loading forwarders..."),
+        loadingHtml: tablePlaceholderRowHtml(3, "Loading forwarders..."),
         errorHtml: (err) => tablePlaceholderRowHtml(3, `Failed to load forwarders: ${err.message}`, { error: true }),
     });
 }
@@ -158,7 +158,7 @@ async function loadSpamList(domain, type, { force = false } = {}) {
     await fetchCachedList({
         url: `/api/domains/${domain}/spam/${type}`,
         tbody, card, force, firstLoad, render,
-        loadingHtml: loadingRowHtml(2, `Loading ${type}...`),
+        loadingHtml: tablePlaceholderRowHtml(2, `Loading ${type}...`),
         errorHtml: (err) => tablePlaceholderRowHtml(2, `Error loading ${type}`, { error: true }),
     });
 }

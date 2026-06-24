@@ -98,14 +98,67 @@ function renderLogsTable() {
     });
 }
 
+async function downloadAuditLogs() {
+    const dateSelect = document.getElementById("logs-date-select");
+    const formatSelect = document.getElementById("logs-download-format");
+    const downloadBtn = document.getElementById("btn-download-logs");
+    const date = dateSelect?.value;
+    if (!date) {
+        showAlert("warning", "No log date selected.");
+        return;
+    }
+
+    const logFormat = formatSelect?.value || "csv";
+    const url = `/api/admin/logs/download?date=${encodeURIComponent(date)}&format=${encodeURIComponent(logFormat)}`;
+
+    if (downloadBtn) {
+        downloadBtn.disabled = true;
+        setTrustedHtml(downloadBtn, btnLabel("download", "Downloading...", true));
+    }
+
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            let message = `HTTP ${response.status}`;
+            try {
+                const result = await response.json();
+                message = result.error?.message || message;
+            } catch (_) {}
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get("Content-Disposition") || "";
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        const fallbackExt = logFormat === "jsonl" ? "jsonl" : "csv";
+        const filename = match?.[1] || `audit-${date}.${fallbackExt}`;
+        const blobUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+        showAlert("error", `Failed to download logs: ${err.message}`);
+    } finally {
+        if (downloadBtn) {
+            downloadBtn.disabled = false;
+            setTrustedHtml(downloadBtn, btnLabel("download", "Download"));
+        }
+    }
+}
+
 function initLogsPageEvents() {
     const dateSelect = document.getElementById("logs-date-select");
     const limitSelect = document.getElementById("logs-limit-select");
     const searchInput = document.getElementById("logs-search");
     const autoRefreshCheckbox = document.getElementById("logs-auto-refresh");
     const refreshBtn = document.getElementById("btn-refresh-logs");
+    const downloadBtn = document.getElementById("btn-download-logs");
 
     if (!dateSelect || !limitSelect || !searchInput || !autoRefreshCheckbox || !refreshBtn) return;
+
+    downloadBtn?.addEventListener("click", downloadAuditLogs);
 
     dateSelect.addEventListener("change", loadLogsPage);
     limitSelect.addEventListener("change", loadLogsPage);

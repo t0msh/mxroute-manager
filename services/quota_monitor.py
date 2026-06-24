@@ -78,7 +78,9 @@ def _send_percent(account):
 def _collect_mailbox_usage(domains):
     results = {}
     with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = {pool.submit(_fetch_domain_mailboxes, domain): domain for domain in domains}
+        futures = {
+            pool.submit(_fetch_domain_mailboxes, domain): domain for domain in domains
+        }
         for future in as_completed(futures):
             domain = futures[future]
             try:

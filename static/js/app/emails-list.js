@@ -276,7 +276,7 @@ async function loadEmailsList(domain, { force = false } = {}) {
             mailboxesListAll = result?.success && result.data ? result.data : [];
             renderMailboxesTableView(domain);
         },
-        loadingHtml: loadingRowHtml(5, "Querying mailboxes..."),
+        loadingHtml: tablePlaceholderRowHtml(5, "Querying mailboxes..."),
         errorHtml: (err) => tablePlaceholderRowHtml(5, `Failed to load email accounts: ${err.message}`, { error: true }),
     });
 }

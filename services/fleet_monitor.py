@@ -70,7 +70,9 @@ def _fleet_row_for_domain(domain):
 def _run_domain_scans(domains):
     results = {}
     with ThreadPoolExecutor(max_workers=5) as pool:
-        futures = {pool.submit(_fleet_row_for_domain, domain): domain for domain in domains}
+        futures = {
+            pool.submit(_fleet_row_for_domain, domain): domain for domain in domains
+        }
         for future in as_completed(futures):
             domain = futures[future]
             try:

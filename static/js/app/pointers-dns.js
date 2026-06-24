@@ -27,7 +27,7 @@ async function loadPointersList(domain, { force = false } = {}) {
     await fetchCachedList({
         url: `/api/domains/${domain}/pointers`,
         tbody, card, force, firstLoad, render: renderPointers,
-        loadingHtml: loadingRowHtml(3, "Loading pointers..."),
+        loadingHtml: tablePlaceholderRowHtml(3, "Loading pointers..."),
         errorHtml: tablePlaceholderRowHtml(3, "Failed to load pointers", { error: true }),
     });
 }

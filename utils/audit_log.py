@@ -1,3 +1,5 @@
+import csv
+import io
 import json
 import logging
 import os
@@ -139,3 +141,36 @@ def read_recent_log_entries(path, limit=DEFAULT_LOG_LIMIT):
         return []
 
     return entries[:limit]
+
+
+def stream_audit_csv(path):
+    """Yield CSV chunks for an audit log file (header first)."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(["timestamp", "user", "action", "target", "details"])
+    yield buffer.getvalue()
+
+    try:
+        with open(path, encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                buffer.seek(0)
+                buffer.truncate(0)
+                writer.writerow(
+                    [
+                        entry.get("timestamp", ""),
+                        entry.get("user", ""),
+                        entry.get("action", ""),
+                        entry.get("target", ""),
+                        json.dumps(entry.get("details") or {}, ensure_ascii=False),
+                    ]
+                )
+                yield buffer.getvalue()
+    except OSError:
+        return

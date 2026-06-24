@@ -166,7 +166,7 @@ async function loadApiTokensPage(domainsRes = null) {
 
     setTrustedHtml(
         listBody,
-        loadingRowHtml(4, "Loading API tokens..."),
+        tablePlaceholderRowHtml(4, "Loading API tokens..."),
     );
 
     try {

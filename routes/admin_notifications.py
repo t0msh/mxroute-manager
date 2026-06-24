@@ -94,7 +94,32 @@ def normalize_notification_payload(data):
         if not targets:
             raise ValueError("Add at least one notification target")
 
-    return {"enabled": enabled, "targets": targets, "actions": actions}
+    monitor_raw = (
+        data.get("dns_monitor") if isinstance(data.get("dns_monitor"), dict) else {}
+    )
+    if not monitor_raw and isinstance(existing.get("dns_monitor"), dict):
+        monitor_raw = existing.get("dns_monitor")
+    monitor_enabled = bool(monitor_raw.get("enabled"))
+    try:
+        interval_hours = int(monitor_raw.get("interval_hours", 24))
+    except (TypeError, ValueError):
+        interval_hours = 24
+    interval_hours = max(1, min(168, interval_hours))
+
+    if monitor_enabled:
+        for action_id in ("dns.health_alert", "dns.health_recovered"):
+            if action_id not in actions:
+                actions.append(action_id)
+
+    return {
+        "enabled": enabled,
+        "targets": targets,
+        "actions": actions,
+        "dns_monitor": {
+            "enabled": monitor_enabled,
+            "interval_hours": interval_hours,
+        },
+    }
 
 
 def resolve_apprise_urls_for_test():

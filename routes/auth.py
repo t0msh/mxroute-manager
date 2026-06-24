@@ -31,7 +31,10 @@ from models.db import (
     resolve_notification_email,
     set_user_contact_email,
 )
-from utils.auth_helpers import get_oidc_config, get_current_user
+from utils.auth_helpers import (
+    get_oidc_config,
+    get_current_user,
+)
 from utils.audit_log import write_audit_log
 from utils.validators import is_email_identifier
 from utils.rate_limit import SlidingWindowRateLimiter

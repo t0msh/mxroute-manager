@@ -1,3 +1,42 @@
+let domainsListAll = [];
+let domainsTableControls = null;
+
+function renderDomainsTableView() {
+    if (!domainsTableControls) {
+        domainsTableControls = mountTableControls("domains-table-controls", {
+            storageKey: "mxm-domains-table",
+            placeholder: "Search domains…",
+            onChange: () => renderDomainsTableView(),
+        });
+    }
+    if (!domainsTableControls) return;
+
+    const page = applyTableView({
+        allItems: domainsListAll,
+        controls: domainsTableControls,
+        getSearchText: (domain) => domain,
+        renderItems: (domains) => {
+            const tbody = document.getElementById("domains-list-tbody");
+            if (!domains.length) {
+                const state = domainsTableControls.getState();
+                const message = domainsListAll.length
+                    ? (state.query.trim()
+                        ? "No domains match your search."
+                        : "No domains on this page.")
+                    : "No domains found on this account.";
+                setTrustedHtml(
+                    tbody,
+                    `<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">${escapeHtml(message)}</td></tr>`,
+                );
+                return;
+            }
+            renderDomainsTableRows(domains);
+            prefetchDomainsListStatus(domains);
+        },
+    });
+    return page;
+}
+
 async function refreshDomainRowDetails(domain, { force = false } = {}) {
     const safeId = domain.replace(/[^a-zA-Z0-9-]/g, "-");
     const mailCell = document.getElementById(`domain-mail-${safeId}`);
@@ -68,7 +107,7 @@ function renderDomainsTableRows(domains) {
 
 async function refreshDomainsListStatus() {
     const tbody = document.getElementById("domains-list-tbody");
-    const domains = [...tbody.querySelectorAll("tr[data-domain]")].map(row => row.dataset.domain);
+    const domains = [...tbody.querySelectorAll("tr[data-domain]")].map((row) => row.dataset.domain);
     if (!domains.length) {
         showAlert("warning", "No domains to refresh.");
         return;
@@ -111,30 +150,31 @@ async function loadDomainsList({ force = false } = {}) {
             onRefreshStart: () => setElementRefreshing(card, true),
             onRefreshEnd: () => setElementRefreshing(card, false),
             onUpdated: (updated) => {
-                if (updated?.success && updated.data?.length) {
-                    const existing = [...tbody.querySelectorAll("tr[data-domain]")].map(r => r.dataset.domain);
-                    const sameList = existing.length === updated.data.length
-                        && updated.data.every(d => existing.includes(d));
-                    if (!sameList) renderDomainsTableRows(updated.data);
+                if (updated?.success) {
+                    domainsListAll = updated.data || [];
+                    renderDomainsTableView();
                 }
             },
         });
 
         if (!result.success || !result.data || result.data.length === 0) {
-            setTrustedHtml(tbody, '<tr><td colspan="4" style="text-align: center; color: var(--color-muted);">No domains found on this account.</td></tr>');
+            domainsListAll = [];
+            renderDomainsTableView();
             return;
         }
 
-        const domains = result.data;
-        const existingDomains = [...tbody.querySelectorAll("tr[data-domain]")].map(r => r.dataset.domain);
+        domainsListAll = result.data;
+        const existingDomains = [...tbody.querySelectorAll("tr[data-domain]")].map((r) => r.dataset.domain);
         const sameList = hasRows
-            && existingDomains.length === domains.length
-            && domains.every(d => existingDomains.includes(d));
+            && existingDomains.length === domainsListAll.length
+            && domainsListAll.every((d) => existingDomains.includes(d))
+            && !domainsTableControls?.getState().query;
 
         if (!sameList) {
-            renderDomainsTableRows(domains);
+            renderDomainsTableView();
+        } else {
+            prefetchDomainsListStatus(domainsListAll);
         }
-        prefetchDomainsListStatus(domains);
     } catch (err) {
         if (firstLoad || !hasRows) {
             setTrustedHtml(tbody, `<tr><td colspan="4" style="text-align: center; color: var(--danger); font-weight: 500;">Failed to load domains: ${escapeHtml(err.message)}</td></tr>`);

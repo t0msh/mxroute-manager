@@ -14,9 +14,10 @@
 | Guide | Description |
 | --- | --- |
 | [Adding a domain](adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
-| [Access control](access-control.md) | Delegated users, permissions, admin vs delegated operations |
+| [Access control](access-control.md) | Delegated users, API tokens, permissions, admin vs delegated operations |
+| [HTTP API](api.md) | Bearer tokens, curl examples, route overview |
 | [Mailbox password reset](password-reset.md) | Login-page reset and branded per-domain portals |
-| [Notifications](notifications.md) | Audit event alerts via Apprise (ntfy, webhooks, email, etc.) |
+| [Notifications](notifications.md) | Audit event alerts, DNS health monitoring, Apprise targets |
 
 ## UI reference
 
@@ -40,6 +41,8 @@
 
 **Delegated team access** - Production setup, then [Access control](access-control.md).
 
+**Automation / scripting** - [HTTP API](api.md) for Bearer tokens and curl recipes.
+
 **Mailbox self-service reset** - [Password reset](password-reset.md) (login page only, or branded portals with Cloudflare + a reverse proxy backend).
 
 Feature overview and roadmap: [main README](../README.md).
@@ -50,8 +53,9 @@ Feature overview and roadmap: [main README](../README.md).
 | --- | --- |
 | [Getting started](getting-started.md) | First deploy from clone to login |
 | [Configuration](configuration.md) | All environment variables |
+| [HTTP API](api.md) | Scripting with API tokens |
 | [Local admin password](admin-password.md) | Break-glass admin credentials |
-| [Access control](access-control.md) | Delegated users and permissions |
+| [Access control](access-control.md) | Delegated users, API tokens, permissions |
 | [Password reset](password-reset.md) | Mailbox self-service reset |
 | [App tour](app-tour.md) | UI screenshots and modals |
 | [Themes](themes.md) | Login screen theme gallery |

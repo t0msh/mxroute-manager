@@ -274,3 +274,47 @@ def test_delete_email_rejects_invalid_username(fresh_db, client, emails_token):
 
     assert response.status_code == 400
     mock_mx.assert_not_called()
+
+
+def test_mail_client_settings_requires_login(client):
+    response = client.get(f"/api/domains/{DOMAIN}/mail-client-settings")
+    assert response.status_code == 401
+
+
+def test_mail_client_settings_forbidden_without_emails_grant(
+    fresh_db, client, db_connection
+):
+    insert_user_with_grants(
+        db_connection,
+        "viewer@local",
+        grants=[{"domain": DOMAIN, "permissions": ["forwarders"]}],
+    )
+    prime_authenticated_session(client, "viewer@local")
+    response = client.get(f"/api/domains/{DOMAIN}/mail-client-settings")
+    assert response.status_code == 403
+
+
+def test_mail_client_settings_returns_domain_settings(fresh_db, client, emails_token):
+    settings = {
+        "domain": DOMAIN,
+        "mail_host": f"mail.{DOMAIN}",
+        "imap": {"host": f"mail.{DOMAIN}", "port": 993, "encryption": "ssl"},
+        "smtp_ssl": {"host": f"mail.{DOMAIN}", "port": 465, "encryption": "ssl"},
+        "smtp_starttls": {
+            "host": f"mail.{DOMAIN}",
+            "port": 587,
+            "encryption": "starttls",
+        },
+        "webmail": {"url": None, "status": "skipped"},
+        "username_note": "Use your full email address as the username.",
+    }
+    with patch(
+        "routes.emails.build_domain_mail_client_settings",
+        return_value=settings,
+    ):
+        response = client.get(f"/api/domains/{DOMAIN}/mail-client-settings")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["data"]["mail_host"] == f"mail.{DOMAIN}"

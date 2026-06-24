@@ -290,6 +290,36 @@ def test_notification_api_round_trip(admin_client):
     assert len(data["targets"]) == 1
 
 
+def test_notification_save_persists_dns_monitor(admin_client):
+    client, token = admin_client
+
+    with patch(
+        "utils.apprise_builder.validate_apprise_url", side_effect=lambda url: url
+    ):
+        save_res = client.post(
+            "/api/admin/notifications",
+            data=json.dumps(
+                {
+                    "enabled": False,
+                    "targets": [],
+                    "actions": [],
+                    "dns_monitor": {"enabled": True, "interval_hours": 12},
+                }
+            ),
+            headers=auth_post_headers(token),
+        )
+
+    assert save_res.status_code == 200
+    saved = save_res.get_json()["data"]
+    assert saved["dns_monitor"]["enabled"] is True
+    assert saved["dns_monitor"]["interval_hours"] == 12
+
+    get_res = client.get("/api/admin/notifications", headers=auth_post_headers(token))
+    loaded = get_res.get_json()["data"]
+    assert loaded["dns_monitor"]["enabled"] is True
+    assert loaded["dns_monitor"]["interval_hours"] == 12
+
+
 def test_notification_parse_endpoint(admin_client):
     client, token = admin_client
     parse_res = client.post(

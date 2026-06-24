@@ -113,6 +113,18 @@ function applyDomainsSectionVisibility() {
     // Adding a new domain registers it on MXroute, which is admin-only.
     const wizard = document.getElementById("domain-setup-wizard");
     if (wizard) wizard.style.display = isAdmin ? "" : "none";
+    updateBulkFixDnsButtonVisibility();
+}
+
+function updateBulkFixDnsButtonVisibility() {
+    const btn = document.getElementById("btn-bulk-fix-dns");
+    if (!btn) return;
+    if (!currentUser?.is_admin) {
+        btn.style.display = "none";
+        return;
+    }
+    const hasUnhealthy = [...domainRowCache.values()].some((row) => row.fixDnsVisible);
+    btn.style.display = hasUnhealthy ? "" : "none";
 }
 
 function applyUserPermissionsUI() {

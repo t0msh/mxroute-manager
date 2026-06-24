@@ -97,6 +97,19 @@ def _create_tables(cursor):
         ON domain_reset_portals(portal_host)
         WHERE portal_host != '' AND enabled = 1
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS api_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            label TEXT NOT NULL,
+            token_prefix TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            is_admin INTEGER NOT NULL DEFAULT 0,
+            grants_json TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT NOT NULL,
+            last_used_at TEXT,
+            revoked_at TEXT
+        );
+    """)
 
 
 def _migrate_json_domain_mapping(cursor, conn, logger):

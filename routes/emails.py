@@ -7,6 +7,7 @@ from models.db import (
 )
 from utils.validators import validate_username, validate_recovery_email
 from utils.auth_helpers import require_permission, require_any_permission
+from services.mail_client import build_domain_mail_client_settings
 from services.mxroute import mx_request, audited_mx, audit
 
 emails_bp = Blueprint("emails", __name__)
@@ -20,6 +21,12 @@ def _mx_payload_without_recovery(data):
     if not isinstance(data, dict):
         return data
     return {key: value for key, value in data.items() if key != "recovery_email"}
+
+
+@emails_bp.route("/api/domains/<domain>/mail-client-settings", methods=["GET"])
+@require_any_permission("dashboard", "emails")
+def get_mail_client_settings(domain):
+    return jsonify({"success": True, "data": build_domain_mail_client_settings(domain)})
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts", methods=["GET"])

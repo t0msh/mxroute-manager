@@ -26,6 +26,7 @@ from models.db import (
 from app_meta import APP_VERSION, get_about_info, get_version_label
 from utils.icons import icon
 from routes import (
+    api_docs_bp,
     auth_bp,
     domains_bp,
     emails_bp,
@@ -34,6 +35,12 @@ from routes import (
     admin_bp,
     password_reset_bp,
     reset_portal_bp,
+)
+from services.dns_monitor import start_dns_health_monitor
+from utils.auth_helpers import (
+    authenticate_bearer_token,
+    get_current_user,
+    is_api_token_auth,
 )
 from services.mail import is_password_reset_available
 from services.reset_portal import is_portal_allowed_path, get_portal_branding_context
@@ -88,9 +95,11 @@ app.register_blueprint(cloudflare_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(password_reset_bp)
 app.register_blueprint(reset_portal_bp)
+app.register_blueprint(api_docs_bp)
 
 PUBLIC_PATHS = frozenset(
     {
+        "/health",
         "/login",
         "/login/redirect",
         "/oidc/callback",
@@ -153,15 +162,25 @@ app.config.update(
 )
 
 init_db(app.logger)
+start_dns_health_monitor(app)
 
 
 # Route interceptor to enforce login globally
+@app.before_request
+def authenticate_api_token():
+    if _is_public_request():
+        return
+    bearer_user = authenticate_bearer_token()
+    if bearer_user:
+        g.request_user = bearer_user
+
+
 @app.before_request
 def check_authentication():
     if _is_public_request():
         return
 
-    user = session.get("user")
+    user = get_current_user()
     if not user:
         if request.path.startswith("/api/"):
             return jsonify(
@@ -219,6 +238,8 @@ def csrf_protect():
         # Exclude specific paths like login endpoints
         if request.path in CSRF_EXEMPT_PATHS:
             return
+        if is_api_token_auth():
+            return
 
         token = request.headers.get("X-CSRF-Token") or request.form.get("csrf_token")
         expected_token = session.get("csrf_token")
@@ -234,6 +255,11 @@ def csrf_protect():
                     "error": {"message": "Bad Request: CSRF token missing or invalid"},
                 }
             ), 400
+
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
 
 
 @app.route("/")

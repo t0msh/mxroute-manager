@@ -9,10 +9,10 @@ Set `FORCE_HTTPS=true` and `TRUSTED_PROXY_COUNT=1` (or the number of proxies in 
 | Proxy | One-click portal deploy | Notes |
 | --- | --- | --- |
 | [Nginx Proxy Manager](https://nginxproxymanager.com/) | **Yes** (default) | `REVERSE_PROXY_BACKEND=npm` |
-| [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/) | **Yes** | `REVERSE_PROXY_BACKEND=cloudflare_tunnel` — TLS at Cloudflare edge |
+| [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/) | **Yes** | `REVERSE_PROXY_BACKEND=cloudflare_tunnel` - TLS at Cloudflare edge |
 | [Caddy](https://caddyserver.com/) | **Yes** | Admin API + DNS ACME via Cloudflare |
 | [Traefik](https://traefik.io/) | **Yes** (file provider) | Writes dynamic config fragments; you configure the cert resolver |
-| Raw nginx, HAProxy, Apache | Manual | `REVERSE_PROXY_BACKEND=manual` — UI shows copy-paste snippets |
+| Raw nginx, HAProxy, Apache | Manual | `REVERSE_PROXY_BACKEND=manual` - UI shows copy-paste snippets |
 | Pangolin, SWAG, K8s Ingress | Manual | Same as any other proxy: forward to `:5000` and configure portal vhosts by hand |
 
 The **main app** works behind any reverse proxy. **Deploy Portal** (branded reset pages) uses the backend selected by `REVERSE_PROXY_BACKEND`.
@@ -103,7 +103,7 @@ Configured in **Domains → Password Reset Portal** per domain.
 ### One-click deploy workflow
 
 1. Choose a subdomain (e.g. `reset`) and optional branding (title, logo, theme).
-2. Click **Deploy Portal** — the app saves settings, creates a proxied Cloudflare CNAME, and configures your selected reverse-proxy backend.
+2. Click **Deploy Portal** - the app saves settings, creates a proxied Cloudflare CNAME, and configures your selected reverse-proxy backend.
 3. Share the portal URL with mailbox owners on that domain.
 
 Disabling a portal removes the CNAME and proxy route when automation is configured.
@@ -111,7 +111,7 @@ Disabling a portal removes the CNAME and proxy route when automation is configur
 ### Nginx Proxy Manager (default)
 
 - `NPM_API_URL`, `NPM_IDENTITY`, `NPM_SECRET`, `NPM_FORWARD_HOST`, `NPM_FORWARD_PORT`
-- `RESET_PORTAL_CNAME_TARGET` — public hostname portal subdomains CNAME to (same as your main app host behind NPM)
+- `RESET_PORTAL_CNAME_TARGET` - public hostname portal subdomains CNAME to (same as your main app host behind NPM)
 - Optional: `CF_ORIGIN_CA_KEY` for Origin CA certs instead of Let's Encrypt DNS-01
 
 ### Cloudflare Tunnel

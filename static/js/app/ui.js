@@ -126,40 +126,120 @@ async function copyText(elementId) {
 }
 
 async function copyMailboxCredentials() {
-    const creds = lastCreatedMailboxCredentials;
-    if (!creds?.email || !creds?.password) {
-        showAlert("warning", "No credentials to copy.");
+    const setup = lastMailClientSetup;
+    if (!setup?.email || !setup?.settings) {
+        showAlert("warning", "No client settings to copy.");
         return;
     }
 
     try {
-        await navigator.clipboard.writeText(formatMailboxCredentialsText(creds));
-        showAlert("success", "Mailbox credentials copied to clipboard!");
+        await navigator.clipboard.writeText(formatMailboxCredentialsText(setup));
+        showAlert("success", "Mail client settings copied to clipboard!");
     } catch (err) {
-        showAlert("error", "Failed to copy credentials.");
+        showAlert("error", "Failed to copy settings.");
     }
 }
 
-function formatMailboxCredentialsText(creds) {
-    return window.Mxm.utils.formatMailboxCredentialsText(creds);
+function formatMailboxCredentialsText(setup) {
+    return window.Mxm.utils.formatMailboxCredentialsText(setup);
 }
 
-function showMailboxCredentials(creds) {
-    lastCreatedMailboxCredentials = creds;
-    document.getElementById("out-email-addr").textContent = creds.email;
-    document.getElementById("out-email-pass").textContent = creds.password;
-    document.getElementById("out-imap-host").textContent = creds.imapHost;
-    document.getElementById("out-smtp-host").textContent = creds.smtpHost;
-    const webmailRow = document.getElementById("out-webmail-row");
-    if (creds.webmailUrl) {
-        document.getElementById("out-webmail-url").textContent = creds.webmailUrl;
-        if (webmailRow) webmailRow.style.display = "";
-    } else if (webmailRow) {
-        webmailRow.style.display = "none";
-    }
-    document.getElementById("credentials-output-card").style.display = "block";
-    document.getElementById("credentials-output-card").scrollIntoView({ behavior: "smooth" });
+function mailClientFieldHtml(prefix, key, label, value) {
+    const id = `${prefix}-${key}`;
+    return `
+        <div class="mail-client-field">
+            <span class="mail-client-label">${escapeHtml(label)}</span>
+            <div class="copyable-code mail-client-value">
+                <span id="${id}">${escapeHtml(value)}</span>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="copyText('${id}')">Copy</button>
+            </div>
+        </div>
+    `;
 }
+
+function renderMailClientSetupBody(container, prefix, { email, password, settings }) {
+    const parts = [];
+
+    let accountHtml = mailClientFieldHtml(prefix, "email", "Email address", email);
+    if (password) {
+        accountHtml += mailClientFieldHtml(prefix, "password", "Password", password);
+    } else {
+        accountHtml += `<p class="mail-client-note">Password was set when the mailbox was created and cannot be retrieved here. Use <strong>Change password</strong> in Actions if needed.</p>`;
+    }
+    parts.push(`<div class="mail-client-section"><h4 class="mail-client-heading">Account</h4>${accountHtml}</div>`);
+
+    parts.push(`
+        <div class="mail-client-section">
+            <h4 class="mail-client-heading">IMAP (incoming mail)</h4>
+            ${mailClientFieldHtml(prefix, "imap-host", "Server", settings.imap.host)}
+            ${mailClientFieldHtml(prefix, "imap-port", "Port", String(settings.imap.port))}
+            ${mailClientFieldHtml(prefix, "imap-encryption", "Encryption", "SSL/TLS")}
+        </div>
+    `);
+
+    parts.push(`
+        <div class="mail-client-section">
+            <h4 class="mail-client-heading">SMTP (outgoing mail)</h4>
+            ${mailClientFieldHtml(prefix, "smtp-ssl-port", "Port (SSL/TLS)", String(settings.smtp_ssl.port))}
+            ${mailClientFieldHtml(prefix, "smtp-starttls-port", "Port (STARTTLS)", String(settings.smtp_starttls.port))}
+            ${mailClientFieldHtml(prefix, "smtp-host", "Server", settings.smtp_ssl.host)}
+            <p class="mail-client-note">${escapeHtml(settings.username_note || "")}</p>
+        </div>
+    `);
+
+    if (settings.webmail?.url) {
+        let webmailNote = "";
+        if (settings.webmail.status === "pending") {
+            webmailNote = `<p class="mail-client-note">Webmail DNS is configured but may still be propagating.</p>`;
+        }
+        parts.push(`
+            <div class="mail-client-section">
+                <h4 class="mail-client-heading">Webmail</h4>
+                ${mailClientFieldHtml(prefix, "webmail-url", "URL", settings.webmail.url)}
+                ${webmailNote}
+            </div>
+        `);
+    }
+
+    setTrustedHtml(container, parts.join(""));
+}
+
+function showMailboxCredentials({ email, password, settings }) {
+    lastMailClientSetup = { email, password, settings };
+    const body = document.getElementById("mail-client-setup-body");
+    const title = document.getElementById("mail-client-setup-title");
+    if (title) {
+        setTrustedHtml(title, `${bi("check-circle-fill")} Mailbox Created Successfully!`);
+    }
+    if (body) {
+        renderMailClientSetupBody(body, "mail-client-card", { email, password, settings });
+    }
+    const card = document.getElementById("credentials-output-card");
+    card.style.display = "block";
+    card.scrollIntoView({ behavior: "smooth" });
+}
+
+async function openMailClientSetupModal(username) {
+    const email = `${username}@${activeDomain}`;
+    try {
+        const result = await apiRequest(`/api/domains/${activeDomain}/mail-client-settings`);
+        if (!result?.success || !result.data) {
+            throw new Error("Could not load mail client settings.");
+        }
+        lastMailClientSetup = { email, settings: result.data };
+        document.getElementById("modal-mail-client-setup-email").textContent = email;
+        renderMailClientSetupBody(
+            document.getElementById("modal-mail-client-setup-body"),
+            "mail-client-modal",
+            { email, settings: result.data },
+        );
+        openModal("modal-mail-client-setup");
+    } catch (err) {
+        showAlert("error", err.message || "Could not load mail client settings.");
+    }
+}
+
+document.getElementById("btn-modal-copy-mail-client-setup")?.addEventListener("click", copyMailboxCredentials);
 
 // Modal Toggle Helpers
 function openModal(modalId) {

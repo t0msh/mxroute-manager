@@ -131,8 +131,8 @@ with patch("routes.emails.audited_mx", return_value=mx_json_response({"success":
 
 Protected routes need:
 
-1. A session user (`prime_authenticated_session` after inserting the user in SQLite)
-2. CSRF header on anything that mutates state
+1. A session user (`prime_authenticated_session` after inserting the user in SQLite), **or** an `Authorization: Bearer mxm_…` header for API token routes
+2. CSRF header on session-based mutating requests (not required for Bearer tokens)
 
 Delegated users go in via `insert_user_with_grants()` - permissions should match what you'd set in the Access Control UI.
 
@@ -145,6 +145,12 @@ OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the tok
 | Validators | `test_validators.py` | 1 |
 | Permission helpers | `test_auth_helpers.py` | 1 |
 | Login, delegations, admin API | `test_auth_delegation.py` | 3 |
+| API tokens (Bearer auth) | `test_api_tokens.py` | 3 |
+| API docs routes | `test_api_docs.py` | 3 |
+| Mail client settings | `test_mail_client.py`, `test_emails.py` | 2-3 |
+| DNS health monitor | `test_dns_monitor.py` | 2 |
+| Cloudflare bulk DNS fix | `test_cloudflare_bulk.py`, `test_cloudflare_bulk_route.py` | 2-3 |
+| Health endpoint | `test_health.py` | 3 |
 | OIDC redirect + callback | `test_oidc.py` | 3 |
 | Mailboxes + recovery email | `test_emails.py` | 3 |
 | Forwarders, catch-all, pointers | `test_forwarders.py` | 3 |
@@ -212,6 +218,7 @@ If you add tests in a new area, tweak this file in the same PR so it still match
 
 | Guide | Topic |
 | --- | --- |
+| [HTTP API](api.md) | Token auth behaviour under test |
 | [Getting started](getting-started.md) | Local dev setup without Docker |
 | [Access control](access-control.md) | Delegation behaviour under test |
 | [Password reset](password-reset.md) | Reset API and portal test coverage |

@@ -40,6 +40,31 @@
             <div id="notification-actions-grid" class="notification-actions-grid"></div>
         </div>
 
+        <div class="form-group notification-dns-monitor-section">
+            <label>DNS health monitoring</label>
+            <p class="stat-card-subtitle" style="margin: 0 0 1rem;">
+                Periodically checks public DNS for all account domains. Alerts fire when a domain becomes
+                degraded or unhealthy, or when it recovers. Uses the notification targets above.
+            </p>
+            <div class="form-group setting-toggle-row" style="margin-bottom: 1rem;">
+                <label for="setting-dns-monitor-enabled">Enable scheduled DNS checks</label>
+                <label class="toggle-switch" aria-label="Enable scheduled DNS checks">
+                    <input type="checkbox" id="setting-dns-monitor-enabled">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="form-group" style="max-width: 280px;">
+                <label for="setting-dns-monitor-interval">Check interval (hours)</label>
+                <select id="setting-dns-monitor-interval">
+                    <option value="6">Every 6 hours</option>
+                    <option value="12">Every 12 hours</option>
+                    <option value="24" selected>Every 24 hours</option>
+                    <option value="48">Every 48 hours</option>
+                    <option value="168">Every week</option>
+                </select>
+            </div>
+        </div>
+
         <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap;">
             <button type="button" class="btn btn-secondary" id="btn-test-notifications">{{ icon('bell') }} Send Test Notification</button>
             <button type="button" class="btn btn-primary" id="btn-save-notifications">{{ icon('save') }} Save Notifications</button>
@@ -62,6 +87,12 @@
 
     .notification-events-section {
         margin-top: 2rem;
+    }
+
+    .notification-dns-monitor-section {
+        margin-top: 2rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--glass-border);
     }
 
     .notifications-hint {

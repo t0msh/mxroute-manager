@@ -13,6 +13,7 @@ from services.cloudflare import (
     deploy_missing_dns_to_cf,
     MAIL_DNS_RECORD_TYPES,
 )
+from services.cloudflare_bulk import fix_dns_bulk
 from services.mxroute import (
     get_mxroute_verification_record,
     get_mxroute_dns_data,
@@ -129,6 +130,67 @@ def get_dns_setup_health(domain):
             }
         ), 502
     return jsonify({"success": True, "data": health})
+
+
+@cloudflare_bp.route("/api/cloudflare/dns/fix-bulk", methods=["POST"])
+@require_admin
+def fix_dns_bulk_route():
+    if not cf_is_configured():
+        return jsonify(
+            {
+                "success": False,
+                "error": {"message": "Cloudflare credentials not configured"},
+            }
+        ), 400
+
+    data = request.json or {}
+    domains = data.get("domains")
+    if domains is not None and not isinstance(domains, list):
+        return jsonify(
+            {"success": False, "error": {"message": "domains must be a list"}},
+        ), 400
+
+    record_types = data.get("records")
+    if record_types is not None and not isinstance(record_types, list):
+        return jsonify(
+            {"success": False, "error": {"message": "records must be a list"}},
+        ), 400
+
+    only_unhealthy = bool(data.get("only_unhealthy"))
+    if not domains:
+        res, status = mx_request_raw("GET", "/domains")
+        if status != 200:
+            return jsonify(
+                {
+                    "success": False,
+                    "error": {"message": "Failed to list domains from MXroute"},
+                }
+            ), 502
+        domains = res.get("data") or []
+
+    try:
+        result = fix_dns_bulk(
+            domains,
+            record_types,
+            only_unhealthy=only_unhealthy,
+        )
+        fixed_domains = [
+            domain
+            for domain, payload in result.get("results", {}).items()
+            if payload.get("success") and payload.get("fixed")
+        ]
+        audit(
+            "dns.fix_bulk",
+            target=f"{len(result.get('domains', []))} domains",
+            details={
+                "only_unhealthy": only_unhealthy,
+                "fixed_domains": fixed_domains,
+                "count": len(fixed_domains),
+            },
+        )
+        return jsonify({"success": True, "data": result})
+    except Exception as e:
+        return jsonify({"success": False, "error": {"message": str(e)}}), 400
 
 
 @cloudflare_bp.route("/api/domains/<domain>/dns/fix", methods=["POST"])

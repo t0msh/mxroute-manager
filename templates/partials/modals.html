@@ -102,6 +102,24 @@
     </div>
 </div>
 
+<!-- Modal: Mail client setup -->
+<div class="modal-overlay" id="modal-mail-client-setup">
+    <div class="modal-content" style="max-width: 640px;">
+        <div class="modal-header">
+            <h3>Email Client Setup</h3>
+            <button type="button" class="alert-banner-close" style="font-size: 1.5rem;"
+                onclick="closeModal('modal-mail-client-setup')">×</button>
+        </div>
+        <p id="modal-mail-client-setup-email" class="stat-card-subtitle mb-4"></p>
+        <div id="modal-mail-client-setup-body"></div>
+        <div class="flex-row justify-end" style="justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem;">
+            <button type="button" class="btn btn-primary btn-sm" id="btn-modal-copy-mail-client-setup">{{ icon('clipboard') }} Copy All</button>
+            <button type="button" class="btn btn-secondary btn-sm"
+                onclick="closeModal('modal-mail-client-setup')">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal 4: Simple confirmation -->
 <div class="modal-overlay" id="modal-confirm">
     <div class="modal-content">

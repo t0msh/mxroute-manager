@@ -7,6 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from models.db_conn import get_conn, get_env_config
 from models.db_constants import (
     ADMIN_PASSWORD_HASH_KEY,
+    DNS_HEALTH_STATE_KEY,
     ENV_ONLY_SECRET_KEYS,
     MASKED_SECRET_KEYS,
     NOTIFICATION_SETTINGS_KEY,
@@ -309,7 +310,24 @@ def reset_smtp_use_tls():
 
 
 def _default_notification_settings():
-    return {"enabled": False, "targets": [], "actions": []}
+    return {
+        "enabled": False,
+        "targets": [],
+        "actions": [],
+        "dns_monitor": _default_dns_monitor(),
+    }
+
+
+def _default_dns_monitor():
+    return {"enabled": False, "interval_hours": 24}
+
+
+def _clamp_dns_monitor_interval(raw):
+    try:
+        hours = int(raw)
+    except (TypeError, ValueError):
+        hours = 24
+    return max(1, min(168, hours))
 
 
 def get_notification_settings():
@@ -323,16 +341,64 @@ def get_notification_settings():
         return _default_notification_settings()
     if not isinstance(data, dict):
         return _default_notification_settings()
+    monitor_raw = (
+        data.get("dns_monitor") if isinstance(data.get("dns_monitor"), dict) else {}
+    )
     return {
         "enabled": bool(data.get("enabled")),
         "targets": data.get("targets") if isinstance(data.get("targets"), list) else [],
         "actions": data.get("actions") if isinstance(data.get("actions"), list) else [],
+        "dns_monitor": {
+            "enabled": bool(monitor_raw.get("enabled")),
+            "interval_hours": _clamp_dns_monitor_interval(
+                monitor_raw.get("interval_hours")
+            ),
+        },
     }
+
+
+def get_dns_health_state():
+    raw = get_config_value(DNS_HEALTH_STATE_KEY, "")
+    if not raw:
+        return {"last_run_at": None, "domains": {}}
+    try:
+        data = json.loads(raw)
+    except (TypeError, json.JSONDecodeError):
+        return {"last_run_at": None, "domains": {}}
+    if not isinstance(data, dict):
+        return {"last_run_at": None, "domains": {}}
+    domains = data.get("domains")
+    return {
+        "last_run_at": data.get("last_run_at"),
+        "domains": domains if isinstance(domains, dict) else {},
+    }
+
+
+def save_dns_health_state(state):
+    if not isinstance(state, dict):
+        raise ValueError("DNS health state must be an object")
+    domains = state.get("domains")
+    normalized = {
+        "last_run_at": state.get("last_run_at"),
+        "domains": domains if isinstance(domains, dict) else {},
+    }
+    with get_conn() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+            (DNS_HEALTH_STATE_KEY, json.dumps(normalized, ensure_ascii=False)),
+        )
+        conn.commit()
+    invalidate_settings_cache()
+    return normalized
 
 
 def save_notification_settings(config):
     if not isinstance(config, dict):
         raise ValueError("Notification settings must be an object")
+    monitor_raw = (
+        config.get("dns_monitor") if isinstance(config.get("dns_monitor"), dict) else {}
+    )
     normalized = {
         "enabled": bool(config.get("enabled")),
         "targets": config.get("targets")
@@ -341,6 +407,12 @@ def save_notification_settings(config):
         "actions": config.get("actions")
         if isinstance(config.get("actions"), list)
         else [],
+        "dns_monitor": {
+            "enabled": bool(monitor_raw.get("enabled")),
+            "interval_hours": _clamp_dns_monitor_interval(
+                monitor_raw.get("interval_hours")
+            ),
+        },
     }
     with get_conn() as conn:
         cursor = conn.cursor()

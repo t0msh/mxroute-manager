@@ -1,3 +1,4 @@
+from .api_docs import api_docs_bp
 from .auth import auth_bp
 from .domains import domains_bp
 from .emails import emails_bp
@@ -8,6 +9,7 @@ from .password_reset import password_reset_bp
 from .reset_portal import reset_portal_bp
 
 __all__ = [
+    "api_docs_bp",
     "auth_bp",
     "domains_bp",
     "emails_bp",

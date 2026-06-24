@@ -227,9 +227,13 @@
     <div class="glass-card" id="domains-list-card">
         <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
             <span>{{ icon('clipboard') }} Active Domains</span>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">{{ icon('arrow-clockwise') }} Refresh status</button>
+            <div class="flex-row" style="gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-bulk-fix-dns" style="display: none;">{{ icon('wrench') }} Fix unhealthy DNS</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-refresh-domains-status">{{ icon('arrow-clockwise') }} Refresh status</button>
+            </div>
         </div>
         <p class="stat-card-subtitle mb-4" id="domains-list-status-hint">Mail and DNS status loads in the background and stays cached until a domain change. Click Refresh status to force a recheck.</p>
+        <div id="domains-table-controls"></div>
         <div class="table-container">
             <table>
                 <thead>

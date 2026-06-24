@@ -1,7 +1,7 @@
 import time
 import threading
 import requests
-from flask import session, jsonify, current_app
+from flask import session, jsonify, current_app, g, request
 from functools import wraps
 
 from models.db import (
@@ -54,7 +54,30 @@ def clear_oidc_config_cache():
 
 
 def get_current_user():
+    if getattr(g, "request_user", None):
+        return g.request_user
     return session.get("user")
+
+
+def is_api_token_auth(user=None):
+    user = user if user is not None else get_current_user()
+    return bool(user and user.get("auth_via") == "api_token")
+
+
+def authenticate_bearer_token():
+    """Resolve Bearer API token into g.request_user. Returns user dict or None."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    raw_token = auth_header[7:].strip()
+    if not raw_token:
+        return None
+    from models.db_api_tokens import build_user_from_api_token, lookup_api_token
+
+    record = lookup_api_token(raw_token)
+    if not record:
+        return None
+    return build_user_from_api_token(record)
 
 
 def is_user_admin(user):

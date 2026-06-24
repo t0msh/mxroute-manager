@@ -51,9 +51,10 @@ Full index: [docs/README.md](docs/README.md)
 | Guide | Description |
 | --- | --- |
 | [docs/adding-a-domain.md](docs/adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
-| [docs/access-control.md](docs/access-control.md) | Delegated users and per-domain permissions |
+| [docs/access-control.md](docs/access-control.md) | Delegated users, API tokens, and per-domain permissions |
+| [docs/api.md](docs/api.md) | HTTP API, Bearer tokens, and automation examples |
 | [docs/password-reset.md](docs/password-reset.md) | Login-page and branded mailbox password reset |
-| [docs/notifications.md](docs/notifications.md) | Audit event alerts via Apprise (ntfy, webhooks, email, etc.) |
+| [docs/notifications.md](docs/notifications.md) | Audit alerts, DNS health monitoring, Apprise delivery |
 
 ### UI reference
 
@@ -75,16 +76,25 @@ Full index: [docs/README.md](docs/README.md)
 - Register and remove domains on MXroute
 - Provision mailboxes with password, quota, and send-limit controls
 - Optional recovery email per mailbox for self-service password reset
+- **Client setup** card and modal with IMAP/SMTP/webmail settings after provisioning
 - Change password, update limits, and delete mailboxes
+- **Active Mailboxes** table with search and pagination (5/10/20 rows per page)
 - Manage domain pointers and catch-all routing
 - Create and remove forwarders
 - Configure SpamAssassin threshold, whitelist, and blacklist
 - Enable or disable mail hosting for a domain (admin only)
 
 ### DNS and Cloudflare workflow
-- 3-step Domain & DNS setup wizard with one-click Cloudflare deploy
+- 4-step Domain & DNS setup wizard with one-click Cloudflare deploy
 - DNS health checks for MX, SPF, DKIM, DMARC, and verification records
+- **Fix unhealthy DNS** bulk action for admins
+- Optional `webmail.<domain>` CNAME during wizard (checkbox, on by default)
 - Global DNS health status in the UI header
+- Scheduled DNS health monitoring with Apprise alerts (Notifications tab)
+
+### Automation
+- Scoped **API tokens** (`mxm_…`) for scripting without browser sessions - [docs/api.md](docs/api.md)
+- In-app **API reference** (`/api/docs`) and OpenAPI skeleton (`/api/openapi.json`)
 
 ### Branded password-reset portals
 - Per-domain reset pages on a subdomain you choose (e.g. `reset.example.com`)
@@ -95,13 +105,16 @@ Full index: [docs/README.md](docs/README.md)
 ### Access control and authentication
 - OIDC/SSO login flow with local credential fallback
 - Per-domain permission matrix for delegated users - [docs/access-control.md](docs/access-control.md)
+- API tokens for automation (same scopes as delegations) - [docs/api.md](docs/api.md)
 - Self-service mailbox password reset (login page and branded portals) - [docs/password-reset.md](docs/password-reset.md)
 - Typed confirmations for destructive operations
 
 ### Settings and UX
 - In-app Settings for MXroute, OIDC, Cloudflare, SMTP, and local admin
+- Link to live API reference from Settings
 - Theme support (Emerald, Indigo, Crimson, Amber, Amethyst, Cyberpunk, and light variants)
 - Client-side API caching with stale-while-revalidate behaviour
+- **Active Domains** table with search and pagination
 - Global activity bar and responsive mailbox actions menu
 
 ### Security and observability
@@ -140,6 +153,7 @@ No live API keys needed - tests use a temp SQLite file and mocked APIs. Details:
 ## Roadmap
 
 - [x] Reverse proxy support beyond Nginx Proxy Manager (Cloudflare Tunnel, Caddy, Traefik, manual docs)
+- [x] HTTP API tokens and in-app API reference
 - [ ] Additional deployment examples (systemd, Kubernetes)
 
 ## Related guides

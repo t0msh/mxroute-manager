@@ -727,6 +727,7 @@ a.text-link:hover {
 }
 
 input[type="text"],
+input[type="search"],
 input[type="email"],
 input[type="password"],
 input[type="number"],
@@ -951,6 +952,54 @@ tr:hover td {
 
 .align-center {
     align-items: center;
+}
+
+.table-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.table-search-input {
+    flex: 1 1 220px;
+    min-width: 180px;
+    max-width: 420px;
+    width: auto;
+}
+
+.table-controls-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+}
+
+.table-page-size-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--color-secondary);
+}
+
+.table-page-size {
+    min-width: 4rem;
+}
+
+.table-pagination {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-page-info {
+    font-size: 0.85rem;
+    color: var(--color-secondary);
+    min-width: 7rem;
+    text-align: center;
 }
 
 .mt-4 { margin-top: 1rem; }
@@ -1424,6 +1473,42 @@ tr:hover td {
     margin-top: 0.5rem;
 }
 
+.mail-client-section + .mail-client-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--glass-border);
+}
+
+.mail-client-heading {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin: 0 0 0.75rem;
+}
+
+.mail-client-field + .mail-client-field {
+    margin-top: 0.65rem;
+}
+
+.mail-client-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+    margin-bottom: 0.25rem;
+}
+
+.mail-client-value {
+    margin-top: 0;
+}
+
+.mail-client-note {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: var(--color-secondary);
+}
+
 .copy-btn {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--glass-border);
@@ -1454,6 +1539,10 @@ tr:hover td {
 .grid-2 > .glass-card {
     margin-bottom: 0;
     min-width: 0;
+}
+
+.tab-panel .grid-2 + .glass-card {
+    margin-top: 2rem;
 }
 
 /* Mobile sidebar toggle (hidden on desktop) */

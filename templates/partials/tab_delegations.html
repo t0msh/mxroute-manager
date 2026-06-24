@@ -58,4 +58,57 @@
             </div>
         </div>
     </div>
+
+    <div class="glass-card" id="api-tokens-card">
+        <h3 class="card-title">{{ icon('key') }} API Tokens</h3>
+        <p class="stat-card-subtitle mb-4">Create scoped Bearer tokens for automation. Use <code>Authorization: Bearer mxm_…</code> on API requests — no browser session or CSRF header required.</p>
+
+        <div id="api-token-created-banner" class="status-banner success mb-4" style="display: none;">
+            <p style="margin: 0 0 0.5rem;">Copy this token now — it will not be shown again:</p>
+            <div class="flex-row align-center" style="gap: 0.75rem; flex-wrap: wrap;">
+                <code id="api-token-created-value" style="word-break: break-all;"></code>
+                <button type="button" class="btn btn-secondary btn-sm" id="btn-copy-api-token">{{ icon('clipboard') }} Copy</button>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <form id="form-create-api-token">
+                <div class="form-group mb-4">
+                    <label for="api-token-label">Token label</label>
+                    <input type="text" id="api-token-label" placeholder="ci-deploy, mailbox-bot" required maxlength="80" autocomplete="off">
+                    <p class="stat-card-subtitle" style="margin-top: 0.5rem;">A short name to identify this token in the list.</p>
+                </div>
+                <div class="form-group mb-4">
+                    <label>Token scopes</label>
+                    <p class="stat-card-subtitle mb-2">Same permission model as user delegations. Admin tokens have full API access.</p>
+                    <div id="api-token-domains-checklist"
+                        style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--glass-border); border-radius: 10px; padding: 1rem; max-height: 420px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="color: var(--color-muted); font-size: 0.9rem;">Loading available domains...</div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="btn-create-api-token">Create API Token</button>
+            </form>
+
+            <div>
+                <h4 style="font-family: var(--font-heading); margin-bottom: 1rem;">Active tokens</h4>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Label</th>
+                                <th>Scopes</th>
+                                <th>Last used</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="api-tokens-list-tbody">
+                            <tr>
+                                <td colspan="4" style="text-align: center; color: var(--color-muted);">No API tokens yet.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>

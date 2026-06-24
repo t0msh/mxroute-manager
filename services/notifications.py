@@ -135,6 +135,12 @@ def mask_notification_settings_for_response(config):
         "targets": [],
         "env_cred_keys": sorted(configured_env),
         "cred_env_map": SERVICE_CRED_ENV,
+        "dns_monitor": {
+            "enabled": bool((config.get("dns_monitor") or {}).get("enabled")),
+            "interval_hours": int(
+                (config.get("dns_monitor") or {}).get("interval_hours") or 24
+            ),
+        },
     }
     for target in config.get("targets") or []:
         url = str((target or {}).get("url") or "").strip()

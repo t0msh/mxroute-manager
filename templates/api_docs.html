@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference — {{ app_meta.name }}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg?v={{ app_version }}">
+    <link rel="stylesheet" href="/static/style.css?v={{ app_version }}">
+    <script>
+        (function () {
+            var theme = localStorage.getItem("workspace-theme") || "emerald";
+            var allowed = [
+                "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk",
+                "emerald-light", "indigo-light", "slate-light", "rose-light",
+            ];
+            if (allowed.indexOf(theme) === -1) theme = "emerald";
+            document.documentElement.classList.add("api-docs-root");
+            document.addEventListener("DOMContentLoaded", function () {
+                document.body.classList.add("theme-" + theme, "api-docs-page");
+            });
+        })();
+    </script>
+    <style>
+        html.api-docs-root,
+        body.api-docs-page {
+            display: block;
+            min-height: 100vh;
+            margin: 0;
+            background: var(--bg-dark);
+            background-image: var(--bg-gradient);
+            color: var(--color-primary);
+            font-family: var(--font-body);
+        }
+
+        .api-docs-wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 3rem;
+        }
+
+        .api-docs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 2rem;
+        }
+
+        .api-docs-header h1 {
+            font-family: var(--font-heading);
+            margin: 0 0 0.5rem;
+            color: var(--color-primary);
+        }
+
+        .api-docs-meta {
+            color: var(--color-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .api-docs-meta code {
+            color: var(--color-primary);
+            background: var(--surface-code);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+        }
+
+        .api-docs-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .api-docs-section {
+            margin-bottom: 2rem;
+        }
+
+        .api-docs-section h2 {
+            font-family: var(--font-heading);
+            font-size: 1.1rem;
+            margin: 0 0 0.75rem;
+            color: var(--accent);
+        }
+
+        .api-docs-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            background: var(--glass-bg);
+        }
+
+        .api-docs-table th,
+        .api-docs-table td {
+            border: 1px solid var(--glass-border);
+            padding: 0.65rem 0.75rem;
+            text-align: left;
+            vertical-align: top;
+            color: var(--color-primary);
+        }
+
+        .api-docs-table th {
+            background: var(--surface-inset);
+            color: var(--color-muted);
+            font-weight: 600;
+        }
+
+        .api-docs-table td code {
+            color: var(--color-primary);
+            font-family: monospace;
+            word-break: break-all;
+        }
+
+        .method-badge {
+            display: inline-block;
+            font-family: monospace;
+            font-size: 0.75rem;
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            margin: 0 0.25rem 0.25rem 0;
+            border: 1px solid var(--glass-border);
+            background: var(--surface-code);
+            color: var(--color-primary);
+        }
+
+        .auth-public { color: var(--success); font-weight: 600; }
+        .auth-session { color: var(--accent); font-weight: 600; }
+        .auth-static { color: var(--color-muted); font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="api-docs-wrap">
+        <div class="api-docs-header">
+            <div>
+                <h1>API Reference</h1>
+                <p class="api-docs-meta">
+                    {{ route_count }} routes in {{ app_meta.name }} v{{ app_version }}.
+                    Browser sessions use cookies; mutating requests need <code>X-CSRF-Token</code>.
+                </p>
+            </div>
+            <div class="api-docs-actions">
+                <a class="btn btn-secondary btn-sm" href="/">Back to app</a>
+                <a class="btn btn-primary btn-sm" href="/api/openapi.json" target="_blank" rel="noopener noreferrer">OpenAPI JSON</a>
+            </div>
+        </div>
+
+        {% for tag, routes in grouped_routes.items() %}
+        <section class="api-docs-section">
+            <h2>{{ tag }}</h2>
+            <table class="api-docs-table">
+                <thead>
+                    <tr>
+                        <th>Method</th>
+                        <th>Path</th>
+                        <th>Auth</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for route in routes %}
+                    <tr>
+                        <td>
+                            {% for method in route.methods %}
+                            <span class="method-badge">{{ method }}</span>
+                            {% endfor %}
+                        </td>
+                        <td><code>{{ route.path }}</code></td>
+                        <td class="auth-{{ route.auth }}">{{ route.auth }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+        {% endfor %}
+    </div>
+</body>
+</html>

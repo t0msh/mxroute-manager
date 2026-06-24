@@ -318,5 +318,52 @@ function applyDomainRowDetails(domain, detailsResult, healthResult) {
 
     domainRowCache.set(domain, { mailHtml, dnsHtml, fixDnsVisible, mailOn, webmailReady, cfConfigured });
     renderDomainActionsCell(domain);
+    updateBulkFixDnsButtonVisibility();
+}
+
+async function handleBulkFixDns() {
+    const confirmed = await showConfirm({
+        title: "Fix unhealthy DNS",
+        message:
+            "Deploy missing mail DNS records for every domain that is not fully healthy? Webmail CNAME is not included.",
+        confirmLabel: "Fix DNS",
+    });
+    if (!confirmed) return;
+
+    const btn = document.getElementById("btn-bulk-fix-dns");
+    if (btn) {
+        btn.disabled = true;
+        setTrustedHtml(btn, btnLabel("wrench", "Fixing...", true));
+    }
+    try {
+        const result = await apiRequest("/api/cloudflare/dns/fix-bulk", "POST", {
+            only_unhealthy: true,
+        });
+        const outcomes = result.data?.results || {};
+        const fixedCount = Object.values(outcomes).filter(
+            (entry) => entry?.success && (entry.fixed || []).length
+        ).length;
+        const errorCount = Object.values(outcomes).filter((entry) => entry?.success === false).length;
+        if (fixedCount > 0) {
+            showAlert(
+                "success",
+                `DNS updated on ${fixedCount} domain(s). Propagation may take a few minutes.`,
+            );
+        } else if (errorCount > 0) {
+            showAlert("error", `Bulk fix completed with ${errorCount} error(s).`);
+        } else {
+            showAlert("info", "No unhealthy domains needed DNS fixes.");
+        }
+        invalidateApiCache("/api/domains");
+        await loadDomainsList({ force: true });
+    } catch (err) {
+        showAlert("error", err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            setTrustedHtml(btn, btnLabel("wrench", "Fix unhealthy DNS"));
+            updateBulkFixDnsButtonVisibility();
+        }
+    }
 }
 

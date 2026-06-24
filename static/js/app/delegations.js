@@ -181,6 +181,7 @@ async function loadDelegationsPage(options = {}) {
         renderDelegationDomainsChecklist(domainsRes, checklist);
         renderDelegationsTable(listBody, delegationsRes);
         updateDelegationPasswordHint();
+        await loadApiTokensPage(domainsRes);
     } catch (err) {
         setTrustedHtml(listBody, `<tr><td colspan="3" style="text-align: center; color: var(--danger);">Failed to load delegations: ${escapeHtml(err.message)}</td></tr>`);
         setTrustedHtml(checklist, `<div style="color: var(--danger); font-size: 0.9rem;">Failed to load domains: ${escapeHtml(err.message)}</div>`);

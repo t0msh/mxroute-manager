@@ -26,29 +26,38 @@ describe("jsAttrString", () => {
 });
 
 describe("formatMailboxCredentialsText", () => {
+    const settings = {
+        imap: { host: "mail.example.com", port: 993, encryption: "ssl" },
+        smtp_ssl: { host: "mail.example.com", port: 465, encryption: "ssl" },
+        smtp_starttls: { host: "mail.example.com", port: 587, encryption: "starttls" },
+        webmail: { url: "https://webmail.example.com", status: "pass" },
+        username_note: "Use your full email address as the username.",
+    };
+
     it("formats all credential lines", () => {
         const text = formatMailboxCredentialsText({
             email: "u@example.com",
             password: "secret",
-            imapHost: "imap.example.com",
-            smtpHost: "smtp.example.com",
-            webmailUrl: "https://webmail.example.com",
+            settings,
         });
-        assert.match(text, /Username \(Email\): u@example\.com/);
+        assert.match(text, /Email address: u@example\.com/);
         assert.match(text, /Password: secret/);
-        assert.match(text, /IMAP Hostname: imap\.example\.com/);
-        assert.match(text, /SMTP Hostname: smtp\.example\.com/);
-        assert.match(text, /Webmail Link: https:\/\/webmail\.example\.com/);
+        assert.match(text, /IMAP \(incoming mail\)/);
+        assert.match(text, /Server: mail\.example\.com/);
+        assert.match(text, /Port: 587/);
+        assert.match(text, /Webmail: https:\/\/webmail\.example\.com/);
     });
 
-    it("omits webmail when URL is absent", () => {
+    it("omits password and webmail when absent", () => {
         const text = formatMailboxCredentialsText({
             email: "u@example.com",
-            password: "secret",
-            imapHost: "imap.example.com",
-            smtpHost: "smtp.example.com",
+            settings: {
+                ...settings,
+                webmail: { url: null, status: "skipped" },
+            },
         });
-        assert.doesNotMatch(text, /Webmail Link/);
+        assert.doesNotMatch(text, /Password:/);
+        assert.doesNotMatch(text, /Webmail:/);
     });
 });
 

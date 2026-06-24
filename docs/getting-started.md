@@ -74,8 +74,8 @@ After login, work through these in order:
 1. **Select a domain** - use the global domain selector at the top. Domains come from your MXroute account.
 2. **Dashboard** - confirm DNS health and mail-hosting status for the active domain.
 3. **Domains** - run the DNS setup wizard if the domain uses Cloudflare (requires `CF_API_TOKEN` and `CF_ACCOUNT_ID` in `.env` or Settings).
-4. **Email Accounts** - provision mailboxes, set recovery emails, manage quotas.
-5. **Settings** - review MXroute connectivity, OIDC, SMTP, and security options.
+4. **Email Accounts** - provision mailboxes, set recovery emails, copy **Client setup** settings, manage quotas.
+5. **Settings** - review MXroute connectivity, OIDC, SMTP, security options, and open the **API reference**.
 
 Most non-secret settings can be changed in **Settings** after first boot. API keys and OIDC client secrets remain environment-only.
 
@@ -107,7 +107,11 @@ CF_API_TOKEN=your_cloudflare_api_token
 CF_ACCOUNT_ID=your_cloudflare_account_id
 ```
 
-Enables the Domain & DNS wizard, one-click DNS fixes, and CNAME deployment for branded reset portals.
+Enables the Domain & DNS wizard, one-click DNS fixes, bulk **Fix unhealthy DNS**, and CNAME deployment for branded reset portals.
+
+### Automation (API tokens)
+
+For scripts and CI, create scoped Bearer tokens under **Access Control → API Tokens**. See [HTTP API](api.md) for curl examples. Tokens skip CSRF but respect the same per-domain permissions as delegated users.
 
 ### Mailbox self-service password reset
 
@@ -115,9 +119,13 @@ See [Password reset](password-reset.md) for the login-page flow and requirements
 
 ### Branded password-reset portals
 
-Per-domain reset pages (e.g. `reset.example.com`) with logo and theme. Requires Cloudflare and a [reverse proxy backend](reverse-proxy.md) — see `REVERSE_PROXY_BACKEND` in [configuration.md](configuration.md#branded-reset-portals).
+Per-domain reset pages (e.g. `reset.example.com`) with logo and theme. Requires Cloudflare and a [reverse proxy backend](reverse-proxy.md). See `REVERSE_PROXY_BACKEND` in [configuration.md](configuration.md#branded-reset-portals).
 
 Configure under **Domains → Password Reset Portal**, then click **Deploy Portal** to publish DNS and TLS in one step. Full guide: [Password reset - Branded portals](password-reset.md#branded-reset-portals).
+
+### DNS health alerts
+
+Under **Notifications**, enable **DNS health monitoring** to run periodic public DNS checks and send Apprise alerts when a domain becomes unhealthy or recovers. Details: [Notifications](notifications.md#dns-health-monitoring).
 
 ## Post-setup checklist
 
@@ -127,6 +135,7 @@ Configure under **Domains → Password Reset Portal**, then click **Deploy Porta
 - [ ] OIDC redirect URI matches your public URL (if OIDC enabled)
 - [ ] SMTP tested from Settings (if mailbox reset enabled)
 - [ ] Delegated users configured - [Access control](access-control.md) (if needed)
+- [ ] API tokens created for automation - [HTTP API](api.md) (if needed)
 
 ## Development setup (without Docker)
 
@@ -145,7 +154,7 @@ Uses `./mxroute-manager.db` in the project directory by default (not the Docker 
 | --- | --- |
 | Cannot log in after changing `ADMIN_PASSWORD` in `.env` | [admin-password.md](admin-password.md) |
 | DNS wizard greyed out or failing | [configuration.md](configuration.md#cloudflare) - check CF token and account ID |
-| Reset portal deploy button missing | Cloudflare and reverse proxy env vars — [configuration.md](configuration.md#branded-reset-portals) |
+| Reset portal deploy button missing | Cloudflare and reverse proxy env vars - [configuration.md](configuration.md#branded-reset-portals) |
 | Mailbox reset not working | [password-reset.md](password-reset.md) |
 | Rate limits or wrong client IP behind proxy | `TRUSTED_PROXY_COUNT` - [configuration.md](configuration.md#core-security) |
 
@@ -153,6 +162,7 @@ Uses `./mxroute-manager.db` in the project directory by default (not the Docker 
 
 | Guide | Topic |
 | --- | --- |
+| [HTTP API](api.md) | Scripting with Bearer tokens |
 | [Configuration](configuration.md) | Every env variable and Settings field |
 | [Local admin password](admin-password.md) | Credential seeding and recovery |
 | [Access control](access-control.md) | Delegated users and permissions |

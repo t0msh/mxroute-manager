@@ -153,6 +153,37 @@ async function copyNotificationEnvSnippet() {
     }
 }
 
+async function applyNotificationSettingsToForm(data) {
+    if (!data) return;
+
+    notificationTargets = (data.targets || []).map((target) => ({
+        label: target.label || "",
+        url: target.url || "",
+        service: target.service || "",
+        service_id: target.service_id || target.service || "",
+        cred_env: target.cred_env || null,
+        cred_env_configured: Boolean(target.cred_env_configured),
+    }));
+
+    const enabledToggle = document.getElementById("setting-notifications-enabled");
+    if (enabledToggle) {
+        enabledToggle.checked = Boolean(data.enabled);
+    }
+
+    const monitorToggle = document.getElementById("setting-dns-monitor-enabled");
+    const monitorInterval = document.getElementById("setting-dns-monitor-interval");
+    if (monitorToggle) {
+        monitorToggle.checked = Boolean(data.dns_monitor?.enabled);
+    }
+    if (monitorInterval) {
+        const hours = Number(data.dns_monitor?.interval_hours || 24);
+        monitorInterval.value = String(hours);
+    }
+
+    renderNotificationTargets();
+    renderNotificationActionsGrid(data.actions || []);
+}
+
 async function loadNotificationSettings() {
     if (!currentUser?.is_admin) return;
     try {
@@ -186,21 +217,7 @@ async function loadNotificationSettings() {
             }
         }
         if (settingsRes?.success && settingsRes.data) {
-            const data = settingsRes.data;
-            notificationTargets = (data.targets || []).map((target) => ({
-                label: target.label || "",
-                url: target.url || "",
-                service: target.service || "",
-                service_id: target.service_id || target.service || "",
-                cred_env: target.cred_env || null,
-                cred_env_configured: Boolean(target.cred_env_configured),
-            }));
-            const enabledToggle = document.getElementById("setting-notifications-enabled");
-            if (enabledToggle) {
-                enabledToggle.checked = Boolean(data.enabled);
-            }
-            renderNotificationTargets();
-            renderNotificationActionsGrid(data.actions || []);
+            await applyNotificationSettingsToForm(settingsRes.data);
             const envHint = document.getElementById("notification-env-hint");
             if (envHint) {
                 envHint.textContent = "Tip: if you're uncomfortable storing tokens in the database, they can be stored in .env instead (one variable per service, e.g. APPRISE_CRED_NTFY).";
@@ -222,11 +239,19 @@ async function saveNotificationSettings() {
             enabled: Boolean(document.getElementById("setting-notifications-enabled")?.checked),
             targets: notificationTargets,
             actions: getSelectedNotificationActions(),
+            dns_monitor: {
+                enabled: Boolean(document.getElementById("setting-dns-monitor-enabled")?.checked),
+                interval_hours: Number(document.getElementById("setting-dns-monitor-interval")?.value || 24),
+            },
         };
         const result = await apiRequest("/api/admin/notifications", "POST", payload);
         if (result?.success) {
             showAlert("success", "Notification settings saved.");
-            await loadNotificationSettings();
+            if (result.data) {
+                await applyNotificationSettingsToForm(result.data);
+            } else {
+                await loadNotificationSettings();
+            }
         } else {
             showAlert("error", result?.error?.message || "Failed to save notification settings.");
         }

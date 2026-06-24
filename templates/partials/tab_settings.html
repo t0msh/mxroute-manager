@@ -246,6 +246,10 @@
                 <div class="theme-swatch"></div>
                 <div class="theme-select-label">Cyberpunk</div>
             </div>
+            <div class="theme-select-card" data-theme="rainbow" style="--swatch: conic-gradient(#ff3366, #ff9933, #ffee33, #33ff99, #33ddff, #aa66ff, #ff3366);">
+                <div class="theme-swatch theme-swatch-rainbow"></div>
+                <div class="theme-select-label">Unicorn Puke</div>
+            </div>
         </div>
 
         <h4 class="theme-section-title">Light</h4>
@@ -265,6 +269,10 @@
             <div class="theme-select-card" data-theme="rose-light" style="--swatch: #e11d48;">
                 <div class="theme-swatch"></div>
                 <div class="theme-select-label">Rose Blush</div>
+            </div>
+            <div class="theme-select-card" data-theme="rainbow-light" style="--swatch: conic-gradient(#ff6b9d, #ffb347, #fff176, #7bed9f, #70a1ff, #c77dff, #ff6b9d);">
+                <div class="theme-swatch theme-swatch-rainbow"></div>
+                <div class="theme-select-label">Cotton Candy</div>
             </div>
         </div>
     </div>
@@ -358,6 +366,10 @@
         border-radius: 50%;
         background: var(--swatch);
         box-shadow: 0 0 10px color-mix(in srgb, var(--swatch) 40%, transparent);
+    }
+
+    .theme-swatch-rainbow {
+        box-shadow: 0 0 14px rgba(255, 120, 200, 0.45);
     }
 
     .theme-select-label {

@@ -1,6 +1,6 @@
 # Themes
 
-MXroute Manager ships with **10 color themes**: six dark and four light. Each theme restyles the login screen, sidebar, cards, buttons, and accents across the whole app.
+MXroute Manager ships with **12 color themes**: seven dark and five light. Each theme restyles the login screen, sidebar, cards, buttons, and accents across the whole app.
 
 Your choice is saved in the browser (localStorage) per device. Delegated users can pick their own theme without affecting anyone else.
 
@@ -86,6 +86,10 @@ High-contrast cyan and magenta on near-black.
 
 ![Cyberpunk reset](images/themes/login-cyberpunk-reset.png)
 
+#### Unicorn Puke (`rainbow`)
+
+Deep purple-tinted dark surfaces with hot-pink accents. Panel cards get a continuously spinning rainbow outline.
+
 ### Light themes
 
 #### Mint Paper (`emerald-light`)
@@ -135,6 +139,10 @@ Light theme with rose-pink accent color.
 **Reset Mailbox Password**
 
 ![Rose Blush reset](images/themes/login-rose-light-reset.png)
+
+#### Cotton Candy (`rainbow-light`)
+
+Light pastel surfaces with animated rainbow card outlines (same family as Unicorn Puke).
 
 ## Branded reset portals
 

@@ -10,8 +10,8 @@
         (function () {
             var theme = localStorage.getItem("workspace-theme") || "emerald";
             var allowed = [
-                "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk",
-                "emerald-light", "indigo-light", "slate-light", "rose-light",
+                "emerald", "indigo", "crimson", "amber", "amethyst", "cyberpunk", "rainbow",
+                "emerald-light", "indigo-light", "slate-light", "rose-light", "rainbow-light",
             ];
             if (allowed.indexOf(theme) === -1) theme = "emerald";
             document.documentElement.classList.add("api-docs-root");

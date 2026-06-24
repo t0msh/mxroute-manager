@@ -68,11 +68,22 @@ body.theme-cyberpunk {
     --accent-rgb: 0, 240, 255;
 }
 
+body.theme-rainbow {
+    --accent: #ff6ec7;
+    --accent-rgb: 255, 110, 199;
+    --bg-dark: #110e18;
+    --bg-gradient: linear-gradient(135deg, #1a0f28 0%, #12182a 45%, #18102a 100%);
+    --glass-bg: rgba(26, 20, 38, 0.84);
+    --glass-bg-hover: rgba(36, 28, 50, 0.92);
+    --mxm-rainbow-stops: #ff3366, #ff9933, #ffee33, #33ff99, #33ddff, #aa66ff, #ff66cc, #ff3366;
+}
+
 /* Light themes — shared surfaces */
 body.theme-emerald-light,
 body.theme-indigo-light,
 body.theme-slate-light,
-body.theme-rose-light {
+body.theme-rose-light,
+body.theme-rainbow-light {
     --bg-dark: #f4f6f9;
     --bg-gradient: linear-gradient(180deg, #ffffff 0%, #eef2f7 100%);
     --glass-bg: rgba(255, 255, 255, 0.92);
@@ -110,6 +121,25 @@ body.theme-slate-light {
 body.theme-rose-light {
     --accent: #e11d48;
     --accent-rgb: 225, 29, 72;
+}
+
+body.theme-rainbow-light {
+    --accent: #e879f9;
+    --accent-rgb: 232, 121, 249;
+    --bg-gradient: linear-gradient(180deg, #fff5fd 0%, #f3f6ff 55%, #f5fff8 100%);
+    --mxm-rainbow-stops: #ff6b9d, #ffb347, #fff176, #7bed9f, #70a1ff, #c77dff, #ff9de2, #ff6b9d;
+}
+
+@property --mxm-rainbow-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes mxm-rainbow-spin {
+    to {
+        --mxm-rainbow-angle: 360deg;
+    }
 }
 
 /* Light-mode component tweaks */
@@ -1534,6 +1564,77 @@ tr.table-empty-row > td {
 
 .modal-overlay.show .modal-content {
     transform: translateY(0);
+}
+
+/* ponytail: rainbow only on a masked ::before ring — interior keeps normal glass fill */
+body.theme-rainbow .glass-card,
+body.theme-rainbow .stat-card,
+body.theme-rainbow .domain-selector-card,
+body.theme-rainbow .modal-content,
+body.theme-rainbow .login-card,
+body.theme-rainbow-light .glass-card,
+body.theme-rainbow-light .stat-card,
+body.theme-rainbow-light .domain-selector-card,
+body.theme-rainbow-light .modal-content,
+body.theme-rainbow-light .login-card {
+    position: relative;
+    isolation: isolate;
+    border-color: transparent;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+body.theme-rainbow .glass-card::before,
+body.theme-rainbow .stat-card::before,
+body.theme-rainbow .domain-selector-card::before,
+body.theme-rainbow .modal-content::before,
+body.theme-rainbow .login-card::before,
+body.theme-rainbow-light .glass-card::before,
+body.theme-rainbow-light .stat-card::before,
+body.theme-rainbow-light .domain-selector-card::before,
+body.theme-rainbow-light .modal-content::before,
+body.theme-rainbow-light .login-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 2px;
+    background: conic-gradient(from var(--mxm-rainbow-angle), var(--mxm-rainbow-stops));
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    animation: mxm-rainbow-spin 2.8s linear infinite;
+    pointer-events: none;
+}
+
+body.theme-rainbow .glass-card.interactive:hover,
+body.theme-rainbow-light .glass-card.interactive:hover {
+    border-color: transparent;
+}
+
+body.theme-rainbow .stat-card,
+body.theme-rainbow-light .stat-card {
+    background: var(--glass-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    body.theme-rainbow .glass-card::before,
+    body.theme-rainbow .stat-card::before,
+    body.theme-rainbow .domain-selector-card::before,
+    body.theme-rainbow .modal-content::before,
+    body.theme-rainbow .login-card::before,
+    body.theme-rainbow-light .glass-card::before,
+    body.theme-rainbow-light .stat-card::before,
+    body.theme-rainbow-light .domain-selector-card::before,
+    body.theme-rainbow-light .modal-content::before,
+    body.theme-rainbow-light .login-card::before {
+        animation: none;
+    }
 }
 
 .modal-header {

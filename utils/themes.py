@@ -8,10 +8,12 @@ VALID_THEME_IDS = frozenset(
         "amber",
         "amethyst",
         "cyberpunk",
+        "rainbow",
         "emerald-light",
         "indigo-light",
         "slate-light",
         "rose-light",
+        "rainbow-light",
     }
 )
 

@@ -11,6 +11,10 @@ function showAlert(type, message) {
     text.textContent = message;
     
     banner.classList.add("show");
+
+    if (type === "success" && typeof launchRainbowConfetti === "function") {
+        launchRainbowConfetti();
+    }
     
     if (alertDismissTimer) {
         clearTimeout(alertDismissTimer);

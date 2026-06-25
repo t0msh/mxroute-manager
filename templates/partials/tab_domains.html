@@ -93,6 +93,18 @@
                 <span>Also create <code>webmail.<span id="setup-webmail-domain">your-domain</span></code> pointing to the MXroute mail server (DNS-only)</span>
             </label>
 
+            <details class="mb-4" id="setup-advanced-dmarc">
+                <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">Advanced DMARC (optional)</summary>
+                <p class="stat-card-subtitle mt-4" style="margin-bottom: 0.75rem;">
+                    By default, the global <code>DMARC_RECORD</code> template is used. Enable a custom policy for this domain when you need a different <code>p=</code> setting or reporting addresses.
+                </p>
+                <label class="setup-mode-option mb-4" style="display: flex; align-items: center; gap: 0.6rem;">
+                    <input type="checkbox" id="setup-dmarc-custom-enabled">
+                    <span>Use custom DMARC policy for this domain</span>
+                </label>
+                <textarea id="setup-dmarc-custom-value" rows="3" style="width: 100%; font-family: monospace; font-size: 0.85rem;" disabled placeholder="v=DMARC1; p=none; sp=none; adkim=r; aspf=r;"></textarea>
+            </details>
+
             <div class="flex-row justify-between align-center mb-4">
                 <span class="stat-card-subtitle" style="margin: 0;">Public DNS health check</span>
                 <div class="flex-row" style="gap: 0.5rem;">

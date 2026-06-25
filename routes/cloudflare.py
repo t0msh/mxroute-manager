@@ -1,8 +1,13 @@
 from flask import Blueprint, request, jsonify
 
-from utils.validators import validate_domain, nested_dict_get
+from models.db_dmarc import (
+    clear_domain_dmarc_policy,
+    dmarc_check_options,
+    dmarc_policy_payload,
+    set_domain_dmarc_policy,
+)
+from utils.validators import validate_domain, validate_dmarc_record, nested_dict_get
 from utils.auth_helpers import require_admin, require_any_permission, require_permission
-from models.db import get_dmarc_record
 from services.cloudflare import (
     cf_is_configured,
     ensure_cf_zone,
@@ -223,8 +228,58 @@ def fix_domain_dns(domain):
 def get_dns_info(domain):
     res, status = mx_request_raw("GET", f"/domains/{domain}/dns")
     if status == 200 and isinstance(res, dict) and res.get("success"):
-        res["data"] = inject_dmarc(res.get("data"))
+        res["data"] = inject_dmarc(res.get("data"), domain)
     return jsonify(res), status
+
+
+@cloudflare_bp.route("/api/domains/<domain>/dmarc-policy", methods=["GET"])
+@require_permission("dns")
+def get_domain_dmarc_policy_route(domain):
+    if not validate_domain(domain):
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
+    return jsonify(
+        {
+            "success": True,
+            "data": dmarc_policy_payload(domain),
+        }
+    )
+
+
+@cloudflare_bp.route("/api/domains/<domain>/dmarc-policy", methods=["PATCH"])
+@require_permission("dns")
+def update_domain_dmarc_policy_route(domain):
+    if not validate_domain(domain):
+        return jsonify(
+            {"success": False, "error": {"message": "Invalid domain name format"}}
+        ), 400
+
+    data = request.json or {}
+    if "dmarc_record" not in data:
+        return jsonify(
+            {"success": False, "error": {"message": "dmarc_record is required"}},
+        ), 400
+
+    raw_value = data.get("dmarc_record")
+    if raw_value is None or (isinstance(raw_value, str) and not raw_value.strip()):
+        clear_domain_dmarc_policy(domain)
+        audit("dns.dmarc_policy_clear", target=domain)
+        return jsonify({"success": True, "data": dmarc_policy_payload(domain)})
+
+    if not isinstance(raw_value, str) or not validate_dmarc_record(raw_value):
+        return jsonify(
+            {
+                "success": False,
+                "error": {
+                    "message": "Invalid DMARC record (expected v=DMARC1 with a p= policy)"
+                },
+            }
+        ), 400
+
+    set_domain_dmarc_policy(domain, raw_value)
+    audit("dns.dmarc_policy_update", target=domain)
+    return jsonify({"success": True, "data": dmarc_policy_payload(domain)})
 
 
 @cloudflare_bp.route("/api/domains/<domain>/dns/health", methods=["GET"])
@@ -248,9 +303,10 @@ def get_dns_health(domain):
         domain,
         mx_dns_res.get("data", {}),
         verification_record=verification_record,
-        dmarc_expected=get_dmarc_record(),
+        **dmarc_check_options(domain),
     )
     health = apply_mail_hosting_context(health, get_domain_mail_hosting(domain))
+    health["dmarc_policy"] = dmarc_policy_payload(domain)
 
     _, mx_status = mx_request_raw("GET", "/domains")
     health["mxroute_reachable"] = mx_status == 200

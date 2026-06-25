@@ -29,6 +29,7 @@ __all__ = [
     "get_config_value",
     "get_conn",
     "get_dmarc_record",
+    "get_domain_dmarc_policy",
     "get_env_config",
     "get_notification_settings",
     "get_dns_health_state",
@@ -77,6 +78,9 @@ __all__ = [
     "set_reset_portal_logo",
     "set_user_contact_email",
     "upsert_reset_portal",
+    "set_domain_dmarc_policy",
+    "clear_domain_dmarc_policy",
+    "get_dmarc_record_for_domain",
     "use_secure_cookies",
     "verify_admin_password",
 ]
@@ -129,6 +133,12 @@ from models.db_reset import (
     get_recovery_map,
     parse_mailbox_email,
     set_recovery_email,
+)
+from models.db_dmarc import (
+    clear_domain_dmarc_policy,
+    get_domain_dmarc_policy,
+    get_dmarc_record_for_domain,
+    set_domain_dmarc_policy,
 )
 from models.db_settings import (
     admin_password_configured,

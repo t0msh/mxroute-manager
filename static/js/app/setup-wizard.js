@@ -16,6 +16,7 @@ async function enterMailDnsStep() {
     setSetupDomainLabel("setup-step4-domain-label");
     const wd = document.getElementById("setup-webmail-domain");
     if (wd) wd.textContent = setupWizardDomain;
+    await loadSetupDmarcPolicy();
     await loadSetupDnsHealth();
 }
 
@@ -119,6 +120,7 @@ async function handleSetupDeployAll() {
     if (document.getElementById("setup-webmail-enabled")?.checked) records.push("webmail");
     if (btn) btn.disabled = true;
     try {
+        await persistSetupDmarcPolicyIfNeeded();
         await runSetupWizardDnsFix(records, {
             formatSuccess: (fixed) =>
                 `Deployed: ${fixed.join(", ").toUpperCase()}. DNS propagation may take a few minutes.`,

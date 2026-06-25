@@ -226,13 +226,27 @@ The in-app **Settings → API reference** link opens `/api/docs` with the live r
 | --- | --- |
 | **Domains** | `/api/domains`, `/api/domains/<domain>`, mail hosting toggle |
 | **Mail** | `/api/domains/<domain>/email-accounts`, forwarders, catch-all |
-| **DNS** | `/api/domains/<domain>/dns/setup-health`, `/dns/fix`, reset portal |
+| **DNS** | `/api/domains/<domain>/dns/setup-health`, `/dns/health`, `/dns/fix`, `/dmarc-policy`, reset portal |
 | **Cloudflare** | `/api/cloudflare/status`, `/api/cloudflare/dns/fix-bulk` |
 | **Spam** | `/api/domains/<domain>/spam/*` |
 | **Admin** | `/api/admin/settings`, delegations, logs, notifications |
 | **Public** | `/api/public/password-reset/*` (mailbox self-service, no manager login) |
 
 Path parameters use the real domain name (`example.com`), not an internal ID.
+
+### DMARC policy per domain
+
+```bash
+curl -sS -H "Authorization: Bearer $MXM_TOKEN" \
+  https://manager.example.com/api/domains/example.com/dmarc-policy
+
+curl -sS -X PATCH -H "Authorization: Bearer $MXM_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"dmarc_record":"v=DMARC1; p=reject; sp=reject; aspf=r;"}' \
+  https://manager.example.com/api/domains/example.com/dmarc-policy
+```
+
+Pass `"dmarc_record": null` to clear a custom policy and fall back to `DMARC_RECORD` from `.env`. Details: [DNS health checks](dns-health.md).
 
 ## What tokens cannot do
 
@@ -260,4 +274,5 @@ Path parameters use the real domain name (`example.com`), not an internal ID.
 | [Configuration](configuration.md) | Env vars, production TLS |
 | [Notifications](notifications.md) | DNS health alerts via Apprise |
 | [Adding a domain](adding-a-domain.md) | Wizard and DNS fix behaviour |
+| [DNS health checks](dns-health.md) | SPF, DMARC, checklist semantics |
 | [Testing](testing.md) | `test_api_tokens.py` and route tests |

@@ -127,6 +127,13 @@ _RESERVED_SUBDOMAIN_PREFIXES = frozenset(
 _DNS_LABEL_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 
+def validate_dmarc_record(value):
+    if not value or not isinstance(value, str):
+        return False
+    norm = value.strip().replace(" ", "").lower()
+    return "v=dmarc1" in norm and ";p=" in f";{norm}"
+
+
 def validate_subdomain_prefix(prefix):
     """Validate a user-provided DNS label for reset portal hosts. Returns (ok, error_message)."""
     prefix = (prefix or "").strip().lower()

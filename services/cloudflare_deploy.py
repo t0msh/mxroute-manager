@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from models.db import get_dmarc_record
+from models.db_dmarc import get_dmarc_record_for_domain
 from services.cloudflare_api import (
     cf_is_configured,
     cf_request,
@@ -163,7 +163,7 @@ def _deploy_dkim(ctx: CfDeployContext) -> str:
 
 
 def _deploy_dmarc(ctx: CfDeployContext) -> str:
-    dmarc_val = get_dmarc_record()
+    dmarc_val = get_dmarc_record_for_domain(ctx.domain)
     dmarc_name_full = f"_dmarc.{ctx.domain}".lower()
     return cf_upsert_txt(
         ctx.zone_id,

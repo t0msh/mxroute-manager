@@ -82,7 +82,7 @@ Each domain grant includes one or more of these permissions:
 | `emails` | Email Accounts | Create, update, and delete mailboxes; set recovery emails; change passwords and quotas |
 | `forwarders` | Forwarders | Forwarders, catch-all routing, and domain pointers |
 | `spam` | Spam Controls | SpamAssassin score, whitelist, and blacklist |
-| `dns` | Domains | DNS health, setup wizard (existing domains), Cloudflare fixes, password-reset portal configuration |
+| `dns` | Domains | DNS health, setup wizard (existing domains), Cloudflare fixes, per-domain DMARC policy, password-reset portal configuration |
 
 Permissions are **per domain**. A user with `emails` on `a.example.com` and `dns` on `b.example.com` can manage mailboxes only on `a.example.com` and DNS only on `b.example.com`.
 

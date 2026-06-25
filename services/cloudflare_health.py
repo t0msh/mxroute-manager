@@ -1,4 +1,4 @@
-from models.db import get_dmarc_record
+from models.db_dmarc import dmarc_check_options, dmarc_policy_payload
 from services.cloudflare_api import cf_is_configured, fetch_cf_dns_sets, find_cf_zone_id
 from services.cloudflare_constants import (
     PENDING_MAIL_CHECK,
@@ -29,7 +29,7 @@ def build_setup_health(domain):
             domain,
             mx_dns_data,
             verification_record=verification_record,
-            dmarc_expected=get_dmarc_record(),
+            **dmarc_check_options(domain),
         )
     else:
         health = {
@@ -42,7 +42,7 @@ def build_setup_health(domain):
                 domain,
                 {},
                 verification_record=verification_record,
-                dmarc_expected=get_dmarc_record(),
+                **dmarc_check_options(domain),
             )
             health["checks"]["verification"] = partial["checks"]["verification"]
         mail_labels = {
@@ -83,6 +83,7 @@ def build_setup_health(domain):
 
     _, mx_status = mx_request_raw("GET", "/domains")
     health["mxroute_reachable"] = mx_status == 200
+    health["dmarc_policy"] = dmarc_policy_payload(domain)
     return health
 
 

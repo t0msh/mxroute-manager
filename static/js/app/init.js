@@ -68,6 +68,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 4. Domain DNS wizard (admin or users with dns permission)
     const canManageDns = currentUser?.is_admin || getUserPermissionUnion().has("dns");
     if (canManageDns) {
+        initDomainDmarcUi();
         initSetupWizard();
         applyDomainsSectionVisibility();
         if (currentUser?.is_admin) {

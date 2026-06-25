@@ -18,7 +18,7 @@ Click a fleet row to switch the global domain selector to that domain.
 | DNS | Latest cached public DNS health (healthy / degraded / unhealthy) |
 | Mailboxes | Count of mailboxes on the domain |
 
-Exact labels and badges match what you see on the dashboard DNS health cards, but aggregated for every domain in one view.
+Exact labels and badges match what you see on the dashboard DNS health cards, but aggregated for every domain in one view. For what **healthy**, **degraded**, and **unhealthy** mean per record, see [DNS health checks](dns-health.md).
 
 ## How fresh is the data?
 
@@ -45,3 +45,4 @@ Delegated users only see domains they are granted access to. Admins see the full
 | [App tour - Dashboard](app-tour.md#dashboard) | Screenshots |
 | [Notifications](notifications.md#dns-health-monitoring) | Alerts when DNS goes bad |
 | [Adding a domain](adding-a-domain.md) | Per-domain DNS wizard |
+| [DNS health checks](dns-health.md) | Checklist rules and custom SPF/DMARC |

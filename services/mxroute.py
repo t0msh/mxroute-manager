@@ -89,10 +89,13 @@ def get_mxroute_verification_record():
     return nested_dict_get(verify_res, "data", "record")
 
 
-def inject_dmarc(data):
+def inject_dmarc(data, domain=None):
     """Attach the configured DMARC expectation to an MXroute DNS data dict."""
+    from models.db_dmarc import get_dmarc_record_for_domain
+
     data = data or {}
-    data["dmarc"] = {"name": "_dmarc", "value": get_dmarc_record()}
+    dmarc_value = get_dmarc_record_for_domain(domain) if domain else get_dmarc_record()
+    data["dmarc"] = {"name": "_dmarc", "value": dmarc_value}
     return data
 
 
@@ -100,7 +103,7 @@ def get_mxroute_dns_data(domain):
     mx_dns_res, mx_dns_status = mx_request_raw("GET", f"/domains/{domain}/dns")
     if mx_dns_status != 200:
         return None
-    return inject_dmarc(mx_dns_res.get("data"))
+    return inject_dmarc(mx_dns_res.get("data"), domain)
 
 
 def get_domain_mail_hosting(domain):

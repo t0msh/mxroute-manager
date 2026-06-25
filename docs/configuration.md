@@ -70,7 +70,7 @@ Optional. Powers the Domain & DNS wizard, one-click DNS fixes, and branded reset
 
 | Variable | Required | Default | Description |
 | --- | --- | --- | --- |
-| `DMARC_RECORD` | No | `v=DMARC1; p=none; ...` | DMARC TXT value used for Cloudflare auto-setup and health checks |
+| `DMARC_RECORD` | No | `v=DMARC1; p=none; ...` | Default DMARC TXT for wizard deploy and health baseline. Per-domain overrides in the UI take precedence. See [DNS health checks](dns-health.md#dmarc-policy-default-and-per-domain). |
 | `PUBLIC_URL_SCHEME` | No | `https` | URL scheme for generated webmail links in mail-client settings |
 
 ## API and automation

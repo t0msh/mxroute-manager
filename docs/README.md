@@ -30,6 +30,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for live reload while editin
 | Guide | Description |
 | --- | --- |
 | [Adding a domain](adding-a-domain.md) | Domain wizard: verification, MXroute registration, Cloudflare mail DNS |
+| [DNS health checks](dns-health.md) | What each DNS check means, SPF/DMARC rules, per-domain DMARC |
 | [Bulk mailbox CSV](bulk-mailbox-csv.md) | Import and export mailboxes in spreadsheet-friendly batches |
 | [Fleet overview](fleet-overview.md) | Dashboard table of all domains, cached health and counts |
 | [Access control](access-control.md) | Delegated users, API tokens, permissions, admin vs delegated operations |

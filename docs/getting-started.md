@@ -125,7 +125,7 @@ Configure under **Domains → Password Reset Portal**, then click **Deploy Porta
 
 ### DNS health alerts
 
-Under **Notifications**, enable **DNS health monitoring** to run periodic public DNS checks and send Apprise alerts when a domain becomes unhealthy or recovers. Details: [Notifications](notifications.md#dns-health-monitoring).
+Under **Notifications**, enable **DNS health monitoring** to run periodic public DNS checks and send Apprise alerts when a domain becomes unhealthy or recovers. Details: [Notifications](notifications.md#dns-health-monitoring). Check semantics: [DNS health checks](dns-health.md).
 
 ## Post-setup checklist
 

@@ -1,5 +1,12 @@
+import re
+
 import dns.exception
 import dns.resolver
+
+_SPF_INCLUDE_RE = re.compile(
+    r"include:((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,})",
+    re.IGNORECASE,
+)
 
 
 def _normalize_txt(value):
@@ -117,6 +124,38 @@ def _dkim_public_key(value):
     return None
 
 
+def _spf_includes(spf_norm):
+    return [
+        f"include:{match.group(1).lower()}"
+        for match in _SPF_INCLUDE_RE.finditer(spf_norm)
+    ]
+
+
+def _spf_covers_expected(expected_spf_norm, found_spf_norm):
+    required = _spf_includes(expected_spf_norm)
+    if not required:
+        return "v=spf1" in found_spf_norm
+    return all(include in found_spf_norm for include in required)
+
+
+def _spf_match_result(expected_spf_norm, spf_records):
+    if not spf_records:
+        return False, "SPF record missing or does not match"
+    if expected_spf_norm and expected_spf_norm in spf_records:
+        return True, "SPF record matches MXroute"
+    if expected_spf_norm and any(
+        _spf_covers_expected(expected_spf_norm, found) for found in spf_records
+    ):
+        return True, "SPF includes required MXroute mechanisms"
+    if any("v=spf1" in record for record in spf_records):
+        return False, "SPF record missing required MXroute mechanisms"
+    return False, "SPF record missing or does not match"
+
+
+def _is_valid_dmarc(record_norm):
+    return "v=dmarc1" in record_norm and ";p=" in f";{record_norm}"
+
+
 def _dkim_matches(expected_value, found_values):
     expected_norm = _normalize_txt(expected_value)
     found_norms = [_normalize_txt(value) for value in found_values]
@@ -161,19 +200,13 @@ def _spf_health_check(domain, expected_dns):
         if txt.lower().startswith("v=spf1")
     ]
     expected_spf_norm = _normalize_txt(expected_spf) if expected_spf else ""
-    spf_pass = (
-        expected_spf_norm in spf_records
-        if expected_spf_norm
-        else any("v=spf1" in r for r in spf_records)
-    )
+    spf_pass, spf_message = _spf_match_result(expected_spf_norm, spf_records)
     return {
         "status": _check_status(spf_pass),
         "label": "SPF (TXT)",
         "expected": expected_spf or "v=spf1 include:mxroute.com -all",
         "found": spf_records,
-        "message": "SPF record present"
-        if spf_pass
-        else "SPF record missing or does not match",
+        "message": spf_message,
     }
 
 
@@ -196,7 +229,7 @@ def _dkim_health_check(domain, expected_dns):
     }
 
 
-def _dmarc_health_check(domain, dmarc_expected):
+def _dmarc_health_check(domain, dmarc_expected, dmarc_exact_match=False):
     dmarc_host = f"_dmarc.{domain}"
     dmarc_expected_value = (
         dmarc_expected or "v=DMARC1; p=none; sp=none; adkim=r; aspf=r;"
@@ -207,18 +240,35 @@ def _dmarc_health_check(domain, dmarc_expected):
         if "v=dmarc1" in _normalize_txt(txt)
     ]
     dmarc_expected_norm = _normalize_txt(dmarc_expected_value)
-    dmarc_pass = dmarc_expected_norm in dmarc_records if dmarc_records else False
+
     if not dmarc_records:
-        dmarc_pass = False
+        status = "warn"
+        message = "DMARC record missing"
+    elif dmarc_expected_norm in dmarc_records:
+        status = "pass"
+        message = (
+            "DMARC record matches custom policy"
+            if dmarc_exact_match
+            else "DMARC record matches default policy"
+        )
+    elif dmarc_exact_match:
+        status = "warn"
+        message = "DMARC record missing or does not match custom policy"
+    elif any(_is_valid_dmarc(record) for record in dmarc_records):
+        status = "warn"
+        message = "DMARC record present (differs from default template)"
+    else:
+        status = "warn"
+        message = "DMARC record missing or invalid"
+
     return {
-        "status": _check_status(dmarc_pass, optional=True),
+        "status": status,
         "label": "DMARC (TXT)",
         "expected_host": dmarc_host,
         "expected": dmarc_expected_value,
         "found": dmarc_records,
-        "message": "DMARC record present"
-        if dmarc_pass
-        else "DMARC record missing or does not match",
+        "message": message,
+        "custom_policy": dmarc_exact_match,
     }
 
 
@@ -243,7 +293,11 @@ def _verification_health_check(domain, verification_record):
 
 
 def check_dns_health(
-    domain, expected_dns, verification_record=None, dmarc_expected=None
+    domain,
+    expected_dns,
+    verification_record=None,
+    dmarc_expected=None,
+    dmarc_exact_match=False,
 ):
     """Compare live public DNS against MXroute-provided expectations."""
     domain = domain.lower().strip()
@@ -251,7 +305,9 @@ def check_dns_health(
         "mx": _mx_health_check(domain, expected_dns),
         "spf": _spf_health_check(domain, expected_dns),
         "dkim": _dkim_health_check(domain, expected_dns),
-        "dmarc": _dmarc_health_check(domain, dmarc_expected),
+        "dmarc": _dmarc_health_check(
+            domain, dmarc_expected, dmarc_exact_match=dmarc_exact_match
+        ),
     }
     if verification_record:
         checks["verification"] = _verification_health_check(domain, verification_record)

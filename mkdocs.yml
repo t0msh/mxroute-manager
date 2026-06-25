@@ -57,6 +57,7 @@ nav:
       - Reverse proxy: reverse-proxy.md
   - Features:
       - Adding a domain: adding-a-domain.md
+      - DNS health checks: dns-health.md
       - Bulk mailbox CSV: bulk-mailbox-csv.md
       - Fleet overview: fleet-overview.md
       - Access control: access-control.md

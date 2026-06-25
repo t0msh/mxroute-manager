@@ -236,6 +236,9 @@ function domainActionsMenuHtml(domain, options) {
         canDns,
     } = options;
     const items = [];
+    if (canDns) {
+        items.push(`<button type="button" class="action-menu-item" role="menuitem" data-action="edit-dmarc">${bi("shield-check")} Edit DMARC policy</button>`);
+    }
     if (canDns && fixDnsVisible) {
         items.push(`<button type="button" class="action-menu-item" role="menuitem" data-action="fix-dns">${bi("wrench")} Fix DNS entries</button>`);
     }

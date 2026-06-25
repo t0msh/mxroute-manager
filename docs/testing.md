@@ -157,7 +157,8 @@ OIDC tests use `enable_oidc_settings()` plus `patch_oidc_http()` to fake the tok
 | Spam settings, lists | `test_spam.py` | 3 |
 | Password reset tokens (DB) | `test_password_reset.py` | 1-2 |
 | Public password-reset API | `test_password_reset_api.py` | 3 |
-| DNS health comparison | `test_dns_health.py` | 2 |
+| DNS health comparison | `test_dns_health.py` | 6 |
+| Per-domain DMARC policy | `test_domain_dmarc.py` | 4 |
 | Domain admin routes | `test_domains.py` | 3 |
 | Settings cache | `test_settings_cache.py` | 2 |
 | Cloudflare idempotency | `test_cloudflare_idempotent.py` | 2 |

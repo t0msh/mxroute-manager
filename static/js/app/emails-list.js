@@ -111,6 +111,8 @@ function handleDomainAction(domain, action) {
             return;
         case "fix-dns":
             return handleDomainFixDns(domain);
+        case "edit-dmarc":
+            return openDomainDmarcModal(domain);
         case "webmail-deploy":
             return handleDomainWebmailDeploy(domain);
         case "toggle-routing":

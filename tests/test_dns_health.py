@@ -103,3 +103,80 @@ def test_check_dns_health_fails_mx_mismatch():
 
     assert health["checks"]["mx"]["status"] == "fail"
     assert health["overall"] == "unhealthy"
+
+
+def test_spf_passes_when_mxroute_include_present_in_extended_record():
+    expected = {"spf": {"value": "v=spf1 include:mxroute.com -all"}}
+
+    with (
+        patch("services.dns_health._query_mx", return_value=[]),
+        patch(
+            "services.dns_health._query_txt",
+            return_value=[
+                "v=spf1 include:mxroute.com include:mailgun.org include:amazonses.com -all"
+            ],
+        ),
+    ):
+        health = check_dns_health("example.com", expected)
+
+    assert health["checks"]["spf"]["status"] == "pass"
+    assert "required MXroute mechanisms" in health["checks"]["spf"]["message"]
+
+
+def test_spf_fails_when_mxroute_include_missing():
+    expected = {"spf": {"value": "v=spf1 include:mxroute.com -all"}}
+
+    with (
+        patch("services.dns_health._query_mx", return_value=[]),
+        patch(
+            "services.dns_health._query_txt",
+            return_value=["v=spf1 include:mailgun.org -all"],
+        ),
+    ):
+        health = check_dns_health("example.com", expected)
+
+    assert health["checks"]["spf"]["status"] == "fail"
+
+
+def test_dmarc_warns_when_valid_policy_differs_from_default():
+    with (
+        patch("services.dns_health._query_mx", return_value=[]),
+        patch(
+            "services.dns_health._query_txt",
+            side_effect=lambda name: {
+                "_dmarc.example.com": ["v=DMARC1; p=reject; sp=reject; aspf=r;"],
+            }.get(name, []),
+        ),
+    ):
+        health = check_dns_health(
+            "example.com",
+            {},
+            dmarc_expected="v=DMARC1; p=none; sp=none; adkim=r; aspf=r;",
+            dmarc_exact_match=False,
+        )
+
+    assert health["checks"]["dmarc"]["status"] == "warn"
+    assert "differs from default template" in health["checks"]["dmarc"]["message"]
+
+
+def test_dmarc_passes_when_custom_policy_matches_exactly():
+    custom = "v=DMARC1; p=reject; sp=reject; aspf=r;"
+
+    with (
+        patch("services.dns_health._query_mx", return_value=[]),
+        patch(
+            "services.dns_health._query_txt",
+            side_effect=lambda name: {
+                "_dmarc.example.com": [custom],
+            }.get(name, []),
+        ),
+    ):
+        health = check_dns_health(
+            "example.com",
+            {},
+            dmarc_expected=custom,
+            dmarc_exact_match=True,
+        )
+
+    assert health["checks"]["dmarc"]["status"] == "pass"
+    assert health["checks"]["dmarc"]["custom_policy"] is True

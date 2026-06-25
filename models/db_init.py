@@ -98,6 +98,13 @@ def _create_tables(cursor):
         WHERE portal_host != '' AND enabled = 1
     """)
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS domain_dmarc_policies (
+            domain TEXT PRIMARY KEY,
+            dmarc_record TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+    """)
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS api_tokens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             label TEXT NOT NULL,

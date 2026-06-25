@@ -71,8 +71,9 @@ Once the domain is registered, Step 4 shows the mail DNS checklist with expected
 ![Step 4: mail DNS before deploy](images/adding-a-domain/06-step2-mail-dns-before-fix-all.png)
 
 1. Leave **Also create `webmail.<domain>`** checked to publish a `webmail.<domain>` CNAME pointing to your MXroute mail server (DNS-only / unproxied). Uncheck it if you don't want webmail DNS.
-2. Click **Deploy All Records**. Review **Setup Progress** as each record is created or skipped if already correct.
-3. The checklist **auto-refreshes** every ~15 seconds until all records are live (or for a few minutes). You can also click **Recheck** manually.
+2. (Optional) Expand **Advanced DMARC** if this domain needs a different `_dmarc` policy than the global `DMARC_RECORD` in `.env`. See [DNS health checks](dns-health.md#setting-a-per-domain-dmarc-policy).
+3. Click **Deploy All Records**. Review **Setup Progress** as each record is created or skipped if already correct.
+4. The checklist **auto-refreshes** every ~15 seconds until all records are live (or for a few minutes). You can also click **Recheck** manually.
 
 ![Step 4: after deploy](images/adding-a-domain/07-step2-after-fix-all-dns.png)
 
@@ -88,6 +89,7 @@ Each row has an **Actions** menu (the `⋮` button) for ongoing management:
 
 | Action | Who | What it does |
 | --- | --- | --- |
+| **Edit DMARC policy** | admin or `dns` delegate | Store an optional per-domain DMARC TXT for health checks and deploys. See [DNS health checks](dns-health.md#setting-a-per-domain-dmarc-policy). |
 | **Fix DNS entries** | admin or `dns` delegate | One-click deploy of any missing/incorrect mail or verification records in Cloudflare. Appears only when DNS needs attention. |
 | **Open webmail** / **Set up webmail** | anyone / admin or `dns` delegate | Opens `https://webmail.<domain>` in a new tab if it's live; otherwise deploys the `webmail.<domain>` CNAME. |
 | **Disable Routing** / **Enable Routing** | admin | Toggles MXroute mail hosting for the domain. |
@@ -118,6 +120,7 @@ Mail routing is usually on after registration. If it isn't, use **Enable Routing
 | **Register Domain on MXroute** fails | Return to Step 2 and confirm the verification TXT is present in public DNS. |
 | DKIM or mail records empty before Step 3 | Expected. Complete registration first, then continue to Step 4. |
 | **Set up webmail** doesn't appear | Webmail uses `MX_SERVER` as the CNAME target and requires Cloudflare configured. Confirm both are set. |
+| SPF/DMARC warn but records look correct | Health rules may differ from exact string match (extended SPF, custom DMARC). See [DNS health checks](dns-health.md). |
 | Domain registered but mail does not flow | Use **Enable Routing** in the Actions menu (or the Dashboard toggle). |
 
 ## What to do next
@@ -136,5 +139,6 @@ Mail routing is usually on after registration. If it isn't, use **Enable Routing
 | --- | --- |
 | [Getting started](getting-started.md) | First install and login |
 | [Configuration](configuration.md) | Cloudflare and MXroute settings |
+| [DNS health checks](dns-health.md) | SPF, DMARC, and checklist behaviour |
 | [Password reset](password-reset.md) | Reset portal and mailbox recovery |
 | [Access control](access-control.md) | Delegated users |

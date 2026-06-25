@@ -85,6 +85,8 @@ Test notifications use the `notification.test` action and do not re-trigger them
 
 Optional background checks compare each account domain's **public DNS health** (same checklist as the Domains tab) on a schedule. When a domain transitions to degraded/unhealthy, or recovers to healthy, the app can emit audit events and Apprise notifications.
 
+What each check means (SPF superset rules, per-domain DMARC, healthy vs degraded): [DNS health checks](dns-health.md).
+
 Configure under **Notifications**:
 
 | Setting | Purpose |

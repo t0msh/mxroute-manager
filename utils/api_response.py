@@ -1,7 +1,8 @@
 """Safe JSON API responses for Flask routes."""
 
+import html
+
 from flask import jsonify
-from markupsafe import escape
 
 GENERIC_ERROR = "The request could not be completed."
 GENERIC_UPSTREAM_ERROR = "An upstream service error occurred."
@@ -11,37 +12,41 @@ INVALID_LOG_DATE_MESSAGE = "Invalid date format; expected YYYY-MM-DD"
 def escape_client_text(value):
     if value is None:
         return ""
-    return str(escape(value))
+    return html.escape(str(value), quote=True)
+
+
+def sanitize_client_json(value):
+    if isinstance(value, str):
+        return escape_client_text(value)
+    if isinstance(value, dict):
+        return {key: sanitize_client_json(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_client_json(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(sanitize_client_json(item) for item in value)
+    return value
 
 
 def json_error(message, status=400):
     if not isinstance(message, str) or not message.strip():
         message = GENERIC_ERROR
-    return jsonify({"success": False, "error": {"message": message}}), status
+    return jsonify(
+        {"success": False, "error": {"message": escape_client_text(message)}}
+    ), status
 
 
-def sanitize_upstream_payload(payload):
-    if not isinstance(payload, dict):
-        return {"success": False, "error": {"message": GENERIC_UPSTREAM_ERROR}}
-    if payload.get("success") is not False:
-        return payload
-    err = payload.get("error")
-    if not isinstance(err, dict):
-        return {**payload, "error": {"message": GENERIC_UPSTREAM_ERROR}}
-    msg = err.get("message")
-    if msg is None:
-        return payload
-    return {
-        **payload,
-        "error": {**err, "message": escape_client_text(msg)},
-    }
+def json_ok(data=None, status=200, **extra):
+    payload = {"success": True, **extra}
+    if data is not None:
+        payload["data"] = sanitize_client_json(data)
+    return jsonify(payload), status
 
 
 def mx_json_response(res, status):
     if status >= 500:
         return json_error(GENERIC_UPSTREAM_ERROR, status)
-    if isinstance(res, dict) and res.get("success") is False:
-        res = sanitize_upstream_payload(res)
+    if isinstance(res, dict):
+        res = sanitize_client_json(res)
     return jsonify(res), status
 
 

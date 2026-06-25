@@ -5,7 +5,7 @@ from models.db import (
     get_recovery_map,
     set_recovery_email,
 )
-from utils.api_response import escape_client_text
+from utils.api_response import escape_client_text, json_ok, sanitize_client_json
 from utils.validators import validate_username, validate_recovery_email
 from utils.auth_helpers import (
     get_current_user,
@@ -27,7 +27,7 @@ def _mailbox_address(username, domain):
 @emails_bp.route("/api/domains/<domain>/mail-client-settings", methods=["GET"])
 @require_any_permission("dashboard", "emails")
 def get_mail_client_settings(domain):
-    return jsonify({"success": True, "data": build_domain_mail_client_settings(domain)})
+    return json_ok(build_domain_mail_client_settings(domain))
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts", methods=["GET"])
@@ -53,7 +53,7 @@ def list_emails(domain):
             recovery = recovery_map.get(mailbox_email)
             account["recovery_email"] = recovery
             account["has_recovery_email"] = bool(recovery)
-    return jsonify(payload), status
+    return jsonify(sanitize_client_json(payload)), status
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts", methods=["POST"])
@@ -94,7 +94,7 @@ def preview_mailbox_import_api():
                 "error": {"message": escape_client_text(preview.get("message"))},
             }
         ), preview.get("status", 400)
-    return jsonify({"success": True, "data": preview["data"]})
+    return json_ok(preview["data"])
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["GET"])

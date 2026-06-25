@@ -14,8 +14,9 @@ def _utc_now():
 
 
 def _hash_token(raw_token):
-    # codeql[py/weak-sensitive-data-hashing]: high-entropy API tokens; SHA-256 is for lookup only.
-    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    return hashlib.sha256(
+        raw_token.encode("utf-8")
+    ).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
 
 
 def _row_to_token(row):

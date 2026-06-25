@@ -36,7 +36,7 @@ from utils.validators import (
     validate_subdomain_prefix,
 )
 from models.db import get_user_contact_email, resolve_notification_email
-from utils.api_response import GENERIC_ERROR, json_error
+from utils.api_response import GENERIC_ERROR, json_error, json_ok
 from utils.auth_helpers import require_permission, get_current_user
 from utils.safe_path import path_under_base, safe_filename
 from utils.themes import normalize_theme, DEFAULT_THEME
@@ -337,7 +337,7 @@ def deploy_reset_portal_dns(domain):
         result = deploy_reset_portal(
             domain, portal["subdomain_prefix"], admin_email=admin_email
         )
-        return jsonify({"success": True, "data": result})
+        return json_ok(result)
     except Exception:
         current_app.logger.exception("Reset portal deploy failed for %s", domain)
         return json_error(GENERIC_ERROR, 400)

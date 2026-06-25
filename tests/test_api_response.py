@@ -1,4 +1,4 @@
-from utils.api_response import escape_client_text, sanitize_upstream_payload
+from utils.api_response import escape_client_text, sanitize_client_json
 from utils.safe_path import path_under_base, safe_filename
 
 
@@ -6,9 +6,9 @@ def test_escape_client_text_escapes_markup():
     assert escape_client_text("<script>") == "&lt;script&gt;"
 
 
-def test_sanitize_upstream_payload_escapes_error_message():
+def test_sanitize_client_json_escapes_error_message():
     payload = {"success": False, "error": {"message": "<bad>"}}
-    sanitized = sanitize_upstream_payload(payload)
+    sanitized = sanitize_client_json(payload)
     assert sanitized["error"]["message"] == "&lt;bad&gt;"
 
 

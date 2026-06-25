@@ -26,6 +26,11 @@ def _assert_log_path(path):
     return path_under_base(LOG_DIR, os.path.basename(path))
 
 
+def safe_log_path(path):
+    """Re-validate a resolved audit log path before filesystem use."""
+    return _assert_log_path(path)
+
+
 def write_audit_log(action, user_email, target="", details=None):
     """Append a JSON line to logs/YYYY-MM-DD.log."""
     os.makedirs(LOG_DIR, exist_ok=True)

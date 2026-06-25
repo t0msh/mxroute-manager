@@ -32,6 +32,7 @@ from utils.audit_log import (
     normalize_log_limit,
     read_recent_log_entries,
     resolve_log_file,
+    safe_log_path,
     stream_audit_csv,
 )
 
@@ -170,7 +171,20 @@ def get_logs():
             client_value_error_message(exc, default=INVALID_LOG_DATE_MESSAGE), 400
         )
 
-    if not log_file or not os.path.exists(log_file):
+    if not log_file:
+        return jsonify(
+            {
+                "success": True,
+                "data": {
+                    "entries": [],
+                    "current_date": current_date,
+                    "available_dates": available_dates,
+                },
+            }
+        )
+
+    log_file = safe_log_path(log_file)
+    if not os.path.exists(log_file):
         return jsonify(
             {
                 "success": True,
@@ -215,7 +229,13 @@ def download_logs():
             client_value_error_message(exc, default=INVALID_LOG_DATE_MESSAGE), 400
         )
 
-    if not log_file or not os.path.exists(log_file):
+    if not log_file:
+        return jsonify(
+            {"success": False, "error": {"message": "No log file for that date"}}
+        ), 404
+
+    log_file = safe_log_path(log_file)
+    if not os.path.exists(log_file):
         return jsonify(
             {"success": False, "error": {"message": "No log file for that date"}}
         ), 404

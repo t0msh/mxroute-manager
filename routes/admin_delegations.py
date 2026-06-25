@@ -24,16 +24,12 @@ from utils.validators import (
 _INVALID_IDENTIFIER = "Invalid user identifier. Use a username (e.g. billy), user@local, or email address."
 
 
-def _json_error(message, status=400):
-    return json_error(escape_client_text(message), status)
-
-
 def _normalize_delegation_email(raw_email):
     if not raw_email:
-        return None, _json_error("User identifier is required")
+        return None, ("User identifier is required", 400)
     email = raw_email.strip().lower()
     if not validate_local_user_identifier(email):
-        return None, _json_error(_INVALID_IDENTIFIER)
+        return None, (_INVALID_IDENTIFIER, 400)
     return email, None
 
 
@@ -78,12 +74,14 @@ def _is_admin_from_domains(data):
 
 def _validate_grant_list(grants, is_admin):
     if not is_admin and not grants:
-        return _json_error(
-            "Select at least one domain with permissions, or grant Admin access."
+        return (
+            "Select at least one domain with permissions, or grant Admin access.",
+            400,
         )
     for grant in grants:
         if not grant["permissions"]:
-            return _json_error(f"Select at least one permission for {grant['domain']}.")
+            domain = escape_client_text(grant["domain"])
+            return (f"Select at least one permission for {domain}.", 400)
     return None
 
 
@@ -92,16 +90,17 @@ def _parse_contact_email(data):
         return None, False, None
     contact_email = str(data.get("contact_email") or "").strip().lower() or None
     if contact_email and not is_email_identifier(contact_email):
-        return None, True, _json_error("Invalid contact email format.")
+        return None, True, ("Invalid contact email format.", 400)
     return contact_email, True, None
 
 
 def _password_required_error(row, local_user, password_provided):
     if not row and local_user and not password_provided:
-        return _json_error("Password is required when creating a local user.")
+        return ("Password is required when creating a local user.", 400)
     if row and local_user and not row[1] and not password_provided:
-        return _json_error(
-            "Password is required for local users who do not have one set."
+        return (
+            "Password is required for local users who do not have one set.",
+            400,
         )
     return None
 
@@ -180,19 +179,19 @@ def list_delegations():
 @require_admin
 def update_delegation():
     data = request.json or {}
-    email, error = _normalize_delegation_email(data.get("email"))
-    if error:
-        return error
+    email, err = _normalize_delegation_email(data.get("email"))
+    if err:
+        return json_error(*err)
 
     grants = parse_delegation_grants(data)
     is_admin = _is_admin_from_domains(data)
-    error = _validate_grant_list(grants, is_admin)
-    if error:
-        return error
+    err = _validate_grant_list(grants, is_admin)
+    if err:
+        return json_error(*err)
 
-    contact_email, update_contact_email, error = _parse_contact_email(data)
-    if error:
-        return error
+    contact_email, update_contact_email, err = _parse_contact_email(data)
+    if err:
+        return json_error(*err)
 
     password = data.get("password")
     password_provided = bool(password and str(password).strip())
@@ -206,9 +205,9 @@ def update_delegation():
             )
             row = cursor.fetchone()
 
-            error = _password_required_error(row, local_user, password_provided)
-            if error:
-                return error
+            err = _password_required_error(row, local_user, password_provided)
+            if err:
+                return json_error(*err)
 
             user_id = _upsert_delegation_user(
                 cursor,
@@ -235,22 +234,20 @@ def update_delegation():
         return jsonify({"success": True})
     except Exception as e:
         current_app.logger.error(f"Error updating user delegations in SQLite: {e}")
-        return _json_error("Failed to save configuration.", status=500)
+        return json_error("Failed to save configuration.", 500)
 
 
 @admin_bp.route("/api/admin/delegations", methods=["DELETE"])
 @admin_bp.route("/api/admin/delegations/<path:email>", methods=["DELETE"])
 @require_admin
 def delete_delegation(email=None):
-    email, error = _delegation_email_from_request(email)
-    if error:
-        return error
+    email, err = _delegation_email_from_request(email)
+    if err:
+        return json_error(*err)
 
     current_user = get_current_user()
     if current_user and current_user.get("email", "").lower() == email:
-        return _json_error(
-            "Conflict: You cannot revoke/delete your own account.", status=409
-        )
+        return json_error("Conflict: You cannot revoke/delete your own account.", 409)
 
     try:
         with get_conn() as conn:
@@ -258,7 +255,7 @@ def delete_delegation(email=None):
             cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
             row = cursor.fetchone()
             if not row:
-                return _json_error("User not found", status=404)
+                return json_error("User not found", 404)
             user_id = row[0]
             cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
             cursor.execute("DELETE FROM delegations WHERE user_id = ?", (user_id,))
@@ -267,4 +264,4 @@ def delete_delegation(email=None):
         return jsonify({"success": True})
     except Exception as e:
         current_app.logger.error(f"Error deleting user delegations from SQLite: {e}")
-        return _json_error("Failed to delete configuration.", status=500)
+        return json_error("Failed to delete configuration.", 500)

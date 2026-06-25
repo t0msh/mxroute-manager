@@ -3,7 +3,7 @@
 import pytest
 from werkzeug.security import generate_password_hash
 
-from routes import auth as auth_module
+from routes import auth_local as auth_module
 
 
 @pytest.fixture(autouse=True)

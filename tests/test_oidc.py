@@ -39,7 +39,7 @@ def test_oidc_callback_disabled_redirects_home(client, monkeypatch):
 def test_oidc_callback_rejects_state_mismatch(oidc_on, client):
     prime_oidc_state(client, "expected-state")
 
-    with patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY):
+    with patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY):
         response = client.get("/oidc/callback?state=wrong-state&code=auth-code")
 
     assert response.status_code == 400
@@ -49,7 +49,7 @@ def test_oidc_callback_rejects_state_mismatch(oidc_on, client):
 def test_oidc_callback_rejects_missing_code(oidc_on, client):
     state = prime_oidc_state(client)
 
-    with patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY):
+    with patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY):
         response = client.get(f"/oidc/callback?state={state}")
 
     assert response.status_code == 400
@@ -65,9 +65,9 @@ def test_oidc_callback_rejects_unknown_user(oidc_on, client):
     }
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(f"/oidc/callback?state={state}&code=auth-code")
 
@@ -92,9 +92,9 @@ def test_oidc_callback_logs_in_delegated_user(oidc_on, fresh_db, client, db_conn
     }
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(
             f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
@@ -120,9 +120,9 @@ def test_oidc_callback_promotes_admin_by_configured_email(
     }
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(
             f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
@@ -151,9 +151,9 @@ def test_oidc_callback_promotes_admin_by_group(
     }
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(
             f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
@@ -180,9 +180,9 @@ def test_oidc_callback_rejects_unverified_email(oidc_on, fresh_db, client, db_co
     }
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(f"/oidc/callback?state={state}&code=auth-code")
 
@@ -209,9 +209,9 @@ def test_oidc_callback_accepts_string_email_verified(
     }
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(
             f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
@@ -235,9 +235,9 @@ def test_oidc_callback_allows_sub_when_email_claim_absent(
     userinfo = {"sub": "opaque-subject@idp", "groups": []}
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(userinfo_data=userinfo),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(
             f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
@@ -252,9 +252,9 @@ def test_oidc_callback_missing_access_token(oidc_on, client):
     state = prime_oidc_state(client)
 
     with (
-        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY),
         patch_oidc_http(token_data={"token_type": "Bearer"}),
-        patch("routes.auth.write_audit_log"),
+        patch("routes.auth_oidc.write_audit_log"),
     ):
         response = client.get(f"/oidc/callback?state={state}&code=auth-code")
 
@@ -263,7 +263,7 @@ def test_oidc_callback_missing_access_token(oidc_on, client):
 
 
 def test_login_redirect_sends_user_to_provider(oidc_on, client):
-    with patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY):
+    with patch("routes.auth_oidc.get_oidc_config", return_value=OIDC_DISCOVERY):
         response = client.get("/login/redirect", follow_redirects=False)
 
     assert response.status_code == 302

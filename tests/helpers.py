@@ -107,7 +107,7 @@ class _MockHttpResponse:
 
 
 def patch_oidc_http(token_data=None, userinfo_data=None):
-    """Return context managers patching token + userinfo HTTP calls in routes.auth."""
+    """Return context managers patching token + userinfo HTTP calls in routes.auth_oidc."""
     from contextlib import contextmanager
     from unittest.mock import patch
 
@@ -124,10 +124,10 @@ def patch_oidc_http(token_data=None, userinfo_data=None):
     def _patch():
         with (
             patch(
-                "routes.auth.requests.post", return_value=_MockHttpResponse(token_data)
+                "routes.auth_oidc.requests.post", return_value=_MockHttpResponse(token_data)
             ) as mock_post,
             patch(
-                "routes.auth.requests.get",
+                "routes.auth_oidc.requests.get",
                 return_value=_MockHttpResponse(userinfo_data),
             ) as mock_get,
         ):

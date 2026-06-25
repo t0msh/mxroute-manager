@@ -117,7 +117,7 @@ def patch_oidc_http(token_data=None, userinfo_data=None):
     userinfo_data = (
         userinfo_data
         if userinfo_data is not None
-        else {"email": "delegate@example.com", "groups": []}
+        else {"email": "delegate@example.com", "email_verified": True, "groups": []}
     )
 
     @contextmanager

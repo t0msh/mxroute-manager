@@ -232,15 +232,35 @@ def _oidc_fetch_userinfo(code):
     return userinfo_res.json(), None
 
 
+def _oidc_email_verified(userinfo_data):
+    verified = userinfo_data.get("email_verified")
+    if verified is True:
+        return True
+    if isinstance(verified, str) and verified.strip().lower() in ("true", "1", "yes"):
+        return True
+    return False
+
+
 def _oidc_resolve_identity(userinfo_data):
-    email = (
-        userinfo_data.get("email")
-        or userinfo_data.get("sub")
-        or userinfo_data.get("preferred_username")
-    )
-    if not email:
-        return None, ("Error: User identification claim not found in userinfo", 500)
-    email = email.lower().strip()
+    email_claim = userinfo_data.get("email")
+    if email_claim:
+        if not _oidc_email_verified(userinfo_data):
+            return None, (
+                render_template(
+                    "login.html",
+                    error=(
+                        "Your identity provider has not verified this email address. "
+                        "Please verify it with your provider and try again."
+                    ),
+                ),
+                403,
+            )
+        email = email_claim.lower().strip()
+    else:
+        fallback = userinfo_data.get("sub") or userinfo_data.get("preferred_username")
+        if not fallback:
+            return None, ("Error: User identification claim not found in userinfo", 500)
+        email = str(fallback).lower().strip()
 
     user_groups = userinfo_data.get("groups", [])
     if not isinstance(user_groups, list):

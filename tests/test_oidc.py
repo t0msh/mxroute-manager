@@ -58,7 +58,11 @@ def test_oidc_callback_rejects_missing_code(oidc_on, client):
 
 def test_oidc_callback_rejects_unknown_user(oidc_on, client):
     state = prime_oidc_state(client)
-    userinfo = {"email": "stranger@example.com", "groups": []}
+    userinfo = {
+        "email": "stranger@example.com",
+        "email_verified": True,
+        "groups": [],
+    }
 
     with (
         patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
@@ -81,7 +85,11 @@ def test_oidc_callback_logs_in_delegated_user(oidc_on, fresh_db, client, db_conn
         password=None,
     )
     state = prime_oidc_state(client)
-    userinfo = {"email": "delegate@example.com", "groups": []}
+    userinfo = {
+        "email": "delegate@example.com",
+        "email_verified": True,
+        "groups": [],
+    }
 
     with (
         patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
@@ -105,7 +113,11 @@ def test_oidc_callback_promotes_admin_by_configured_email(
     oidc_on, fresh_db, client, db_connection
 ):
     state = prime_oidc_state(client)
-    userinfo = {"email": "oidc-admin@example.com", "groups": []}
+    userinfo = {
+        "email": "oidc-admin@example.com",
+        "email_verified": True,
+        "groups": [],
+    }
 
     with (
         patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
@@ -134,6 +146,7 @@ def test_oidc_callback_promotes_admin_by_group(
     state = prime_oidc_state(client)
     userinfo = {
         "email": "group-admin@example.com",
+        "email_verified": True,
         "groups": ["mxroute-admins", "users"],
     }
 
@@ -150,6 +163,89 @@ def test_oidc_callback_promotes_admin_by_group(
     with client.session_transaction() as sess:
         assert sess["user"]["email"] == "group-admin@example.com"
         assert sess["user"]["is_admin"] is True
+
+
+def test_oidc_callback_rejects_unverified_email(oidc_on, fresh_db, client, db_connection):
+    insert_user_with_grants(
+        db_connection,
+        "delegate@example.com",
+        grants=[{"domain": "example.com", "permissions": ["emails"]}],
+        password=None,
+    )
+    state = prime_oidc_state(client)
+    userinfo = {
+        "email": "delegate@example.com",
+        "email_verified": False,
+        "groups": [],
+    }
+
+    with (
+        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch_oidc_http(userinfo_data=userinfo),
+        patch("routes.auth.write_audit_log"),
+    ):
+        response = client.get(f"/oidc/callback?state={state}&code=auth-code")
+
+    assert response.status_code == 403
+    assert b"not verified" in response.data
+    with client.session_transaction() as sess:
+        assert "user" not in sess
+
+
+def test_oidc_callback_accepts_string_email_verified(
+    oidc_on, fresh_db, client, db_connection
+):
+    insert_user_with_grants(
+        db_connection,
+        "delegate@example.com",
+        grants=[{"domain": "example.com", "permissions": ["emails"]}],
+        password=None,
+    )
+    state = prime_oidc_state(client)
+    userinfo = {
+        "email": "delegate@example.com",
+        "email_verified": "true",
+        "groups": [],
+    }
+
+    with (
+        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch_oidc_http(userinfo_data=userinfo),
+        patch("routes.auth.write_audit_log"),
+    ):
+        response = client.get(
+            f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
+        )
+
+    assert response.status_code == 302
+    with client.session_transaction() as sess:
+        assert sess["user"]["email"] == "delegate@example.com"
+
+
+def test_oidc_callback_allows_sub_when_email_claim_absent(
+    oidc_on, fresh_db, client, db_connection
+):
+    insert_user_with_grants(
+        db_connection,
+        "opaque-subject@idp",
+        grants=[{"domain": "example.com", "permissions": ["emails"]}],
+        password=None,
+    )
+    state = prime_oidc_state(client)
+    userinfo = {"sub": "opaque-subject@idp", "groups": []}
+
+    with (
+        patch("routes.auth.get_oidc_config", return_value=OIDC_DISCOVERY),
+        patch_oidc_http(userinfo_data=userinfo),
+        patch("routes.auth.write_audit_log"),
+    ):
+        response = client.get(
+            f"/oidc/callback?state={state}&code=auth-code", follow_redirects=False
+        )
+
+    assert response.status_code == 302
+    with client.session_transaction() as sess:
+        assert sess["user"]["email"] == "opaque-subject@idp"
 
 
 def test_oidc_callback_missing_access_token(oidc_on, client):

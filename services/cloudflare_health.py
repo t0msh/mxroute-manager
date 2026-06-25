@@ -3,10 +3,16 @@ from services.cloudflare_api import cf_is_configured, fetch_cf_dns_sets, find_cf
 from services.cloudflare_constants import (
     PENDING_MAIL_CHECK,
     get_webmail_target,
+    mail_host,
     webmail_host,
 )
 from services.cloudflare_dns import public_dns_resolves
-from services.dns_health import apply_mail_hosting_context, check_dns_health
+from services.dns_health import (
+    _query_cname_target,
+    apply_mail_hosting_context,
+    check_dns_health,
+    overall_from_checks,
+)
 from services.mxroute import (
     domain_on_mxroute,
     get_domain_mail_hosting,
@@ -46,6 +52,7 @@ def build_setup_health(domain):
             )
             health["checks"]["verification"] = partial["checks"]["verification"]
         mail_labels = {
+            "mail": "Mail server (CNAME)",
             "mx": "MX Records",
             "spf": "SPF (TXT)",
             "dkim": "DKIM (TXT)",
@@ -70,6 +77,8 @@ def build_setup_health(domain):
             health["overall"] = "healthy"
 
     if on_mxroute:
+        health["checks"]["mail"] = mail_health_check(domain)
+        health["overall"] = overall_from_checks(health["checks"])
         health = apply_mail_hosting_context(health, get_domain_mail_hosting(domain))
         if cf_is_configured():
             # Optional, opt-in record: added after overall is computed so it never
@@ -85,6 +94,76 @@ def build_setup_health(domain):
     health["mxroute_reachable"] = mx_status == 200
     health["dmarc_policy"] = dmarc_policy_payload(domain)
     return health
+
+
+def mail_health_check(domain):
+    """Mail server CNAME (mail.<domain>): required for IMAP/SMTP custom hostname."""
+    host = mail_host(domain)
+    target = get_webmail_target()
+    base = {"label": "Mail server (CNAME)", "expected_host": host, "expected": target}
+    if not target:
+        return {
+            **base,
+            "status": "skipped",
+            "message": "MX_SERVER not configured — mail CNAME unavailable.",
+        }
+
+    public_target = _query_cname_target(host)
+    zone_id = find_cf_zone_id(domain) if cf_is_configured() else None
+    records = fetch_cf_dns_sets(zone_id)[2] if zone_id else []
+    cname = next(
+        (
+            rec
+            for rec in records
+            if rec.get("type") == "CNAME"
+            and rec.get("name", "").lower().rstrip(".") == host
+        ),
+        None,
+    )
+
+    if cname:
+        found = cname.get("content", "").lower().rstrip(".")
+        if found != target:
+            return {
+                **base,
+                "status": "fail",
+                "found": [found],
+                "message": f"Mail CNAME {host} → {found} (expected {target}).",
+            }
+        if public_target == target or (
+            public_target is None and public_dns_resolves(host)
+        ):
+            return {
+                **base,
+                "status": "pass",
+                "found": [found],
+                "message": f"Mail CNAME {host} → {found} (live).",
+            }
+        return {
+            **base,
+            "status": "pending",
+            "found": [found],
+            "message": f"Mail CNAME {host} → {found} in Cloudflare; waiting for public DNS to resolve.",
+        }
+
+    if public_target == target:
+        return {
+            **base,
+            "status": "pass",
+            "found": [public_target],
+            "message": f"Mail CNAME {host} → {public_target} (live).",
+        }
+    if zone_id:
+        return {
+            **base,
+            "status": "fail",
+            "message": f"Mail CNAME {host} not deployed in Cloudflare.",
+        }
+    return {
+        **base,
+        "status": "fail",
+        "message": f"Mail CNAME {host} missing or does not point to {target}.",
+    }
 
 
 def webmail_health_check(domain):

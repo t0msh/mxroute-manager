@@ -116,7 +116,7 @@ async function handleFixDnsRecord(recordType, { verify = false } = {}) {
 async function handleSetupDeployAll() {
     if (!setupWizardDomain) return;
     const btn = document.getElementById("btn-setup-deploy-all");
-    const records = ["mx", "spf", "dkim", "dmarc"];
+    const records = ["mail", "mx", "spf", "dkim", "dmarc"];
     if (document.getElementById("setup-webmail-enabled")?.checked) records.push("webmail");
     if (btn) btn.disabled = true;
     try {

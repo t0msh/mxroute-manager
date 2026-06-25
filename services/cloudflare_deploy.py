@@ -11,6 +11,7 @@ from services.cloudflare_constants import (
     DEPLOYABLE_RECORD_TYPES,
     MAIL_DNS_RECORD_TYPES,
     get_webmail_target,
+    mail_host,
     webmail_host,
 )
 from services.cloudflare_health import build_setup_health
@@ -44,6 +45,23 @@ class CfDeployContext:
             "existing_txt": self.existing_txt,
             "steps": self.steps,
         }
+
+
+def _deploy_mail(ctx: CfDeployContext) -> str:
+    target = get_webmail_target()
+    if not target:
+        if ctx.steps is not None:
+            ctx.steps.append("MX_SERVER not configured; skipping mail CNAME")
+        return "skipped"
+    return cf_upsert_cname(
+        ctx.zone_id,
+        "mail",
+        mail_host(ctx.domain),
+        target,
+        ctx.existing_records,
+        ctx.steps,
+        proxied=False,
+    )
 
 
 def _deploy_webmail(ctx: CfDeployContext) -> str:
@@ -191,6 +209,8 @@ def deploy_dns_record_to_cf(ctx: CfDeployContext, record_type: str) -> str:
     """Deploy a single DNS record type to Cloudflare. Returns 'added' or 'skipped'."""
     if record_type == "webmail":
         return _deploy_webmail(ctx)
+    if record_type == "mail":
+        return _deploy_mail(ctx)
     if record_type == "verification":
         return _deploy_verification(ctx)
 
@@ -235,7 +255,7 @@ def deploy_missing_dns_to_cf(domain, record_types=None):
     mail_requested = [r for r in record_types if r in MAIL_DNS_RECORD_TYPES]
     if mail_requested and not health["on_mxroute"]:
         raise ValueError(
-            "MX, SPF, DKIM, and DMARC records require the domain to be registered on MXroute first. "
+            "Mail, MX, SPF, DKIM, and DMARC records require the domain to be registered on MXroute first. "
             "Complete Step 3, then return to Step 2."
         )
 

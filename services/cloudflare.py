@@ -14,6 +14,7 @@ from services.cloudflare_constants import (
     MAIL_DNS_RECORD_TYPES,
     PENDING_MAIL_CHECK,
     get_webmail_target,
+    mail_host,
     webmail_host,
 )
 from services.cloudflare_deploy import (
@@ -24,6 +25,7 @@ from services.cloudflare_deploy import (
 from services.cloudflare_dns import public_dns_resolves as _public_dns_resolves
 from services.cloudflare_health import (
     build_setup_health,
+    mail_health_check as _mail_health_check,
     webmail_health_check as _webmail_health_check,
 )
 from services.cloudflare_portal import (
@@ -40,6 +42,7 @@ __all__ = [
     "MAIL_DNS_RECORD_TYPES",
     "PENDING_MAIL_CHECK",
     "_public_dns_resolves",
+    "_mail_health_check",
     "_webmail_health_check",
     "audit",
     "build_setup_health",
@@ -58,6 +61,7 @@ __all__ = [
     "get_config_value",
     "get_dmarc_record",
     "get_webmail_target",
+    "mail_host",
     "remove_reset_portal_cname",
     "webmail_host",
 ]

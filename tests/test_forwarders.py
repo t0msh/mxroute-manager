@@ -41,7 +41,7 @@ def test_list_forwarders_allowed_with_permission(fresh_db, client, forwarders_to
         "success": True,
         "data": [{"alias": "info", "forward_to": "me@example.com"}],
     }
-    with patch("routes.emails.mx_request", return_value=mx_json_response(payload)):
+    with patch("routes.emails.mx_domain_request", return_value=mx_json_response(payload)):
         response = client.get(f"/api/domains/{DOMAIN}/forwarders")
 
     assert response.status_code == 200
@@ -56,7 +56,7 @@ def test_list_forwarders_forbidden_without_permission(fresh_db, client, db_conne
     )
     prime_authenticated_session(client, "emails-only@local")
 
-    with patch("routes.emails.mx_request") as mock_mx:
+    with patch("routes.emails.mx_domain_request") as mock_mx:
         response = client.get(f"/api/domains/{DOMAIN}/forwarders")
 
     assert response.status_code == 403
@@ -64,7 +64,7 @@ def test_list_forwarders_forbidden_without_permission(fresh_db, client, db_conne
 
 
 def test_create_forwarder_requires_csrf(fresh_db, client, forwarders_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("routes.emails.audited_mx_domain") as mock_mx:
         response = client.post(
             f"/api/domains/{DOMAIN}/forwarders",
             json={"alias": "info", "forward_to": "me@example.com"},
@@ -78,7 +78,7 @@ def test_create_forwarder_requires_csrf(fresh_db, client, forwarders_token):
 def test_create_forwarder_calls_mxroute(fresh_db, client, forwarders_token):
     body = {"alias": "info", "forward_to": "me@example.com"}
     with patch(
-        "routes.emails.audited_mx",
+        "routes.emails.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 201),
     ) as mock_mx:
         response = client.post(
@@ -90,13 +90,13 @@ def test_create_forwarder_calls_mxroute(fresh_db, client, forwarders_token):
     assert response.status_code == 201
     mock_mx.assert_called_once()
     assert mock_mx.call_args[0][0] == "POST"
-    assert mock_mx.call_args[0][3] == "forwarder.create"
+    assert mock_mx.call_args[0][4] == "forwarder.create"
     assert mock_mx.call_args.kwargs["target"] == "info@example.com"
 
 
 def test_delete_forwarder_calls_mxroute(fresh_db, client, forwarders_token):
     with patch(
-        "routes.emails.audited_mx",
+        "routes.emails.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.delete(
@@ -107,7 +107,7 @@ def test_delete_forwarder_calls_mxroute(fresh_db, client, forwarders_token):
     assert response.status_code == 200
     mock_mx.assert_called_once()
     assert mock_mx.call_args[0][0] == "DELETE"
-    assert mock_mx.call_args[0][3] == "forwarder.delete"
+    assert mock_mx.call_args[0][4] == "forwarder.delete"
 
 
 def test_get_catch_all_with_permission(fresh_db, client, forwarders_token):
@@ -115,7 +115,7 @@ def test_get_catch_all_with_permission(fresh_db, client, forwarders_token):
         "success": True,
         "data": {"enabled": True, "forward_to": "catch@example.com"},
     }
-    with patch("routes.emails.mx_request", return_value=mx_json_response(payload)):
+    with patch("routes.emails.mx_domain_request", return_value=mx_json_response(payload)):
         response = client.get(f"/api/domains/{DOMAIN}/catch-all")
 
     assert response.status_code == 200
@@ -123,7 +123,7 @@ def test_get_catch_all_with_permission(fresh_db, client, forwarders_token):
 
 
 def test_update_catch_all_requires_csrf(fresh_db, client, forwarders_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("routes.emails.audited_mx_domain") as mock_mx:
         response = client.patch(
             f"/api/domains/{DOMAIN}/catch-all",
             json={"enabled": True, "forward_to": "catch@example.com"},
@@ -136,7 +136,7 @@ def test_update_catch_all_requires_csrf(fresh_db, client, forwarders_token):
 def test_update_catch_all_calls_mxroute(fresh_db, client, forwarders_token):
     body = {"enabled": True, "forward_to": "catch@example.com"}
     with patch(
-        "routes.emails.audited_mx",
+        "routes.emails.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.patch(
@@ -146,12 +146,12 @@ def test_update_catch_all_calls_mxroute(fresh_db, client, forwarders_token):
         )
 
     assert response.status_code == 200
-    assert mock_mx.call_args[0][3] == "catchall.update"
+    assert mock_mx.call_args[0][4] == "catchall.update"
 
 
 def test_list_pointers_allowed_with_forwarders(fresh_db, client, forwarders_token):
     payload = {"success": True, "data": ["other.com"]}
-    with patch("routes.domains.mx_request", return_value=mx_json_response(payload)):
+    with patch("routes.domains.mx_domain_request", return_value=mx_json_response(payload)):
         response = client.get(f"/api/domains/{DOMAIN}/pointers")
 
     assert response.status_code == 200
@@ -168,7 +168,7 @@ def test_create_pointer_forbidden_without_forwarders_permission(
     )
     token = prime_authenticated_session(client, "dashboard-only@local")
 
-    with patch("routes.domains.audited_mx") as mock_mx:
+    with patch("routes.domains.audited_mx_domain") as mock_mx:
         response = client.post(
             f"/api/domains/{DOMAIN}/pointers",
             headers=auth_post_headers(token),

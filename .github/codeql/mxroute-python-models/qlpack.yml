@@ -1,0 +1,7 @@
+name: mxroute/mxroute-python-models
+version: 0.0.1
+library: true
+extensionTargets:
+  codeql/python-all: "*"
+dataExtensions:
+  - mxroute-python-models.yml

@@ -1,0 +1,26 @@
+extensions:
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierModel
+    data:
+      - ["html", "Member[escape].ReturnValue", "html-injection"]
+      - ["utils.api_response", "Member[escape_client_text].ReturnValue", "html-injection"]
+      - ["utils.api_response", "Member[sanitize_client_json].ReturnValue", "html-injection"]
+      - ["utils.api_response", "Member[mx_json_response].ReturnValue", "html-injection"]
+      - ["utils.api_response", "Member[json_ok].ReturnValue", "html-injection"]
+      - ["utils.api_response", "Member[json_error].ReturnValue", "html-injection"]
+      - ["services.mxroute", "Member[mx_request].ReturnValue", "html-injection"]
+      - ["services.mxroute", "Member[audited_mx].ReturnValue", "html-injection"]
+      - ["services.mxroute", "Member[mx_domain_request].ReturnValue", "html-injection"]
+      - ["services.mxroute", "Member[audited_mx_domain].ReturnValue", "html-injection"]
+  - addsTo:
+      pack: codeql/python-all
+      extensible: barrierGuardModel
+    data:
+      - ["utils.validators", "Member[validate_domain].Argument[0]", "true", "html-injection"]
+  - addsTo:
+      pack: codeql/python-all
+      extensible: summaryModel
+    data:
+      - ["utils.api_response", "Member[sanitize_client_json]", "Argument[0]", "ReturnValue", "html-injection"]
+      - ["utils.api_response", "Member[escape_client_text]", "Argument[0]", "ReturnValue", "html-injection"]

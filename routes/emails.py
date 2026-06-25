@@ -5,7 +5,7 @@ from models.db import (
     get_recovery_map,
     set_recovery_email,
 )
-from utils.api_response import escape_client_text, json_ok, sanitize_client_json
+from utils.api_response import escape_client_text, json_ok, mx_json_response, sanitize_client_json
 from utils.validators import validate_username, validate_recovery_email
 from utils.auth_helpers import (
     get_current_user,
@@ -15,7 +15,12 @@ from utils.auth_helpers import (
 from services.mail_client import build_domain_mail_client_settings
 from services.mailbox_import import preview_mailbox_import
 from services.mailbox_provision import provision_mailbox
-from services.mxroute import mx_request, audited_mx, audit
+from services.mxroute import (
+    audited_mx_domain,
+    audit,
+    mx_domain_request,
+    mx_domain_request_raw,
+)
 
 emails_bp = Blueprint("emails", __name__)
 
@@ -34,11 +39,11 @@ def get_mail_client_settings(domain):
 @emails_bp.route("/list-emails/<domain>", methods=["GET"])  # backward compat
 @require_any_permission("dashboard", "emails")
 def list_emails(domain):
-    result, status = mx_request("GET", f"/domains/{domain}/email-accounts")
+    res, status = mx_domain_request_raw("GET", domain, "/email-accounts")
     if status != 200:
-        return result, status
+        return mx_json_response(res, status)
 
-    payload = result.get_json()
+    payload = res if isinstance(res, dict) else {}
     if payload.get("success") and isinstance(payload.get("data"), list):
         addresses = [
             _mailbox_address(account.get("username"), domain)
@@ -100,7 +105,7 @@ def preview_mailbox_import_api():
 @emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["GET"])
 @require_permission("emails")
 def get_email_account(domain, user):
-    return mx_request("GET", f"/domains/{domain}/email-accounts/{user}")
+    return mx_domain_request("GET", domain, f"/email-accounts/{user}")
 
 
 @emails_bp.route("/api/domains/<domain>/email-accounts/<user>", methods=["PATCH"])
@@ -117,9 +122,10 @@ def update_email_account(domain, user):
         action = "mailbox.quota_update"
     else:
         action = "mailbox.update"
-    return audited_mx(
+    return audited_mx_domain(
         "PATCH",
-        f"/domains/{domain}/email-accounts/{user}",
+        domain,
+        f"/email-accounts/{user}",
         payload,
         action,
         target=f"{user}@{domain}",
@@ -133,9 +139,10 @@ def delete_email_api(domain, user):
         return jsonify(
             {"success": False, "error": {"message": "Invalid mailbox username format"}}
         ), 400
-    response, status = audited_mx(
+    response, status = audited_mx_domain(
         "DELETE",
-        f"/domains/{domain}/email-accounts/{user}",
+        domain,
+        f"/email-accounts/{user}",
         None,
         "mailbox.delete",
         target=f"{user}@{domain}",
@@ -172,7 +179,7 @@ def update_recovery_email(domain, user):
     audit(
         "mailbox.recovery_update", target=mailbox_email, recovery_email=recovery_email
     )
-    return jsonify({"success": True, "data": {"recovery_email": recovery_email}})
+    return json_ok({"recovery_email": recovery_email})
 
 
 def _delete_recovery_after_mx_delete(response, status, username, domain):
@@ -186,7 +193,7 @@ def _delete_recovery_after_mx_delete(response, status, username, domain):
 @emails_bp.route("/api/domains/<domain>/forwarders", methods=["GET"])
 @require_permission("forwarders")
 def list_forwarders(domain):
-    return mx_request("GET", f"/domains/{domain}/forwarders")
+    return mx_domain_request("GET", domain, "/forwarders")
 
 
 @emails_bp.route("/api/domains/<domain>/forwarders", methods=["POST"])
@@ -194,9 +201,10 @@ def list_forwarders(domain):
 def create_forwarder(domain):
     data = request.json or {}
     alias = data.get("alias", "")
-    return audited_mx(
+    return audited_mx_domain(
         "POST",
-        f"/domains/{domain}/forwarders",
+        domain,
+        "/forwarders",
         request.json,
         "forwarder.create",
         target=f"{alias}@{domain}",
@@ -206,9 +214,10 @@ def create_forwarder(domain):
 @emails_bp.route("/api/domains/<domain>/forwarders/<alias>", methods=["DELETE"])
 @require_permission("forwarders")
 def delete_forwarder(domain, alias):
-    return audited_mx(
+    return audited_mx_domain(
         "DELETE",
-        f"/domains/{domain}/forwarders/{alias}",
+        domain,
+        f"/forwarders/{alias}",
         None,
         "forwarder.delete",
         target=f"{alias}@{domain}",
@@ -218,16 +227,16 @@ def delete_forwarder(domain, alias):
 @emails_bp.route("/api/domains/<domain>/catch-all", methods=["GET"])
 @require_permission("forwarders")
 def get_catch_all(domain):
-    return mx_request("GET", f"/domains/{domain}/catch-all")
+    return mx_domain_request("GET", domain, "/catch-all")
 
 
 @emails_bp.route("/api/domains/<domain>/catch-all", methods=["PATCH"])
 @require_permission("forwarders")
 def update_catch_all(domain):
-    return audited_mx(
+    return audited_mx_domain(
         "PATCH",
-        f"/domains/{domain}/catch-all",
+        domain,
+        "/catch-all",
         request.json,
         "catchall.update",
-        target=domain,
     )

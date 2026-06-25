@@ -81,7 +81,10 @@ def test_delegate_can_list_emails_with_permission(fresh_db, client, db_connectio
 
     mx_payload = {"success": True, "data": [{"username": "alex"}]}
 
-    with patch("routes.emails.mx_request", return_value=mx_json_response(mx_payload)):
+    with patch(
+        "routes.emails.mx_domain_request_raw",
+        return_value=(mx_payload, 200),
+    ):
         response = client.get("/api/domains/example.com/email-accounts")
 
     assert response.status_code == 200
@@ -96,7 +99,7 @@ def test_delegate_forbidden_without_emails_permission(fresh_db, client, db_conne
     )
     token = prime_authenticated_session(client, "viewer@local")
 
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("routes.emails.audited_mx_domain") as mock_mx:
         response = client.post(
             "/api/domains/example.com/email-accounts",
             headers=auth_post_headers(token),
@@ -148,7 +151,7 @@ def test_create_domain_requires_admin(fresh_db, client, db_connection):
     )
     token = prime_authenticated_session(client, "editor@local")
 
-    with patch("routes.domains.audited_mx") as mock_mx:
+    with patch("routes.domains.audited_mx_domain") as mock_mx:
         response = client.post(
             "/api/domains",
             headers=auth_post_headers(token),

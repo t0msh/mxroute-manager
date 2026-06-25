@@ -12,7 +12,13 @@ from utils.auth_helpers import (
     get_domain_grants,
 )
 from models.db import load_domain_mapping, get_fleet_overview_state
-from services.mxroute import mx_request, mx_request_raw, audited_mx
+from services.mxroute import (
+    mx_request,
+    mx_request_raw,
+    audited_mx,
+    audited_mx_domain,
+    mx_domain_request,
+)
 from services.fleet_monitor import run_fleet_overview_scan
 
 domains_bp = Blueprint("domains", __name__)
@@ -136,7 +142,7 @@ def create_domain():
 @domains_bp.route("/api/domains/<domain>", methods=["GET"])
 @require_any_permission("dashboard", "emails", "forwarders", "spam", "dns")
 def get_domain_details(domain):
-    return mx_request("GET", f"/domains/{domain}")
+    return mx_domain_request("GET", domain, "")
 
 
 @domains_bp.route("/api/domains/<domain>", methods=["DELETE"])
@@ -146,20 +152,18 @@ def delete_domain(domain):
         return jsonify(
             {"success": False, "error": {"message": "Invalid domain name format"}}
         ), 400
-    return audited_mx(
-        "DELETE", f"/domains/{domain}", None, "domain.delete", target=domain
-    )
+    return audited_mx_domain("DELETE", domain, "", None, "domain.delete")
 
 
 @domains_bp.route("/api/domains/<domain>/mail-status", methods=["PATCH"])
 @require_admin
 def set_mail_status(domain):
-    return audited_mx(
+    return audited_mx_domain(
         "PATCH",
-        f"/domains/{domain}/mail-status",
+        domain,
+        "/mail-status",
         request.json,
         "domain.mail_status",
-        target=domain,
     )
 
 
@@ -172,27 +176,28 @@ def get_verification_key():
 @domains_bp.route("/api/domains/<domain>/pointers", methods=["GET"])
 @require_any_permission("forwarders", "dashboard")
 def list_pointers(domain):
-    return mx_request("GET", f"/domains/{domain}/pointers")
+    return mx_domain_request("GET", domain, "/pointers")
 
 
 @domains_bp.route("/api/domains/<domain>/pointers", methods=["POST"])
 @require_permission("forwarders")
 def create_pointer(domain):
-    return audited_mx(
+    return audited_mx_domain(
         "POST",
-        f"/domains/{domain}/pointers",
+        domain,
+        "/pointers",
         request.json,
         "pointer.create",
-        target=domain,
     )
 
 
 @domains_bp.route("/api/domains/<domain>/pointers/<pointer>", methods=["DELETE"])
 @require_permission("forwarders")
 def delete_pointer(domain, pointer):
-    return audited_mx(
+    return audited_mx_domain(
         "DELETE",
-        f"/domains/{domain}/pointers/{pointer}",
+        domain,
+        f"/pointers/{pointer}",
         None,
         "pointer.delete",
         target=f"{pointer}@{domain}",

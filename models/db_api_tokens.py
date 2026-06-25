@@ -1,12 +1,13 @@
 """API tokens for automation (Bearer auth, delegation-style scopes)."""
 
 import hashlib
+import hmac
 import json
 import secrets
 from datetime import datetime, timezone
 
 from models.db_conn import get_conn
-from models.db_delegations import _normalize_permissions
+from models.db_delegations import _normalize_permissions, get_or_create_secret_key
 
 
 def _utc_now():
@@ -14,9 +15,8 @@ def _utc_now():
 
 
 def _hash_token(raw_token):
-    return hashlib.sha256(
-        raw_token.encode("utf-8")
-    ).hexdigest()  # lgtm[py/weak-sensitive-data-hashing]
+    pepper = get_or_create_secret_key().encode("utf-8")
+    return hmac.new(pepper, raw_token.encode("utf-8"), hashlib.sha256).hexdigest()
 
 
 def _row_to_token(row):

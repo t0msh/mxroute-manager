@@ -146,10 +146,8 @@ def test_list_emails_merges_recovery_from_db(
     db_connection.commit()
 
     with patch(
-        "routes.emails.mx_request",
-        return_value=mx_json_response(
-            {"success": True, "data": [{"username": "alex"}]}
-        ),
+        "routes.emails.mx_domain_request_raw",
+        return_value=({"success": True, "data": [{"username": "alex"}]}, 200),
     ):
         response = client.get(f"/api/domains/{DOMAIN}/email-accounts")
 
@@ -218,7 +216,7 @@ def test_delete_email_removes_recovery_on_success(
     db_connection.commit()
 
     with patch(
-        "routes.emails.audited_mx",
+        "routes.emails.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ):
         response = client.delete(
@@ -237,7 +235,7 @@ def test_delete_email_removes_recovery_on_success(
 
 
 def test_update_email_rejects_invalid_username(fresh_db, client, emails_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("routes.emails.audited_mx_domain") as mock_mx:
         response = client.patch(
             f"/api/domains/{DOMAIN}/email-accounts/bad name",
             headers=auth_post_headers(emails_token),
@@ -250,7 +248,7 @@ def test_update_email_rejects_invalid_username(fresh_db, client, emails_token):
 
 def test_update_email_password_calls_mxroute(fresh_db, client, emails_token):
     with patch(
-        "routes.emails.audited_mx",
+        "routes.emails.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.patch(
@@ -262,11 +260,11 @@ def test_update_email_password_calls_mxroute(fresh_db, client, emails_token):
     assert response.status_code == 200
     mock_mx.assert_called_once()
     assert mock_mx.call_args[0][0] == "PATCH"
-    assert mock_mx.call_args[0][3] == "mailbox.password_update"
+    assert mock_mx.call_args[0][4] == "mailbox.password_update"
 
 
 def test_delete_email_rejects_invalid_username(fresh_db, client, emails_token):
-    with patch("routes.emails.audited_mx") as mock_mx:
+    with patch("routes.emails.audited_mx_domain") as mock_mx:
         response = client.delete(
             f"/api/domains/{DOMAIN}/email-accounts/bad name",
             headers=auth_post_headers(emails_token),

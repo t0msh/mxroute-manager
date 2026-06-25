@@ -27,6 +27,7 @@ from services.mxroute import (
     inject_dmarc,
     register_domain_on_mxroute,
     mx_request_raw,
+    mx_domain_request_raw,
     get_domain_mail_hosting,
     audit,
 )
@@ -239,7 +240,7 @@ def fix_domain_dns(domain):
 @cloudflare_bp.route("/api/domains/<domain>/dns", methods=["GET"])
 @require_any_permission("dashboard", "dns")
 def get_dns_info(domain):
-    res, status = mx_request_raw("GET", f"/domains/{domain}/dns")
+    res, status = mx_domain_request_raw("GET", domain, "/dns")
     if status == 200 and isinstance(res, dict) and res.get("success"):
         res["data"] = inject_dmarc(res.get("data"), domain)
     return mx_json_response(res, status)

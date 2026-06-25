@@ -38,7 +38,7 @@ def test_get_spam_settings_requires_login(client):
 
 def test_get_spam_settings_with_permission(fresh_db, client, spam_token):
     payload = {"success": True, "data": {"score": 5}}
-    with patch("routes.spam.mx_request", return_value=mx_json_response(payload)):
+    with patch("routes.spam.mx_domain_request", return_value=mx_json_response(payload)):
         response = client.get(f"/api/domains/{DOMAIN}/spam/settings")
 
     assert response.status_code == 200
@@ -55,7 +55,7 @@ def test_get_spam_settings_forbidden_without_permission(
     )
     prime_authenticated_session(client, "emails-only@local")
 
-    with patch("routes.spam.mx_request") as mock_mx:
+    with patch("routes.spam.mx_domain_request") as mock_mx:
         response = client.get(f"/api/domains/{DOMAIN}/spam/settings")
 
     assert response.status_code == 403
@@ -63,7 +63,7 @@ def test_get_spam_settings_forbidden_without_permission(
 
 
 def test_update_spam_settings_requires_csrf(fresh_db, client, spam_token):
-    with patch("routes.spam.audited_mx") as mock_mx:
+    with patch("routes.spam.audited_mx_domain") as mock_mx:
         response = client.patch(
             f"/api/domains/{DOMAIN}/spam/settings",
             json={"score": 7},
@@ -75,7 +75,7 @@ def test_update_spam_settings_requires_csrf(fresh_db, client, spam_token):
 
 def test_update_spam_settings_calls_mxroute(fresh_db, client, spam_token):
     with patch(
-        "routes.spam.audited_mx",
+        "routes.spam.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.patch(
@@ -85,13 +85,13 @@ def test_update_spam_settings_calls_mxroute(fresh_db, client, spam_token):
         )
 
     assert response.status_code == 200
-    assert mock_mx.call_args[0][3] == "spam.settings_update"
+    assert mock_mx.call_args[0][4] == "spam.settings_update"
 
 
 def test_add_whitelist_entry_calls_mxroute(fresh_db, client, spam_token):
     body = {"entry": "trusted"}
     with patch(
-        "routes.spam.audited_mx",
+        "routes.spam.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 201),
     ) as mock_mx:
         response = client.post(
@@ -101,13 +101,13 @@ def test_add_whitelist_entry_calls_mxroute(fresh_db, client, spam_token):
         )
 
     assert response.status_code == 201
-    assert mock_mx.call_args[0][3] == "spam.whitelist_add"
+    assert mock_mx.call_args[0][4] == "spam.whitelist_add"
     assert mock_mx.call_args.kwargs["target"] == "trusted@example.com"
 
 
 def test_delete_whitelist_entry_calls_mxroute(fresh_db, client, spam_token):
     with patch(
-        "routes.spam.audited_mx",
+        "routes.spam.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.delete(
@@ -116,12 +116,12 @@ def test_delete_whitelist_entry_calls_mxroute(fresh_db, client, spam_token):
         )
 
     assert response.status_code == 200
-    assert mock_mx.call_args[0][3] == "spam.whitelist_remove"
+    assert mock_mx.call_args[0][4] == "spam.whitelist_remove"
 
 
 def test_add_blacklist_entry_calls_mxroute(fresh_db, client, spam_token):
     with patch(
-        "routes.spam.audited_mx",
+        "routes.spam.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 201),
     ) as mock_mx:
         response = client.post(
@@ -131,12 +131,12 @@ def test_add_blacklist_entry_calls_mxroute(fresh_db, client, spam_token):
         )
 
     assert response.status_code == 201
-    assert mock_mx.call_args[0][3] == "spam.blacklist_add"
+    assert mock_mx.call_args[0][4] == "spam.blacklist_add"
 
 
 def test_delete_blacklist_entry_calls_mxroute(fresh_db, client, spam_token):
     with patch(
-        "routes.spam.audited_mx",
+        "routes.spam.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.delete(
@@ -145,4 +145,4 @@ def test_delete_blacklist_entry_calls_mxroute(fresh_db, client, spam_token):
         )
 
     assert response.status_code == 200
-    assert mock_mx.call_args[0][3] == "spam.blacklist_remove"
+    assert mock_mx.call_args[0][4] == "spam.blacklist_remove"

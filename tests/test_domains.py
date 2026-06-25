@@ -78,7 +78,7 @@ def test_create_domain_calls_mxroute(fresh_db, client, admin_token):
 
 
 def test_delete_domain_requires_admin(fresh_db, client, dashboard_token):
-    with patch("routes.domains.audited_mx") as mock_mx:
+    with patch("routes.domains.audited_mx_domain") as mock_mx:
         response = client.delete(
             f"/api/domains/{DOMAIN}",
             headers=auth_post_headers(dashboard_token),
@@ -90,7 +90,7 @@ def test_delete_domain_requires_admin(fresh_db, client, dashboard_token):
 
 def test_delete_domain_calls_mxroute(fresh_db, client, admin_token):
     with patch(
-        "routes.domains.audited_mx",
+        "routes.domains.audited_mx_domain",
         return_value=mx_json_response({"success": True}, 200),
     ) as mock_mx:
         response = client.delete(
@@ -100,12 +100,12 @@ def test_delete_domain_calls_mxroute(fresh_db, client, admin_token):
 
     assert response.status_code == 200
     assert mock_mx.call_args[0][0] == "DELETE"
-    assert mock_mx.call_args.kwargs["target"] == DOMAIN
+    assert mock_mx.call_args[0][1] == DOMAIN
 
 
 def test_get_domain_details_allowed_with_dashboard(fresh_db, client, dashboard_token):
     with patch(
-        "routes.domains.mx_request",
+        "routes.domains.mx_domain_request",
         return_value=mx_json_response({"success": True, "data": {"domain": DOMAIN}}),
     ):
         response = client.get(f"/api/domains/{DOMAIN}")
@@ -123,7 +123,7 @@ def test_verification_key_admin_only(fresh_db, client, dashboard_token):
 
 
 def test_mail_status_toggle_admin_only(fresh_db, client, dashboard_token):
-    with patch("routes.domains.audited_mx") as mock_mx:
+    with patch("routes.domains.audited_mx_domain") as mock_mx:
         response = client.patch(
             f"/api/domains/{DOMAIN}/mail-status",
             headers=auth_post_headers(dashboard_token),

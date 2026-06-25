@@ -58,8 +58,8 @@ def test_api_token_auth_allows_scoped_route(fresh_db, client):
         grants=[{"domain": DOMAIN, "permissions": ["emails"]}],
     )
     with patch(
-        "routes.emails.mx_request",
-        return_value=mx_json_response({"success": True, "data": []}),
+        "routes.emails.mx_domain_request_raw",
+        return_value=({"success": True, "data": []}, 200),
     ):
         response = client.get(
             f"/api/domains/{DOMAIN}/email-accounts",

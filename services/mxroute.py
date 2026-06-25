@@ -5,7 +5,8 @@ from utils.api_response import GENERIC_UPSTREAM_ERROR, mx_json_response
 from models.db import get_config_value, get_dmarc_record
 from utils.auth_helpers import get_current_user
 from utils.audit_log import write_audit_log
-from utils.validators import nested_dict_get
+from utils.api_response import json_error
+from utils.validators import nested_dict_get, validate_domain
 
 BASE_URL = os.getenv("MXROUTE_API_URL", "https://api.mxroute.com").rstrip("/")
 
@@ -56,6 +57,38 @@ def audit(action, target="", **details):
         user = None
     email = (user or {}).get("email", "system")
     write_audit_log(action, email, target, details or None)
+
+
+def _domain_path(domain, suffix):
+    if not suffix:
+        return f"/domains/{domain}"
+    if not suffix.startswith("/"):
+        suffix = f"/{suffix}"
+    return f"/domains/{domain}{suffix}"
+
+
+def mx_domain_request(method, domain, suffix, payload=None):
+    if not validate_domain(domain):
+        return json_error("Invalid domain name format", 400)
+    return mx_request(method, _domain_path(domain, suffix), payload)
+
+
+def mx_domain_request_raw(method, domain, suffix, payload=None):
+    if not validate_domain(domain):
+        return {"success": False, "error": {"message": "Invalid domain name format"}}, 400
+    return mx_request_raw(method, _domain_path(domain, suffix), payload)
+
+
+def audited_mx_domain(method, domain, suffix, payload, action, target=""):
+    if not validate_domain(domain):
+        return json_error("Invalid domain name format", 400)
+    return audited_mx(
+        method,
+        _domain_path(domain, suffix),
+        payload,
+        action,
+        target=target or domain,
+    )
 
 
 def audited_mx(method, path, payload, action, target=""):

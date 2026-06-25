@@ -4,6 +4,7 @@ extensions:
       extensible: barrierModel
     data:
       - ["html", "Member[escape].ReturnValue", "html-injection"]
+      - ["markupsafe", "Member[escape].ReturnValue", "html-injection"]
       - ["utils.api_response", "Member[escape_client_text].ReturnValue", "html-injection"]
       - ["utils.api_response", "Member[sanitize_client_json].ReturnValue", "html-injection"]
       - ["utils.api_response", "Member[mx_json_response].ReturnValue", "html-injection"]

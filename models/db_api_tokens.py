@@ -1,7 +1,6 @@
 """API tokens for automation (Bearer auth, delegation-style scopes)."""
 
 import hashlib
-import hmac
 import json
 import secrets
 from datetime import datetime, timezone
@@ -14,9 +13,21 @@ def _utc_now():
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def _hash_token(raw_token):
+_PBKDF2_ITERATIONS = 600_000
+
+
+def _token_pbkdf2_salt():
     pepper = get_or_create_secret_key().encode("utf-8")
-    return hmac.new(pepper, raw_token.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hashlib.sha256(pepper + b":mxroute-manager:api-token-v2").digest()
+
+
+def _hash_token(raw_token):
+    return hashlib.pbkdf2_hmac(
+        "sha256",
+        raw_token.encode("utf-8"),
+        _token_pbkdf2_salt(),
+        _PBKDF2_ITERATIONS,
+    ).hex()
 
 
 def _row_to_token(row):

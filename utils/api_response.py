@@ -1,8 +1,7 @@
 """Safe JSON API responses for Flask routes."""
 
-import html
-
 from flask import jsonify
+from markupsafe import escape
 
 GENERIC_ERROR = "The request could not be completed."
 GENERIC_UPSTREAM_ERROR = "An upstream service error occurred."
@@ -12,7 +11,7 @@ INVALID_LOG_DATE_MESSAGE = "Invalid date format; expected YYYY-MM-DD"
 def escape_client_text(value):
     if value is None:
         return ""
-    return html.escape(str(value), quote=True)
+    return escape(str(value))
 
 
 def sanitize_client_json(value):

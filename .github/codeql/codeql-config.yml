@@ -1,1 +1,9 @@
+# CodeQL config for the workflow in .github/workflows/codeql.yml.
+#
+# Disable GitHub's default CodeQL setup (Settings → Code security → Code scanning)
+# so only this workflow runs. Two scanners duplicate every alert.
+#
+# Sanitizer barrier models live in .github/codeql/extensions/mxroute-python-models/
+# and are auto-discovered by github/codeql-action.
+
 name: mxroute-manager

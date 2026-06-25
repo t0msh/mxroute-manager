@@ -17,6 +17,7 @@ from services.cloudflare import (
     build_setup_health,
     deploy_missing_dns_to_cf,
     MAIL_DNS_RECORD_TYPES,
+    _mail_health_check,
 )
 from services.cloudflare_bulk import fix_dns_bulk
 from services.mxroute import (
@@ -28,7 +29,11 @@ from services.mxroute import (
     get_domain_mail_hosting,
     audit,
 )
-from services.dns_health import check_dns_health, apply_mail_hosting_context
+from services.dns_health import (
+    check_dns_health,
+    apply_mail_hosting_context,
+    overall_from_checks,
+)
 
 cloudflare_bp = Blueprint("cloudflare", __name__)
 
@@ -305,6 +310,8 @@ def get_dns_health(domain):
         verification_record=verification_record,
         **dmarc_check_options(domain),
     )
+    health["checks"]["mail"] = _mail_health_check(domain)
+    health["overall"] = overall_from_checks(health["checks"])
     health = apply_mail_hosting_context(health, get_domain_mail_hosting(domain))
     health["dmarc_policy"] = dmarc_policy_payload(domain)
 

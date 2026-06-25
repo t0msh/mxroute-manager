@@ -147,7 +147,7 @@ def test_cf_setup_happy_path(fresh_db, client, admin_token):
     assert payload["success"] is True
     assert any("complete" in step.lower() for step in payload["steps"])
     mock_register.assert_called_once()
-    assert mock_deploy.call_count == 5  # verification + mx, spf, dkim, dmarc
+    assert mock_deploy.call_count == 6  # verification + mail, mx, spf, dkim, dmarc
     mock_audit.assert_called_once_with(
         "cloudflare.setup", target=DOMAIN, steps=len(payload["steps"])
     )

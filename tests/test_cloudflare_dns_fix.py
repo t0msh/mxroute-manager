@@ -73,7 +73,7 @@ def test_deploy_missing_dns_rejects_mail_records_before_mxroute_registration():
     patches = _fix_patches(health)
     with patches[0], patches[1], patches[6]:
         with pytest.raises(ValueError, match="registered on MXroute"):
-            deploy_missing_dns_to_cf(DOMAIN, record_types=["mx"])
+            deploy_missing_dns_to_cf(DOMAIN, record_types=["mail"])
 
 
 def test_deploy_missing_dns_returns_early_when_everything_passes():

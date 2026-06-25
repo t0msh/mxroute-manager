@@ -1,6 +1,6 @@
 from urllib.parse import urlunparse
 
-MAIL_DNS_RECORD_TYPES = ("mx", "spf", "dkim", "dmarc")
+MAIL_DNS_RECORD_TYPES = ("mail", "mx", "spf", "dkim", "dmarc")
 DNS_RECORD_TYPES = ("verification",) + MAIL_DNS_RECORD_TYPES
 # webmail is deployable/checkable but opt-in: never auto-included by fix-all.
 DEPLOYABLE_RECORD_TYPES = DNS_RECORD_TYPES + ("webmail",)
@@ -10,6 +10,10 @@ PENDING_MAIL_CHECK = {
     "label": "",
     "message": "MXroute provides this record after the domain is registered (Step 3).",
 }
+
+
+def mail_host(domain):
+    return f"mail.{domain.lower().strip()}"
 
 
 def webmail_host(domain):

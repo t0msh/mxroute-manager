@@ -40,6 +40,25 @@ def _query_txt(name):
         return []
 
 
+def _query_cname_target(host):
+    resolver = dns.resolver.Resolver()
+    resolver.lifetime = 5.0
+    try:
+        answers = resolver.resolve(host, "CNAME")
+        for record in answers:
+            return str(record.target).lower().rstrip(".")
+    except (
+        dns.resolver.NXDOMAIN,
+        dns.resolver.NoAnswer,
+        dns.resolver.NoNameservers,
+        dns.exception.Timeout,
+    ):
+        return None
+    except Exception:
+        return None
+    return None
+
+
 def _query_mx(domain):
     resolver = dns.resolver.Resolver()
     resolver.lifetime = 5.0
@@ -67,7 +86,7 @@ def _check_status(passed, optional=False):
     return "warn" if optional else "fail"
 
 
-MAIL_DNS_CHECK_KEYS = ("mx", "spf", "dkim", "dmarc")
+MAIL_DNS_CHECK_KEYS = ("mail", "mx", "spf", "dkim", "dmarc")
 
 
 def overall_from_checks(checks, exclude_keys=None):

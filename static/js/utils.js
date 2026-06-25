@@ -1,6 +1,7 @@
 /** Shared string/DNS display helpers (pure, no DOM). */
 
 export const DNS_CHECK_SHORT = {
+    mail: "Mail",
     mx: "MX",
     spf: "SPF",
     dkim: "DKIM",

@@ -3,7 +3,7 @@
 import os
 from importlib.util import module_from_spec, spec_from_file_location
 
-APP_VERSION = "0.17.7"
+APP_VERSION = "0.17.8"
 APP_NAME = "MXroute Manager"
 APP_DESCRIPTION = (
     "Self-hosted control panel for MXroute email hosting, DNS management, "

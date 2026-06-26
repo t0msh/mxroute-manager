@@ -149,7 +149,7 @@ When work merges to `main` for a release, bump `APP_VERSION` in `app_meta.py` on
 | Bug fix, small tweak | patch |
 | Breaking config or API contract (while `0.x`) | minor |
 
-Tag `main` as `v{APP_VERSION}` after release. Do not sprinkle version strings elsewhere. Maintainers handle this on release; contributors usually skip it unless asked.
+Tag `main` as `v{APP_VERSION}` after release. Update `CHANGELOG.md` and publish matching GitHub release notes (see `release-changelog.mdc` in `.cursor/rules/`). Maintainers handle this on release; contributors usually skip it unless asked.
 
 ## PR checklist
 

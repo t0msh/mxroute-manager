@@ -1,0 +1,58 @@
+---
+description: Write a comprehensive GitHub release changelog for every version tag
+alwaysApply: true
+---
+
+# Release Changelogs
+
+Every release needs **two copies of the same changelog**: `CHANGELOG.md` in the repo and GitHub release notes for the tag. Pair with the version bump in `app_meta.py` (see `version-bump.mdc`).
+
+## When
+
+On each release, before merging the version bump to `main`.
+
+## How to build
+
+1. Previous tag: `git tag -l 'v*' --sort=-v:refname | head -1`
+2. Review `git log vPREVIOUS..HEAD` and merged PRs.
+3. Group by user-visible area (DNS, mail, auth, UI, API, ops).
+4. Write for someone upgrading. Plain language; link issues/PRs where helpful.
+
+## CHANGELOG.md format
+
+- Newest version **below** `[Unreleased]`, above older entries.
+- Heading: `## [0.18.1] - YYYY-MM-DD`
+- Subsections as needed: `### Added`, `### Changed`, `### Fixed`, `### Security`, `### Removed`
+- End with `### Upgrade` when deploy steps matter.
+- Move `[Unreleased]` bullets into the version section when you ship.
+
+```markdown
+## [Unreleased]
+
+## [0.18.1] - 2026-06-26
+
+Patch release: one-line summary.
+
+### Fixed
+
+- Symptom and what changed.
+
+### Upgrade
+
+\`\`\`bash
+git pull
+pip install -r requirements.txt
+\`\`\`
+```
+
+Commit `CHANGELOG.md` in the **same commit** as the `APP_VERSION` bump.
+
+## GitHub release
+
+Publish the **same content** as the new `CHANGELOG.md` section (not the whole file):
+
+```bash
+gh release create v0.18.1 --title "v0.18.1" --notes-file /tmp/release-notes.md
+```
+
+Draft `/tmp/release-notes.md` from the version section. No empty release bodies. No raw `git log`. Do not omit breaking or security items.

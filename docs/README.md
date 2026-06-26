@@ -19,7 +19,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for live reload while editin
 
 | Guide | Description |
 | --- | --- |
-| [Getting started](getting-started.md) | First deploy: clone, `.env`, Docker, login, production checklist |
+| [Getting started](getting-started.md) | First deploy: clone, `.env`, Docker or `deploy.sh`, login, production checklist |
 | [Configuration](configuration.md) | All environment variables and how they map to the UI |
 | [Settings walkthrough](settings-walkthrough.md) | Every field on the **Settings** tab, explained |
 | [Local admin password](admin-password.md) | How admin credentials are seeded and how to reset them |

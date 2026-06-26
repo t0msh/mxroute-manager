@@ -20,6 +20,8 @@ A self-hosted Flask app for managing MXroute domains, mailboxes, forwarders, Clo
 ## Quickstart
 
 **Requirements:** Docker and Docker Compose, plus MXroute API credentials.
+> [!IMPORTANT]
+> Don't forget to edit `.env`
 
 ```bash
 git clone https://github.com/t0msh/mxroute-manager.git
@@ -29,7 +31,9 @@ cp .env.example .env
 docker compose up --build -d
 ```
 
-Open [http://localhost:5000](http://localhost:5000) and sign in with `admin` (or `ADMIN_USER`) and your `ADMIN_PASSWORD`.
+Or use `./deploy.sh` to sync the app to a local directory or a remote host over SSH (interactive menu; save settings in `deploy.conf` for `./deploy.sh -y` later). Details: [Getting started](docs/getting-started.md#or-use-deploysh).
+
+Open [http://localhost:5000](http://localhost:5000) (or your server's IP) and sign in with `admin` (or `ADMIN_USER`) and your `ADMIN_PASSWORD`. The `deploy.sh` script spits out where the app is running once it's built and deployed.
 
 Production TLS, Cloudflare, SMTP, portals: [Getting started](docs/getting-started.md)
 

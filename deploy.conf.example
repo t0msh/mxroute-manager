@@ -1,0 +1,15 @@
+# Copy to deploy.conf (gitignored) for repeat deploys without prompts:
+#   cp deploy.conf.example deploy.conf
+#
+# Then run:  ./deploy.sh -y
+
+DEPLOY_MODE=remote
+DEPLOY_DIR=/opt/mxroute-manager
+REMOTE=deploy@your-server.example
+SSH_PORT=22
+
+# Local deploy example:
+# DEPLOY_MODE=local
+# DEPLOY_DIR=/opt/mxroute-manager
+# REMOTE=
+# SSH_PORT=22

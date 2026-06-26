@@ -3,7 +3,7 @@ logs/
 
 # Environment variables and secrets
 .env
-deploy.sh
+deploy.conf
 build_info.py
 
 # Local database and domain permissions configuration

@@ -44,6 +44,8 @@ Full variable reference: [Configuration](configuration.md).
 
 ## 2. Start the application
 
+On the machine that will run the app:
+
 ```bash
 docker compose up --build -d
 ```
@@ -55,6 +57,29 @@ Check logs:
 ```bash
 docker compose logs -f mxroute-manager
 ```
+
+### Or use `deploy.sh`
+
+Do not want to SSH in and run Compose by hand every time? `./deploy.sh` in the repo root is a small wrapper that syncs the project to a target directory and runs `docker compose up --build` for you. It also writes a git build stamp so **Settings** can show which commit is running (e.g. `v0.17.8 · dev@47d575a`).
+
+```bash
+chmod +x deploy.sh   # once, if needed
+./deploy.sh
+```
+
+Pick **local directory** to deploy on the machine you are on, or **remote server (SSH)** to stream the files to another host (`user@host`). For remote deploys you only need `ssh`, `tar`, and `scp` locally; Docker must be installed on the target.
+
+Save your answers to `deploy.conf` when prompted, then later redeploy without the menu:
+
+```bash
+./deploy.sh -y
+```
+
+You can also copy `deploy.conf.example` to `deploy.conf` and edit it by hand. See `./deploy.sh --help` for flags.
+
+The script does **not** overwrite `.env` on the target if one is already there. On a fresh target it uploads your local `.env` only when the remote copy is missing, so complete [step 1](#1-clone-and-configure) first.
+
+Manual `docker compose` on the server still works fine. Use whichever path you prefer.
 
 ## 3. Sign in
 
@@ -90,11 +115,13 @@ Do **not** expose port 5000 directly to the internet without TLS.
 
 Step-by-step for **Nginx Proxy Manager**: [reverse-proxy.md](reverse-proxy.md).
 
-Redeploy after `.env` changes:
+Redeploy after code or `.env` changes:
 
 ```bash
 docker compose up -d
 ```
+
+On the machine where you run `./deploy.sh`, `./deploy.sh -y` does the same job (sync + rebuild) when you have a saved `deploy.conf`.
 
 ## 6. Optional features
 

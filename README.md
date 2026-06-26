@@ -99,7 +99,7 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Details: [Contributing](CONTRIBUTING.md) · [Testing](docs/testing.md) · [Frontend scripts](docs/frontend-app-scripts.md) · `mkdocs serve` for docs preview
+Details: [Contributing](docs/contributing.md) · [Testing](docs/testing.md) · [Frontend scripts](docs/frontend-app-scripts.md) · `mkdocs serve` for docs preview
 
 ## License
 

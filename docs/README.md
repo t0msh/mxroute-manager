@@ -51,7 +51,7 @@ Open [http://127.0.0.1:8000](http://127.0.0.1:8000) for live reload while editin
 
 | Guide | Description |
 | --- | --- |
-| [Contributing](../CONTRIBUTING.md) | How we code, PR expectations, and quality standards |
+| [Contributing](contributing.md) | How we code, PR expectations, and quality standards |
 | [Testing](testing.md) | Test layers, fixtures, and how to add coverage |
 | [Frontend app scripts](frontend-app-scripts.md) | Split `static/js/app/` files and script load order |
 

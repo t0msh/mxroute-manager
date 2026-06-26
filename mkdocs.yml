@@ -70,6 +70,7 @@ nav:
       - App tour: app-tour.md
       - Themes: themes.md
   - Development:
+      - Contributing: contributing.md
       - Testing: testing.md
       - Frontend app scripts: frontend-app-scripts.md
 

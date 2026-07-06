@@ -1,6 +1,8 @@
 """Scheduled public DNS health checks with audit/notification hooks."""
 
+import fcntl
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,7 +12,8 @@ from models.db import (
     get_notification_settings,
     save_dns_health_state,
 )
-from services.cloudflare import build_setup_health, cf_is_configured
+from models.db_notifications import _clamp_dns_monitor_interval
+from services.cloudflare import build_setup_health
 from services.mxroute import audit, mx_request_raw
 from services.quota_monitor import maybe_run_quota_monitor
 from services.fleet_monitor import maybe_run_fleet_overview
@@ -19,13 +22,31 @@ logger = logging.getLogger(__name__)
 
 POLL_SECONDS = 300
 _BAD_STATUSES = frozenset({"degraded", "unhealthy"})
+_monitor_lock_handle = None
+
+
+def _monitor_lock_path():
+    db_path = os.getenv("DATABASE_FILE", "mxroute-manager.db")
+    return f"{db_path}.monitor.lock"
+
+
+def _try_acquire_monitor_lock():
+    """Only one Gunicorn worker should run background monitors."""
+    global _monitor_lock_handle
+    try:
+        handle = open(_monitor_lock_path(), "w", encoding="utf-8")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return False
+    _monitor_lock_handle = handle
+    return True
 
 
 def _list_account_domains():
     res, status = mx_request_raw("GET", "/domains")
     if status != 200:
         logger.warning("DNS monitor: domain list failed with status %s", status)
-        return []
+        return None
     return [str(domain).lower() for domain in res.get("data", []) if domain]
 
 
@@ -49,17 +70,23 @@ def _run_domain_checks(domains):
     return results
 
 
+def _merge_check_results(previous, current):
+    """Keep last known status when a per-domain check fails."""
+    merged = dict(previous)
+    for domain, overall in current.items():
+        if overall is not None:
+            merged[domain] = overall
+    return merged
+
+
 def maybe_run_dns_health_monitor():
     """Run a scheduled DNS scan when the monitor is enabled and the interval elapsed."""
-    if not cf_is_configured():
-        return
-
     config = get_notification_settings()
     monitor = config.get("dns_monitor") or {}
     if not monitor.get("enabled") or not config.get("enabled"):
         return
 
-    interval_hours = max(1, int(monitor.get("interval_hours") or 24))
+    interval_hours = _clamp_dns_monitor_interval(monitor.get("interval_hours"))
     state = get_dns_health_state()
     last_run = state.get("last_run_at")
     now = time.time()
@@ -67,15 +94,18 @@ def maybe_run_dns_health_monitor():
         return
 
     domains = _list_account_domains()
+    if domains is None:
+        return
     if not domains:
         save_dns_health_state({"last_run_at": now, "domains": {}})
         return
 
     previous = state.get("domains") or {}
-    current = _run_domain_checks(domains)
+    raw_current = _run_domain_checks(domains)
+    current = _merge_check_results(previous, raw_current)
     alerts = []
     recoveries = []
-    for domain, overall in current.items():
+    for domain, overall in raw_current.items():
         if not overall:
             continue
         prev = previous.get(domain)
@@ -102,6 +132,9 @@ def maybe_run_dns_health_monitor():
 
 def start_dns_health_monitor(app):
     """Background loop; checks every POLL_SECONDS whether monitors are due."""
+    if not _try_acquire_monitor_lock():
+        logger.info("Background monitor skipped in this worker (lock held elsewhere)")
+        return
 
     def tick():
         try:

@@ -177,7 +177,17 @@ async function applyNotificationSettingsToForm(data) {
     }
     if (monitorInterval) {
         const hours = Number(data.dns_monitor?.interval_hours || 24);
-        monitorInterval.value = String(hours);
+        const optionValues = Array.from(monitorInterval.options).map((opt) => opt.value);
+        monitorInterval.value = optionValues.includes(String(hours))
+            ? String(hours)
+            : String(optionValues[0] || 24);
+    }
+    const monitorLastRun = document.getElementById("dns-monitor-last-run");
+    if (monitorLastRun) {
+        const lastRun = data.dns_monitor?.last_run_at;
+        monitorLastRun.textContent = lastRun
+            ? `Last check: ${new Date(Number(lastRun) * 1000).toLocaleString()}`
+            : "Last check: never";
     }
 
     const quotaToggle = document.getElementById("setting-quota-monitor-enabled");

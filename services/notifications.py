@@ -7,7 +7,7 @@ import threading
 import apprise
 
 from app_meta import APP_NAME
-from models.db import get_notification_settings
+from models.db import get_dns_health_state, get_notification_settings
 from utils.apprise_builder import mask_apprise_url, resolve_target_url, SERVICE_CRED_ENV
 from utils.notification_branding import mxm_apprise_asset
 
@@ -141,6 +141,7 @@ def mask_notification_settings_for_response(config):
             "interval_hours": int(
                 (config.get("dns_monitor") or {}).get("interval_hours") or 24
             ),
+            "last_run_at": get_dns_health_state().get("last_run_at"),
         },
         "quota_monitor": {
             "enabled": bool((config.get("quota_monitor") or {}).get("enabled")),

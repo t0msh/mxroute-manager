@@ -6,9 +6,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/). Version numb
 
 ## [Unreleased]
 
+## [0.18.1] - 2026-09-30
+
+Patch release: delegation form fixes, SQLite connection hardening, DNS monitor controls, and code quality improvements.
+
 ### Added
 
-- Contributing guide (`docs/contributing.md`) with coding standards, PR expectations, and MkDocs nav entry.
+- **Contributing Guide**: added `CONTRIBUTING.md` and `docs/contributing.md` covering coding standards, PR expectations, and testing workflows.
+- **DNS Monitor Interval**: exposed configurable check interval directly in the UI settings panel.
+
+### Fixed
+
+- **Access Control & Delegations**: fixed `Cannot set properties of null (setting 'checked')` when saving or editing delegates by scoping domain row resets to the delegation matrix and separating API token row classes. Fixes [#15](https://github.com/t0msh/mxroute-manager/issues/15).
+- **SQLite Concurrency & Integrity**: enforced `PRAGMA foreign_keys = ON;` and a 30-second lock timeout across database connections to avoid concurrency lock errors under multi-worker setups.
+- **Database Performance**: added query indexes on `password_reset_tokens(token_hash)` and `delegations(user_id)`.
+- **Rate Limiting**: committed pruned transaction rows in `SlidingWindowRateLimiter.is_blocked()`.
+- **Quality Gate**: resolved all `aislop` findings (achieving a clean 100/100 score) with ESLint config for classic browser scripts and string/array method modernizations.
+
+### Upgrade
+
+```bash
+git pull
+./deploy.sh   # or docker compose up --build -d
+```
 
 ## [0.18.0] - 2026-06-26
 

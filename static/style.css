@@ -1250,7 +1250,8 @@ tr.table-empty-row > td {
     gap: 0.75rem;
 }
 
-.delegation-domain-row {
+.delegation-domain-row,
+.api-token-domain-row {
     border: 1px solid var(--glass-border);
     border-radius: 10px;
     padding: 0.75rem;

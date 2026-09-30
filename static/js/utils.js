@@ -97,7 +97,7 @@ export function dnsNeedsFix(health) {
 
 /** Run async fn over items with a fixed concurrency cap (third-party / heavy API calls). */
 export async function mapWithConcurrency(items, limit, fn) {
-    const results = new Array(items.length);
+    const results = Array.from({ length: items.length });
     let i = 0;
     async function worker() {
         while (i < items.length) {

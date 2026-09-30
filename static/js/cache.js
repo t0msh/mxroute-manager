@@ -13,7 +13,7 @@ export function getCacheTtl(url, ttlMs = CACHE_TTL_MS) {
     if (url === "/api/domains") return ttlMs.domains;
     if (url === "/api/quota") return ttlMs.quota;
     if (/\/dns\/health/.test(url) || /\/dns\/setup-health/.test(url)) return ttlMs.dnsHealth;
-    if (/\/dns$/.test(url.split("?")[0])) return ttlMs.dnsRecords;
+    if (url.split("?")[0].endsWith("/dns")) return ttlMs.dnsRecords;
     if (/^\/api\/domains\/[^/]+$/.test(url.split("?")[0])) return ttlMs.domainDetail;
     return ttlMs.list;
 }

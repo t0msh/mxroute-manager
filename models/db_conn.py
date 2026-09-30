@@ -16,7 +16,8 @@ def _database_file():
 @contextmanager
 def get_conn():
     """Yield a SQLite connection that is always closed, even on exceptions."""
-    conn = sqlite3.connect(_database_file())
+    conn = sqlite3.connect(_database_file(), timeout=30.0)
+    conn.execute("PRAGMA foreign_keys = ON;")
     try:
         yield conn
     finally:

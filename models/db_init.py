@@ -82,6 +82,14 @@ def _create_tables(cursor):
         );
     """)
     cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_hash
+        ON password_reset_tokens(token_hash);
+    """)
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_delegations_user_id
+        ON delegations(user_id);
+    """)
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS domain_reset_portals (
             domain TEXT PRIMARY KEY,
             enabled INTEGER NOT NULL DEFAULT 0,

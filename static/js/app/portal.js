@@ -182,7 +182,7 @@ function renderResetPortalForm(data) {
     resetPortalDeployConfigured = !!data.deploy_configured;
 
     if (deployMissing) {
-        const missing = data.deploy_missing || [];
+        const missing = Array.isArray(data.deploy_missing) ? data.deploy_missing : [];
         deployMissing.style.display = missing.length ? "block" : "none";
         const list = document.getElementById("reset-portal-deploy-missing-list");
         if (list) list.textContent = missing.join(", ");

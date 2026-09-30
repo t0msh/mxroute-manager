@@ -45,7 +45,9 @@ class SlidingWindowRateLimiter:
         with get_conn() as conn:
             cursor = conn.cursor()
             self._prune(cursor, key, now)
-            return self._count(cursor, key) >= limit
+            blocked = self._count(cursor, key) >= limit
+            conn.commit()
+            return blocked
 
     def register(self, key):
         """Record an event without enforcing a limit (used to count failures)."""

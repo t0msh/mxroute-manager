@@ -17,7 +17,7 @@ function formatApiTokenGrantsHtml(token) {
 
 function createApiTokenDomainRow(domain) {
     const row = document.createElement("div");
-    row.className = "delegation-domain-row api-token-domain-row";
+    row.className = "api-token-domain-row";
     row.dataset.domain = domain;
 
     const permissionMarkup = delegationPermissionCatalog.map((permission) => `
@@ -75,7 +75,9 @@ function renderApiTokenDomainsChecklist(domainsRes) {
 
 function collectApiTokenGrants() {
     const grants = [];
-    document.querySelectorAll(".api-token-domain-row").forEach((row) => {
+    const matrix = document.getElementById("api-token-permissions-matrix");
+    if (!matrix) return grants;
+    matrix.querySelectorAll(".api-token-domain-row").forEach((row) => {
         const enableCb = row.querySelector(".api-token-domain-enable");
         if (!enableCb?.checked) return;
         const permissions = [...row.querySelectorAll(".api-token-permission-cb:checked")].map((cb) => cb.value);
@@ -85,17 +87,23 @@ function collectApiTokenGrants() {
 }
 
 function resetApiTokenForm() {
-    document.getElementById("api-token-label").value = "";
+    const labelInput = document.getElementById("api-token-label");
+    if (labelInput) labelInput.value = "";
     const adminCb = document.getElementById("api-token-admin-cb");
     if (adminCb) adminCb.checked = false;
-    document.getElementById("api-token-permissions-matrix")?.style.setProperty("display", "flex");
-    document.querySelectorAll(".api-token-domain-row").forEach((row) => {
-        row.querySelector(".api-token-domain-enable").checked = false;
-        row.querySelector(".delegation-permission-grid").style.display = "none";
-        row.querySelectorAll(".api-token-permission-cb").forEach((cb) => {
-            cb.checked = true;
+    const matrix = document.getElementById("api-token-permissions-matrix");
+    if (matrix) {
+        matrix.style.setProperty("display", "flex");
+        matrix.querySelectorAll(".api-token-domain-row").forEach((row) => {
+            const enableCb = row.querySelector(".api-token-domain-enable");
+            const permissionGrid = row.querySelector(".delegation-permission-grid");
+            if (enableCb) enableCb.checked = false;
+            if (permissionGrid) permissionGrid.style.display = "none";
+            row.querySelectorAll(".api-token-permission-cb").forEach((cb) => {
+                cb.checked = true;
+            });
         });
-    });
+    }
 }
 
 function showCreatedApiToken(rawToken) {

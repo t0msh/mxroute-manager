@@ -219,7 +219,9 @@ function createDelegationDomainRow(domain) {
 
 function collectDelegationGrants() {
     const grants = [];
-    document.querySelectorAll(".delegation-domain-row").forEach(row => {
+    const matrix = document.getElementById("delegation-permissions-matrix");
+    if (!matrix) return grants;
+    matrix.querySelectorAll(".delegation-domain-row").forEach(row => {
         const enableCb = row.querySelector(".delegation-domain-enable");
         if (!enableCb?.checked) return;
         const permissions = [...row.querySelectorAll(".delegation-permission-cb:checked")].map(cb => cb.value);
@@ -229,7 +231,8 @@ function collectDelegationGrants() {
 }
 
 function handleEditDelegation(email, grants, isAdmin, contactEmail = "") {
-    document.getElementById("delegation-email").value = email;
+    const emailInput = document.getElementById("delegation-email");
+    if (emailInput) emailInput.value = email;
     const contactInput = document.getElementById("delegation-contact-email");
     if (contactInput) contactInput.value = contactEmail || "";
     const passInput = document.getElementById("delegation-password");
@@ -237,31 +240,33 @@ function handleEditDelegation(email, grants, isAdmin, contactEmail = "") {
 
     const adminCb = document.getElementById("delegation-admin-cb");
     const matrix = document.getElementById("delegation-permissions-matrix");
-    document.querySelectorAll(".delegation-domain-row").forEach(row => {
-        const enableCb = row.querySelector(".delegation-domain-enable");
-        const permissionGrid = row.querySelector(".delegation-permission-grid");
-        enableCb.checked = false;
-        row.querySelectorAll(".delegation-permission-cb").forEach(cb => {
-            cb.checked = true;
+    if (matrix) {
+        matrix.querySelectorAll(".delegation-domain-row").forEach(row => {
+            const enableCb = row.querySelector(".delegation-domain-enable");
+            const permissionGrid = row.querySelector(".delegation-permission-grid");
+            if (enableCb) enableCb.checked = false;
+            row.querySelectorAll(".delegation-permission-cb").forEach(cb => {
+                cb.checked = true;
+            });
+            if (permissionGrid) permissionGrid.style.display = "none";
         });
-        permissionGrid.style.display = "none";
-    });
+    }
 
     if (adminCb) {
         adminCb.checked = !!isAdmin;
         if (matrix) matrix.style.display = isAdmin ? "none" : "flex";
     }
 
-    if (!isAdmin) {
+    if (!isAdmin && matrix) {
         const grantMap = Object.fromEntries((grants || []).map(grant => [grant.domain, grant.permissions || []]));
-        document.querySelectorAll(".delegation-domain-row").forEach(row => {
+        matrix.querySelectorAll(".delegation-domain-row").forEach(row => {
             const domain = row.dataset.domain;
             const enableCb = row.querySelector(".delegation-domain-enable");
             const permissionGrid = row.querySelector(".delegation-permission-grid");
             const selected = grantMap[domain];
-            if (!selected) return;
+            if (!selected || !enableCb) return;
             enableCb.checked = true;
-            permissionGrid.style.display = "grid";
+            if (permissionGrid) permissionGrid.style.display = "grid";
             row.querySelectorAll(".delegation-permission-cb").forEach(cb => {
                 cb.checked = selected.includes(cb.value);
             });
@@ -269,7 +274,7 @@ function handleEditDelegation(email, grants, isAdmin, contactEmail = "") {
     }
 
     updateDelegationPasswordHint();
-    document.getElementById("form-create-delegation").scrollIntoView({ behavior: "smooth" });
+    document.getElementById("form-create-delegation")?.scrollIntoView({ behavior: "smooth" });
 }
 
 window.handleEditDelegation = handleEditDelegation;
@@ -340,12 +345,17 @@ document.getElementById("form-create-delegation").addEventListener("submit", asy
         if (contactInput) contactInput.value = "";
         if (passInput) passInput.value = "";
         if (adminCb) adminCb.checked = false;
-        document.getElementById("delegation-permissions-matrix")?.style.setProperty("display", "flex");
-        document.querySelectorAll(".delegation-domain-row").forEach(row => {
-            row.querySelector(".delegation-domain-enable").checked = false;
-            row.querySelector(".delegation-permission-grid").style.display = "none";
-            row.querySelectorAll(".delegation-permission-cb").forEach(cb => { cb.checked = true; });
-        });
+        const matrix = document.getElementById("delegation-permissions-matrix");
+        if (matrix) {
+            matrix.style.setProperty("display", "flex");
+            matrix.querySelectorAll(".delegation-domain-row").forEach(row => {
+                const enableCb = row.querySelector(".delegation-domain-enable");
+                const permissionGrid = row.querySelector(".delegation-permission-grid");
+                if (enableCb) enableCb.checked = false;
+                if (permissionGrid) permissionGrid.style.display = "none";
+                row.querySelectorAll(".delegation-permission-cb").forEach(cb => { cb.checked = true; });
+            });
+        }
         await loadDelegationsPage();
     } catch (err) {
         showAlert("error", err.message);
